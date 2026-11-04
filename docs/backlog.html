@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LazyCode Backlog</title>
+<meta name="description" content="LazyCode backlog: features and requirements, what is complete and pending, the start order, and what can be built in parallel after the core editor.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23b4531f'/%3E%3Cpath d='M5 3v10h6' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #fbfaf7; --surface: #f2f0ea; --text: #1f1e1b; --muted: #5f5c54; --line: #d9d5ca;
+  --accent: #a84a18; --accent-soft: #f6e4d8; --done: #1d6b3a; --done-soft: #dff1e4;
+  --doing: #1f5c99; --doing-soft: #dfeaf6; --decide: #80510a; --decide-soft: #f7ebd3;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  color-scheme: dark;
+  --bg: #161513; --surface: #201f1c; --text: #ece9e2; --muted: #a9a59b; --line: #3a3833;
+  --accent: #ef9a68; --accent-soft: #3d281b; --done: #74d195; --done-soft: #1b3324;
+  --doing: #84bdf2; --doing-soft: #1b2c3d; --decide: #e6bd6c; --decide-soft: #362a14;
+} }
+* { box-sizing: border-box; }
+html { scroll-padding-top: 4rem; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--sans); overflow-wrap: anywhere; }
+header, main, footer { max-width: 1160px; margin: 0 auto; padding: 0 16px; }
+header { padding-top: 32px; }
+h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 6px; }
+h2 { font-size: 1.35rem; margin: 48px 0 8px; padding-top: 12px; border-top: 2px solid var(--text); }
+h3 { font-size: 1rem; margin: 24px 0 6px; }
+p { margin: 0 0 10px; max-width: 75ch; }
+a { color: var(--accent); }
+code, .id { font-family: var(--mono); font-size: .88em; }
+.muted { color: var(--muted); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+nav { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line); }
+nav div { max-width: 1160px; margin: 0 auto; padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+nav a { font-weight: 600; text-decoration: none; }
+nav a:hover { text-decoration: underline; }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; margin: 20px 0; padding: 16px 0; border-block: 1px solid var(--line); }
+.stats b { display: block; font-size: 1.65rem; line-height: 1.2; }
+.stats span { color: var(--muted); font-size: .9rem; }
+.notice { border-left: 3px solid var(--accent); padding: 8px 12px; background: var(--accent-soft); margin: 14px 0; max-width: 75ch; }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+button, select, input[type=search] { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--muted); border-radius: 4px; padding: 5px 9px; min-height: 34px; max-width: 100%; }
+button { cursor: pointer; font-weight: 600; }
+button:hover { background: var(--surface); }
+label.filter { display: inline-flex; flex-direction: column; font-size: .82rem; color: var(--muted); gap: 2px; }
+label.filter input, label.filter select { color: var(--text); font-size: .95rem; }
+
+ol.steps { padding-left: 1.4rem; max-width: 80ch; }
+ol.steps li { margin-bottom: 8px; }
+.stage { margin: 18px 0; padding-left: 14px; border-left: 3px solid var(--line); }
+.stage.gate { border-left-color: var(--accent); background: var(--accent-soft); padding: 10px 14px; }
+.stage h3 { margin-top: 0; }
+.lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(255px, 1fr)); gap: 14px 22px; margin-top: 12px; }
+.lane { border-top: 2px solid var(--accent); padding-top: 8px; min-width: 0; }
+.lane h4 { margin: 0; font-size: .98rem; }
+.lane p { font-size: .88rem; margin: 2px 0 8px; color: var(--muted); }
+ul.items { list-style: none; margin: 0; padding: 0; }
+ul.items li { padding: 6px 0; border-top: 1px solid var(--line); }
+ul.items .sub { display: block; font-size: .84rem; color: var(--muted); }
+
+.badge { display: inline-block; font-size: .8rem; font-weight: 600; padding: 1px 7px; border-radius: 3px; white-space: nowrap; border: 1px solid transparent; }
+.b-done { color: var(--done); background: var(--done-soft); }
+.b-doing { color: var(--doing); background: var(--doing-soft); }
+.b-todo { color: var(--muted); border-color: var(--line); }
+.b-decide { color: var(--decide); background: var(--decide-soft); }
+.b-ready { color: var(--accent); background: var(--accent-soft); }
+
+table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+th, td { text-align: left; vertical-align: top; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+thead th { font-size: .82rem; color: var(--muted); border-bottom: 2px solid var(--line); white-space: nowrap; }
+.nb, td.id a { white-space: nowrap; }
+tbody th.group { background: var(--surface); font-size: .95rem; padding-block: 8px; }
+tr:target td { background: var(--accent-soft); }
+td .sub { display: block; font-size: .84rem; color: var(--muted); }
+td.nowrap { white-space: nowrap; }
+#empty-items, #empty-reqs { display: none; }
+@media (max-width: 760px) {
+  thead { display: none; }
+  table, tbody, tr, td, tbody th { display: block; width: 100%; }
+  tr { border-bottom: 1px solid var(--line); padding: 6px 0; }
+  td { border: 0; padding: 3px 0; }
+  td[data-label]::before { content: attr(data-label) ": "; color: var(--muted); font-size: .84rem; }
+  td.nowrap { white-space: normal; }
+}
+footer { margin-top: 40px; padding-block: 16px 32px; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; }
+</style>
+</head>
+<body>
+<nav aria-label="Sections"><div>
+  <a href="#overview">Overview</a><a href="#plan">Build plan</a><a href="#backlog">Backlog</a><a href="#requirements">Requirements</a><a href="#decisions">Decisions</a>
+</div></nav>
+
+<header>
+  <h1>LazyCode Backlog</h1>
+  <p class="muted">Features, requirements, start order and parallel work. Updated from the documents up to Q-80, on 2026-11-03.</p>
+</header>
+
+<main>
+<section id="overview" aria-labelledby="h-overview">
+  <h2 id="h-overview">Overview</h2>
+  <div class="notice"><strong>Planning is done, and the prototype has started, but there's no editor yet.</strong> That's why no requirement is complete so far. A requirement only becomes complete when every backlog item that builds it is marked Done.</div>
+  <div class="stats" data-rendered id="stats"></div>
+  <h3>You can start these now</h3>
+  <p class="muted">Calculated: not done, everything they depend on is done, and no linked question is open.</p>
+  <ul class="items" data-rendered id="ready"></ul>
+  <div class="tools">
+    <button type="button" id="save">Save updated file</button>
+    <button type="button" id="reset">Discard browser changes</button>
+    <span id="msg" class="muted" role="status"></span>
+  </div>
+  <p class="muted">Changes you make here stay in this browser only. <strong>Save updated file</strong> downloads a new <code>backlog.html</code> with your changes; replace <code>docs/backlog.html</code> with it to keep them.</p>
+</section>
+
+<section id="plan" aria-labelledby="h-plan">
+  <h2 id="h-plan">Build plan</h2>
+  <p>Effort is estimated full-time weeks for one experienced developer, from <a href="04-feasibility.md">04-feasibility.md</a>. It isn't tested, and there are no dates because this is a free-time project.</p>
+  <div class="stats" data-rendered id="path"></div>
+  <p><strong>Parallel work only saves time with more than one person</strong>, such as contributors. Working alone, the tracks are an order you can choose freely, not a shortcut. The people figure above also ignores coordination time.</p>
+
+  <h3>Order to start</h3>
+  <ol class="steps">
+    <li><strong>Build the prototype (M0)</strong>, to prove the terminal tab, keys, session resume and memory on all three systems before investing further.</li>
+    <li><strong>Build the core, in order and ideally with one person</strong>, because everything else plugs into it.</li>
+    <li><strong>Pass the core gate</strong>, which freezes how the other work connects to the core.</li>
+    <li><strong>Start the parallel tracks.</strong> If working alone, I'd suggest D, A, F, E, C, then B: the terminal, AI sessions and projects make this editor different.</li>
+    <li><strong>Release the first version</strong>, then build language servers and later Git, then plugins, then the store.</li>
+  </ol>
+
+  <div class="stage"><h3>Stage 1: Planning</h3><ul class="items" data-rendered data-group="plan"></ul></div>
+  <div class="stage"><h3>Stage 2: Prototype (M0), about 3–4 weeks</h3><p class="muted">Items can overlap, but must all finish before the core.</p><ul class="items" data-rendered data-group="m0"></ul></div>
+  <div class="stage"><h3>Stage 3: Core editor (M1), one after another</h3><ul class="items" data-rendered data-group="core"></ul></div>
+
+  <div class="stage gate">
+    <h3>Core gate: what must be stable before parallel work starts</h3>
+    <p>Proposed. If these hold, tracks can be built without touching each other's code:</p>
+    <ul>
+      <li>A message channel for sending results to the UI loop</li>
+      <li>A tab interface that both file tabs and terminal tabs can use</li>
+      <li>A panel view interface, so that any view fits either panel</li>
+      <li>Read access to the active project and directory</li>
+      <li>Registration for commands and key bindings</li>
+      <li>Config loading and validation</li>
+      <li>A trust check that any feature can call</li>
+    </ul>
+  </div>
+
+  <div class="stage"><h3>Stage 4: Parallel tracks, after the gate</h3>
+    <p class="muted">Items marked "starts at the gate" have no other dependency. Within a track, follow the order shown.</p>
+    <div class="lanes" data-rendered id="lanes"></div>
+  </div>
+  <div class="stage"><h3>Stage 5: First release (M3)</h3><p class="muted">Needs the first-version items from the tracks above: everything not marked "later".</p><ul class="items" data-rendered data-group="release"></ul></div>
+  <div class="stage"><h3>Stage 6: Plugins (M5)</h3><p class="muted">Waits for the first release and language servers, so the public API doesn't have to change soon after it ships.</p><ul class="items" data-rendered data-group="plugins"></ul></div>
+  <div class="stage"><h3>Stage 7: Store (M6)</h3><ul class="items" data-rendered data-group="store"></ul></div>
+</section>
+
+<section id="backlog" aria-labelledby="h-backlog">
+  <h2 id="h-backlog">Backlog</h2>
+  <div class="tools">
+    <label class="filter">Search<input type="search" id="f-item-q" placeholder="ID or name"></label>
+    <label class="filter">Status<select id="f-item-status"><option value="">All</option><option value="done">Done</option><option value="doing">In progress</option><option value="todo">Pending</option><option value="ready">Ready to start</option><option value="decide">Needs a decision</option></select></label>
+    <label class="filter">Release<select id="f-item-rel"><option value="">All</option><option value="first">First version</option><option value="later">Later</option></select></label>
+    <span id="count-items" class="muted" role="status"></span>
+  </div>
+  <table><caption>Backlog items grouped by stage</caption>
+    <thead><tr><th scope="col">ID</th><th scope="col">Item</th><th scope="col">Weeks</th><th scope="col">Status</th><th scope="col">Can it start?</th><th scope="col">Requirements</th></tr></thead>
+    <tbody data-rendered id="items"></tbody>
+  </table>
+  <p id="empty-items" class="muted">No backlog items match these filters.</p>
+</section>
+
+<section id="requirements" aria-labelledby="h-reqs">
+  <h2 id="h-reqs">Requirements</h2>
+  <p>Status is calculated from the linked backlog items, so it can't be set by hand. "First version" follows your answers to Q-49, Q-51 and Q-53.</p>
+  <div class="tools">
+    <label class="filter">Search<input type="search" id="f-req-q" placeholder="ID or text"></label>
+    <label class="filter">Status<select id="f-req-status"><option value="">All</option><option value="done">Complete</option><option value="doing">In progress</option><option value="todo">Pending</option></select></label>
+    <label class="filter">Feature<select id="f-req-feature"><option value="">All</option></select></label>
+    <label class="filter">Decisions<select id="f-req-open"><option value="">All</option><option value="open">Needs a decision</option></select></label>
+    <span id="count-reqs" class="muted" role="status"></span>
+  </div>
+  <table><caption>Requirements with their calculated status</caption>
+    <thead><tr><th scope="col">ID</th><th scope="col">Requirement</th><th scope="col">Release</th><th scope="col">Status</th><th scope="col">Built by</th><th scope="col">Open questions</th></tr></thead>
+    <tbody data-rendered id="reqs"></tbody>
+  </table>
+  <p id="empty-reqs" class="muted">No requirements match these filters.</p>
+</section>
+
+<section id="decisions" aria-labelledby="h-decisions">
+  <h2 id="h-decisions">Decisions</h2>
+  <p>Questions still open in <a href="03-open-questions.md">03-open-questions.md</a>. Tick one once it's answered, and the items it holds up become free to start. Q-1 to Q-80 are answered.</p>
+  <table><caption>Open questions and the backlog items they hold up</caption>
+    <thead><tr><th scope="col">ID</th><th scope="col">Question</th><th scope="col">Holds up</th><th scope="col">Answered</th></tr></thead>
+    <tbody data-rendered id="qs"></tbody>
+  </table>
+</section>
+</main>
+
+<footer>Sources: <a href="01-requirements.md">requirements</a>, <a href="14-roadmap.md">roadmap</a>, <a href="16-decisions.md">decision log</a>.</footer>
+
+<script type="application/json" id="state">{"status":{},"answered":[]}</script>
+<script>
+'use strict';
+const PHASES = {
+  plan: 'Planning', m0: 'Prototype (M0)', core: 'Core editor (M1)',
+  A: 'Track A: Workspace', B: 'Track B: Search', C: 'Track C: Git and GitHub',
+  D: 'Track D: Terminal, run and AI', E: 'Track E: Language support', F: 'Track F: Trust and onboarding',
+  release: 'First release (M3)', plugins: 'Plugins (M5)', store: 'Store (M6)'
+};
+const LANE_NOTES = {
+  A: 'Projects, switching and the tree. The rest of the work reads the project model.',
+  B: 'The most independent track, and a good first contribution.',
+  C: 'Independent of the others. Only needs the active directory.',
+  D: 'The largest track, and what makes LazyCode different: terminal tabs, AI sessions and modified-line markers.',
+  E: 'Highlighting is in the first version. Language servers come after it, and need the trust check.',
+  F: 'Short, but it holds up run commands, AI sessions and language servers.'
+};
+// d = status in the documents; deps = must finish first; q = open questions; rel = first version or later.
+const ITEMS = [
+  {id:'DOC-01',g:'plan',n:'Requirements and use cases',d:'done',rel:'first'},
+  {id:'DOC-02',g:'plan',n:'Architecture, components, UI, data and config docs (drafts)',d:'done',rel:'first'},
+  {id:'DOC-03',g:'plan',n:'Language, AI, security, performance, testing and release docs (drafts)',d:'done',rel:'first'},
+  {id:'DEC-01',g:'plan',n:'Answer the first 49 questions',d:'done',rel:'first'},
+  {id:'VAL-01',g:'plan',n:'Measure the Go, screen and Lua base memory',note:'5.9 MB, or 7.8 MB with Lua',d:'done',rel:'first'},
+  {id:'VAL-02',g:'plan',n:'Check that the Go libraries compile for Windows and macOS',note:'Compiled only, not run there yet',d:'done',rel:'first'},
+  {id:'VAL-03',g:'plan',n:'Measure terminal tab memory by scrollback size',note:'36 MB at 1,000 lines, 185 MB at 10,000',d:'done',rel:'first'},
+  {id:'VAL-04',g:'plan',n:'Measure the pure-Go syntax parser',note:'204 MB on a 1 MB file',d:'done',rel:'first'},
+  {id:'DEC-02',g:'plan',n:'Answer follow-up questions Q-50 to Q-73',d:'done',rel:'first'},
+  {id:'DEC-03',g:'plan',n:'Answer new questions Q-74 to Q-79',d:'done',rel:'first'},
+  {id:'DEC-04',g:'plan',n:'Answer Q-80, three small key fixes',d:'done',rel:'first'},
+
+  {id:'M0-01',g:'m0',n:'Create the repository, Go module and CI on three systems',rel:'first'},
+  {id:'M0-02',g:'m0',n:'Prototype: project switcher, file tree, terminal tab running a real AI tool',deps:['M0-01'],rel:'first'},
+  {id:'M0-03',g:'m0',n:'Run the prototype and the C parser build on Windows and macOS',deps:['M0-02'],rel:'first'},
+  {id:'M0-04',g:'m0',n:'Measure the official C tree-sitter binding',note:'75 MB on a 1 MB file, chosen under Q-69. Linux only so far.',d:'done',rel:'first'},
+  {id:'M0-06',g:'m0',n:'Test the app icon opening the default terminal on each system',deps:['M0-02'],rel:'first'},
+  {id:'M0-07',g:'m0',n:'Test that the chosen keys arrive in Windows Terminal, macOS Terminal and Kitty',deps:['M0-02'],rel:'first'},
+  {id:'M0-08',g:'m0',n:'Test that each AI tool stops and resumes its exact chat',deps:['M0-02'],rel:'first'},
+  {id:'M0-09',g:'m0',n:'Measure the prototype against the 300 MB limit',deps:['M0-02'],rel:'first'},
+
+  {id:'CORE-01',g:'core',n:'Text buffer (piece table) and undo',lo:2,hi:3,deps:['M0-03','M0-06','M0-07','M0-08','M0-09'],rel:'first'},
+  {id:'CORE-02',g:'core',n:'Safe saving, large and binary files, external changes, recovery files',lo:1,hi:2,deps:['CORE-01'],rel:'first'},
+  {id:'CORE-03',g:'core',n:'UI loop, screen drawing, scrolling, Unicode width',lo:1,hi:2,deps:['CORE-02'],rel:'first'},
+  {id:'CORE-04',g:'core',n:'Non-modal typing, selection, clipboard',lo:1,hi:2,deps:['CORE-03'],rel:'first'},
+  {id:'CORE-05',g:'core',n:'Multi-cursor, Ctrl+D and Ctrl+F2',lo:1,hi:1,deps:['CORE-04'],rel:'first'},
+  {id:'CORE-06',g:'core',n:'Find and replace in a file',lo:1,hi:1,deps:['CORE-05'],rel:'first'},
+  {id:'CORE-07',g:'core',n:'Split views',lo:1,hi:1,deps:['CORE-06'],rel:'first'},
+  {id:'CORE-08',g:'core',n:'Tabs per directory, two panels, mouse clicks, themes',lo:2,hi:3,deps:['CORE-07'],rel:'first'},
+  {id:'CORE-09',g:'core',n:'Command bar, keymap, rebinding, TOML config',lo:1,hi:2,deps:['CORE-08'],rel:'first'},
+
+  {id:'A1',g:'A',n:'File tree',lo:1,hi:1,deps:['CORE-09'],rel:'first'},
+  {id:'A2',g:'A',n:'Projects and directories, saved locally',lo:1,hi:1,deps:['CORE-09'],rel:'first'},
+  {id:'A3',g:'A',n:'Directory and project switching, restore',lo:1,hi:2,deps:['A2'],rel:'first'},
+  {id:'B1',g:'B',n:'Directory search and replace',lo:1,hi:2,deps:['CORE-09'],rel:'first'},
+  {id:'C1',g:'C',n:'Git history view',lo:2,hi:3,deps:['CORE-09'],rel:'first'},
+  {id:'C2',g:'C',n:'Git buttons: push, pull, fetch',lo:1,hi:2,deps:['C1'],rel:'first'},
+  {id:'C3',g:'C',n:'Create a GitHub repository through gh',lo:1,hi:1,deps:['C2'],rel:'first'},
+  {id:'C4',g:'C',n:'Git diffs, stage, commit, branches, merge conflicts',lo:4,hi:6,deps:['C3'],rel:'later'},
+  {id:'D1',g:'D',n:'Embedded terminal tab, including Windows',lo:4,hi:6,deps:['CORE-09'],rel:'first'},
+  {id:'D2',g:'D',n:':play, detection, and custom run shortcuts',lo:1,hi:2,deps:['D1','A2','F1'],rel:'first'},
+  {id:'D3',g:'D',n:'AI sessions and shells: start, list, rename, hide',lo:1,hi:1,deps:['D1','A2','F1'],rel:'first'},
+  {id:'D4',g:'D',n:'AI sessions: automatic sleep, resume, status, notifications',lo:2,hi:3,deps:['D3'],rel:'first'},
+  {id:'D5',g:'D',n:'Live file updates and modified-line markers',lo:1,hi:2,deps:['CORE-09'],rel:'first'},
+  {id:'E1',g:'E',n:'Syntax highlighting',lo:2,hi:4,deps:['CORE-09'],rel:'first'},
+  {id:'E2',g:'E',n:'Language servers: definition, rename, format',lo:3,hi:6,deps:['CORE-09','F1'],rel:'later'},
+  {id:'F1',g:'F',n:'Trust prompt and onboarding',lo:1,hi:2,deps:['CORE-09'],rel:'first'},
+
+  {id:'REL-1',g:'release',n:'App icon that opens the default terminal',lo:1,hi:1,deps:['CORE-09'],rel:'first'},
+  {id:'REL-2',g:'release',n:'Curl and PowerShell install, GitHub releases, update check',lo:1,hi:2,deps:['REL-1','A1','A3','B1','C3','D2','D4','D5','E1','F1'],rel:'first'},
+  {id:'REL-3',g:'release',n:'Performance and privacy checks on the i3 reference machine',note:'Effort counted in testing',deps:['REL-2'],rel:'first'},
+
+  {id:'P1',g:'plugins',n:'Lua runtime and first API',lo:4,hi:8,deps:['REL-3','E2'],rel:'later'},
+  {id:'P2',g:'plugins',n:'Local plugins, consent prompt, author guide',lo:2,hi:4,deps:['P1'],rel:'later'},
+  {id:'S1',g:'store',n:'Store repository and review process',lo:1,hi:2,deps:['P2'],rel:'later'},
+  {id:'S2',g:'store',n:'Browse and install from inside the editor',lo:2,hi:3,deps:['S1'],rel:'later'}
+];
+const REQS = [
+  ['FR-1.1','F1','Directory tree panel, selected directory by default, option to show all',['A1']],
+  ['FR-1.2','F1','Git history in the style of VS Code',['C1']],
+  ['FR-1.3','F1','Buttons for push, pull and fetch',['C2']],
+  ['FR-1.4','F1','Create a GitHub repository from the editor, using gh',['C3']],
+  ['FR-1.5','F1','Search names and contents in the active directory, with replace',['B1']],
+  ['FR-1.6','F1','At most two panels, left sidebar by default, either side',['CORE-08']],
+  ['FR-1.7','F1','Git diffs, stage, commit, branches and merge conflicts',['C4']],
+  ['FR-2.1','F2','Files open in tabs',['CORE-08']],
+  ['FR-2.2','F2','An already-open file goes to its tab, with a message',['CORE-08']],
+  ['FR-2.3','F2','Split views',['CORE-07']],
+  ['FR-2.4','F2','Terminal tabs look different and show activity',['D1']],
+  ['FR-2.5','F2','Each directory has its own tabs',['CORE-08','A3']],
+  ['FR-3.1','F3','Escape then : opens commands, with full and short names',['CORE-09']],
+  ['FR-3.2','F3','Usual VS Code shortcuts, where the terminal allows',['CORE-09']],
+  ['FR-3.3','F3','Non-modal typing',['CORE-04']],
+  ['FR-3.4','F3','Multi-cursor, Ctrl+D and Ctrl+F2',['CORE-05']],
+  ['FR-3.5','F3','Find and replace in a file',['CORE-06']],
+  ['FR-3.6','F3','Mouse clicks and scrolling',['CORE-08']],
+  ['FR-3.7','F3','Auto-save off by default, offered in onboarding',['CORE-02','F1']],
+  ['FR-3.8','F3','Crash recovery files, and asking before closing unsaved work',['CORE-02']],
+  ['FR-4.1','F4','TypeScript, JavaScript, Python and Go out of the box',['E1']],
+  ['FR-4.2','F4','Lua plugins',['P1']],
+  ['FR-4.3','F4','Syntax highlighting',['E1']],
+  ['FR-4.4','F4','Onboarding runs a language tool install after confirmation',['F1']],
+  ['FR-4.5','F4','Go-to-definition, rename and format',['E2']],
+  ['FR-5.1','F5','Panel listing sessions started in LazyCode',['D3']],
+  ['FR-5.2','F5','Default entries for instant-start AI tools',['D3']],
+  ['FR-5.3','F5','Add a tool by name and command, with optional resume fields',['D3']],
+  ['FR-5.4','F5','Each session is a terminal tab in the selected directory',['D3']],
+  ['FR-5.5','F5','Several sessions of one tool in a project',['D3']],
+  ['FR-5.6','F5','Working sessions keep running on switching, stop on close',['D4']],
+  ['FR-5.7','F5','Idle sessions sleep and free their RAM',['D4']],
+  ['FR-5.8','F5','Clicking a sleeping session reopens its exact chat',['D4']],
+  ['FR-5.9','F5','Green detail and OS notification on finishing or asking',['D4']],
+  ['FR-5.10','F5','Rename sessions',['D3']],
+  ['FR-5.11','F5','Removing a session only hides it',['D3']],
+  ['FR-5.12','F5','Plain shells listed alongside AI sessions',['D3']],
+  ['FR-5.13','F5','A tool without resume fields starts a new session on click',['D4']],
+  ['FR-12.1','F12','Open files update live while an AI changes them',['D5']],
+  ['FR-12.2','F12','Modified lines are marked in open files',['D5']],
+  ['FR-6.1','F6','Named projects in local configuration',['A2']],
+  ['FR-6.2','F6','A project groups directories and AI sessions',['A2','D3']],
+  ['FR-6.3','F6','Selecting a directory changes every view to it',['A3']],
+  ['FR-6.4','F6','Returning restores tabs, sessions, cursors and layout',['A3']],
+  ['FR-6.5','F6','Commands run until the project or window closes',['D2']],
+  ['FR-6.6','F6','A missing directory is marked, and the user decides',['A2']],
+  ['FR-6.7','F6','Directories can be in several projects, and non-Git',['A2']],
+  ['FR-7.1','F7','Switch directory with Alt+D, or :dir',['A3']],
+  ['FR-8.1','F8','Store for plugins and more language support',['S2']],
+  ['FR-8.2','F8','Store only shows plugins accepted through its repository',['S1']],
+  ['FR-8.3','F8','Local plugins work without the store, and can do anything',['P2']],
+  ['FR-8.4','F8','Show what a plugin does, and ask before adding it',['P2']],
+  ['FR-9.1','F9','Switch project with Alt+O, or :project',['A3']],
+  ['FR-10.1','F10','Change basic shortcuts and some actions',['CORE-09','D2']],
+  ['FR-10.2','F10',':play detects four languages, and can have a shortcut',['D2']],
+  ['FR-10.3','F10','Run output opens in a terminal tab',['D2']],
+  ['FR-10.4','F10','Pressing :play while running goes to its tab',['D2']],
+  ['FR-10.5','F10','If undetected, ask for the command and remember it',['D2']],
+  ['FR-11.1','F11','First-run onboarding',['F1']],
+  ['FR-11.2','F11','Basic TOML config, opened with :config',['CORE-09']],
+  ['FR-11.3','F11','Trust prompt',['F1']],
+  ['FR-11.4','F11','App icon opens the default terminal running lazycode',['REL-1']],
+  ['NFR-1','NFR','The editor itself stays under 300 MB',['REL-3']],
+  ['NFR-2','NFR','As quick as Zed',['REL-3']],
+  ['NFR-3','NFR','Disk under VS Code in the worst case',['REL-3']],
+  ['NFR-4','NFR','Runs well on an i3 with 8 GB',['REL-3']],
+  ['NFR-5','NFR','100 MB files, larger read-only, binary message only',['CORE-02']],
+  ['NFR-6','NFR','Not overwhelming: one left sidebar by default',['CORE-08']],
+  ['NFR-7','NFR','No telemetry',['REL-3']],
+  ['NFR-8','NFR','No credentials in plain config, GitHub login stays with gh',['C3','REL-3']],
+  ['NFR-9','NFR','Dark and light themes, two colours, low-colour support',['CORE-08']],
+  ['NFR-10','NFR','Curl and PowerShell install, unsigned',['REL-2']],
+  ['NFR-11','NFR','Update check against the latest GitHub release',['REL-2']],
+  ['NFR-12','NFR','Runs in the user\u2019s default terminal; Windows, macOS and Kitty are priorities',['REL-3']]
+].map(([id,f,t,items,q]) => ({id,f,t,items,q:q||[]}));
+const reqRelease = r => r.items.some(id => byId[id].rel==='later') ? 'Later' : 'First version';
+const QUESTIONS = {};
+const STATUS_LABEL = {done:'Done',doing:'In progress',todo:'Pending'};
+const KEY = 'lazycode-backlog-v1';
+const byId = Object.fromEntries(ITEMS.map(i => [i.id,i]));
+const fileState = JSON.parse(document.getElementById('state').textContent);
+let state = {status:{...fileState.status},answered:[...fileState.answered]};
+try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) state = {status:s.status||{},answered:s.answered||[]}; } catch (e) { /* storage unavailable: use the file's state */ }
+function persist() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { say('This browser can’t store changes. Use Save updated file before closing.'); } }
+
+const h = (tag, props, ...kids) => { const e = document.createElement(tag); for (const k in props||{}) { if (k==='class') e.className = props[k]; else if (k.startsWith('data-')||k==='aria-label'||k==='scope'||k==='colspan') e.setAttribute(k,props[k]); else e[k]=props[k]; } e.append(...kids.flat().filter(x => x!=null)); return e; };
+const say = t => { document.getElementById('msg').textContent = t; };
+const statusOf = i => state.status[i.id] || i.d || 'todo';
+const isOpen = q => !state.answered.includes(q);
+const openQs = i => (i.q||[]).filter(isOpen);
+const unmet = i => (i.deps||[]).filter(d => statusOf(byId[d])!=='done');
+const isReady = i => statusOf(i)==='todo' && !unmet(i).length && !openQs(i).length;
+const reqStatus = r => { const s = r.items.map(id => statusOf(byId[id])); return s.every(x => x==='done') ? 'done' : s.some(x => x!=='todo') ? 'doing' : 'todo'; };
+const weeks = (lo,hi) => lo===hi ? String(lo) : lo+'–'+hi;
+const badge = (cls,t) => h('span',{class:'badge b-'+cls},t);
+const idList = ids => ids.length ? ids.flatMap((id,n) => [n?', ':null,h('span',{class:'nb'},id)]) : ['—'];
+const depLabel = d => d==='CORE-09' ? 'the core' : d;
+function startInfo(i) {
+  const s = statusOf(i);
+  if (s==='done') return null;
+  if (s==='doing') return h('span',{},'Being built');
+  const u = unmet(i), q = openQs(i), out = [];
+  if (!u.length && !q.length) return badge('ready','Ready now');
+  if (q.length) out.push(badge('decide','Decide '+q.join(', ')),' ');
+  if (u.length) out.push(h('span',{class:'sub'},'After '+u.map(depLabel).join(', ')));
+  return h('span',{},out);
+}
+// Longest chain through the dependencies, in weeks, for the given items.
+function longest(items, field) {
+  const set = new Set(items.map(i => i.id)), memo = {};
+  const go = i => memo[i.id] ?? (memo[i.id] = (i[field]||0) + Math.max(0,...(i.deps||[]).filter(d => set.has(d)).map(d => go(byId[d]))));
+  return Math.max(0,...items.map(go));
+}
+const built = ITEMS.filter(i => i.hi);
+const sum = (list,f) => list.reduce((n,i) => n+(i[f]||0),0);
+
+function renderStats() {
+  const done = ITEMS.filter(i => statusOf(i)==='done').length;
+  const reqs = REQS.map(reqStatus);
+  const open = Object.keys(QUESTIONS).filter(isOpen).length;
+  const left = built.filter(i => statusOf(i)!=='done');
+  const cell = (b,t) => h('div',{},h('b',{},b),h('span',{},t));
+  document.getElementById('stats').replaceChildren(
+    cell(reqs.filter(x => x==='done').length+' of '+REQS.length,'requirements complete'),
+    cell(String(reqs.filter(x => x==='todo').length),'requirements pending'),
+    cell(done+' of '+ITEMS.length,'backlog items done'),
+    cell(String(open),'questions still open'),
+    cell(weeks(sum(left,'lo'),sum(left,'hi')),'estimated weeks left, without the prototype')
+  );
+  const first = built.filter(i => i.rel==='first');
+  document.getElementById('path').replaceChildren(
+    cell(weeks(sum(built,'lo'),sum(built,'hi')),'weeks in total: one person, everything'),
+    cell(weeks(longest(built,'lo'),longest(built,'hi')),'weeks if enough people work in parallel, everything'),
+    cell(weeks(sum(first,'lo'),sum(first,'hi')),'weeks: one person, first version'),
+    cell(weeks(longest(first,'lo'),longest(first,'hi')),'weeks if enough people work in parallel, first version')
+  );
+  const ready = ITEMS.filter(isReady);
+  document.getElementById('ready').replaceChildren(...(ready.length ? ready.map(i => h('li',{},h('a',{href:'#item-'+i.id,class:'id'},i.id),' ',i.n)) : [h('li',{class:'muted'},'Nothing is ready. Answer an open question or finish an item in progress.')]));
+}
+function planItem(i) {
+  const s = statusOf(i);
+  const u = unmet(i).filter(d => d!=='CORE-09');
+  const isTrack = 'ABCDEF'.includes(i.g);
+  const parts = [];
+  if (i.hi) parts.push(weeks(i.lo,i.hi)+' wk');
+  if (isTrack && !u.length && s==='todo') parts.push('starts at the gate');
+  if (u.length) parts.push('after '+u.join(', '));
+  if (i.rel==='later') parts.push('later');
+  return h('li',{},badge(s,STATUS_LABEL[s]),' ',h('a',{href:'#item-'+i.id,class:'id'},i.id),' ',i.n,parts.length ? h('span',{class:'sub'},parts.join(' · ')) : null);
+}
+function renderPlan() {
+  document.querySelectorAll('[data-group]').forEach(ul => ul.replaceChildren(...ITEMS.filter(i => i.g===ul.dataset.group).map(planItem)));
+  document.getElementById('lanes').replaceChildren(...['D','A','F','E','C','B'].map(g => {
+    const list = ITEMS.filter(i => i.g===g);
+    return h('div',{class:'lane'},h('h4',{},PHASES[g]+', '+weeks(sum(list,'lo'),sum(list,'hi'))+' wk'),h('p',{},LANE_NOTES[g]),h('ul',{class:'items'},list.map(planItem)));
+  }));
+}
+const fv = id => document.getElementById(id).value.trim().toLowerCase();
+function renderItems() {
+  const q = fv('f-item-q'), st = fv('f-item-status'), rel = fv('f-item-rel');
+  const tb = document.getElementById('items'); tb.replaceChildren();
+  let shown = 0;
+  for (const g in PHASES) {
+    const rows = ITEMS.filter(i => i.g===g).filter(i => {
+      if (q && !(i.id+' '+i.n).toLowerCase().includes(q)) return false;
+      if (rel && i.rel!==rel) return false;
+      if (st==='ready') return isReady(i);
+      if (st==='decide') return statusOf(i)!=='done' && openQs(i).length>0;
+      return !st || statusOf(i)===st;
+    });
+    if (!rows.length) continue;
+    const list = ITEMS.filter(i => i.g===g), w = sum(list,'hi');
+    tb.append(h('tr',{},h('th',{class:'group',scope:'colgroup',colspan:6},PHASES[g]+(w ? ' ('+weeks(sum(list,'lo'),w)+' weeks)' : ''))));
+    for (const i of rows) {
+      shown++;
+      const sel = h('select',{'aria-label':'Status of '+i.id},Object.entries(STATUS_LABEL).map(([v,t]) => h('option',{value:v},t)));
+      sel.value = statusOf(i);
+      sel.addEventListener('change',() => { state.status[i.id]=sel.value; persist(); renderAll(); say(i.id+' set to '+STATUS_LABEL[sel.value]+'.'); });
+      const reqs = REQS.filter(r => r.items.includes(i.id)).map(r => r.id);
+      tb.append(h('tr',{id:'item-'+i.id},
+        h('td',{class:'id nowrap','data-label':'ID'},i.id),
+        h('td',{},i.n,i.note?h('span',{class:'sub'},i.note):null,i.rel==='later'?h('span',{class:'sub'},'Later version'):null),
+        h('td',{class:'nowrap','data-label':'Weeks'},i.hi?weeks(i.lo,i.hi):'—'),
+        h('td',{'data-label':'Status'},sel),
+        h('td',{'data-label':'Can it start?'},startInfo(i)||'—'),
+        h('td',{class:'id','data-label':'Requirements'},idList(reqs))));
+    }
+  }
+  document.getElementById('count-items').textContent = shown+' of '+ITEMS.length+' items shown';
+  document.getElementById('empty-items').style.display = shown ? 'none' : 'block';
+}
+function renderReqs() {
+  const q = fv('f-req-q'), st = fv('f-req-status'), f = document.getElementById('f-req-feature').value, op = fv('f-req-open');
+  const rows = REQS.filter(r => {
+    if (q && !(r.id+' '+r.t).toLowerCase().includes(q)) return false;
+    if (st && reqStatus(r)!==st) return false;
+    if (f && r.f!==f) return false;
+    if (op && !r.q.some(isOpen)) return false;
+    return true;
+  });
+  document.getElementById('reqs').replaceChildren(...rows.map(r => {
+    const s = reqStatus(r), oq = r.q.filter(isOpen);
+    return h('tr',{},
+      h('td',{class:'id nowrap','data-label':'ID'},r.id),
+      h('td',{},r.t),
+      h('td',{class:'nowrap','data-label':'Release'},reqRelease(r)),
+      h('td',{'data-label':'Status'},badge(s,s==='done'?'Complete':STATUS_LABEL[s])),
+      h('td',{class:'id','data-label':'Built by'},r.items.map((id,n) => [n?', ':null,h('a',{href:'#item-'+id},id)]).flat()),
+      h('td',{'data-label':'Open questions'},oq.length?badge('decide',oq.join(', ')):'—'));
+  }));
+  document.getElementById('count-reqs').textContent = rows.length+' of '+REQS.length+' requirements shown';
+  document.getElementById('empty-reqs').style.display = rows.length ? 'none' : 'block';
+}
+function renderQs() {
+  document.getElementById('qs').replaceChildren(...Object.entries(QUESTIONS).sort((a,b) => (b[1][1]||0)-(a[1][1]||0)).map(([id,[t,star]]) => {
+    const cb = h('input',{type:'checkbox',checked:!isOpen(id),'aria-label':id+' answered'});
+    cb.addEventListener('change',() => { state.answered = cb.checked ? [...state.answered,id] : state.answered.filter(x => x!==id); persist(); renderAll(); say(id+(cb.checked?' marked answered.':' marked open.')); });
+    const holds = ITEMS.filter(i => (i.q||[]).includes(id)).map(i => i.id);
+    return h('tr',{},h('td',{class:'id nowrap','data-label':'ID'},id+(star?' ★':'')),h('td',{},t),h('td',{class:'id','data-label':'Holds up'},holds.length?idList(holds):'Overall plan'),h('td',{'data-label':'Answered'},cb));
+  }));
+}
+function renderAll() { renderStats(); renderPlan(); renderItems(); renderReqs(); renderQs(); }
+
+const features = [...new Set(REQS.map(r => r.f))];
+document.getElementById('f-req-feature').append(...features.map(f => h('option',{value:f},f==='NFR'?'Non-functional':f)));
+['f-item-q','f-item-status','f-item-rel'].forEach(id => document.getElementById(id).addEventListener('input',renderItems));
+['f-req-q','f-req-status','f-req-feature','f-req-open'].forEach(id => document.getElementById(id).addEventListener('input',renderReqs));
+document.getElementById('save').addEventListener('click',() => {
+  const copy = document.documentElement.cloneNode(true);
+  copy.querySelectorAll('[data-rendered]').forEach(e => e.replaceChildren());
+  copy.querySelector('#f-req-feature').replaceChildren(h('option',{value:''},'All'));
+  copy.querySelector('#state').textContent = JSON.stringify(state);
+  const url = URL.createObjectURL(new Blob(['<!doctype html>\n'+copy.outerHTML],{type:'text/html'}));
+  const a = h('a',{href:url,download:'backlog.html'}); document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url),1000);
+  say('Downloaded backlog.html. Replace docs/backlog.html with it to keep these changes.');
+});
+document.getElementById('reset').addEventListener('click',() => {
+  if (!confirm('Discard the changes stored in this browser, and go back to what the file says?')) return;
+  try { localStorage.removeItem(KEY); } catch (e) { /* nothing stored */ }
+  state = {status:{...fileState.status},answered:[...fileState.answered]};
+  renderAll(); say('Browser changes discarded.');
+});
+renderAll();
+</script>
+</body>
+</html>

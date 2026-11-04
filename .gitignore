@@ -1,0 +1,24 @@
+# Build output
+/lazycode
+/dist/
+*.exe
+*.test
+*.out
+
+# Secrets and local settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local tools and editors
+.codegraph/
+.claude/
+.idea/
+.vscode/
+
+# Operating systems
+.DS_Store
+Thumbs.db
+desktop.ini
