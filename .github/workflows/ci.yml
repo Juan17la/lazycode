@@ -39,6 +39,9 @@ jobs:
       # Includes the end-to-end test, which runs the real binary in a real PTY or
       # ConPTY, and the C parser test.
       - run: go test -race -count=1 -timeout 10m ./...
+      - name: Fuzz the text buffer
+        if: runner.os == 'Linux'
+        run: go test -run=NONE -fuzz=FuzzEdits -fuzztime=30s ./internal/buffer
       - name: Build
         shell: bash
         run: go build -o "dist/lazycode${{ runner.os == 'Windows' && '.exe' || '' }}" ./cmd/lazycode
