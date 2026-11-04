@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/Juan17la/lazycode/internal/editor"
 	"github.com/Juan17la/lazycode/internal/project"
 	"github.com/Juan17la/lazycode/internal/term"
 	"github.com/Juan17la/lazycode/internal/tree"
@@ -33,7 +34,7 @@ var (
 // dirState is what belongs to one directory: its tree and its tabs (D-30).
 type dirState struct {
 	tree *tree.Tree
-	tabs []*term.Tab
+	tabs []*tabItem
 	cur  int
 	top  int // First tree row on screen.
 }
@@ -46,14 +47,22 @@ type app struct {
 	dirOf    []int // Active directory of each project.
 	dirs     map[string]*dirState
 
-	termFocused bool
-	chord       bool // Ctrl+K was pressed, and the next key finishes it.
-	pasting     bool // Between the two bracketed paste events.
-	paste       strings.Builder
-	command     *string   // The : bar's text, when it's open.
-	switcher    *switcher // The open switcher.
-	message     string
-	quit        bool
+	tabFocused bool
+	chord      bool // Ctrl+K was pressed, and the next key finishes it.
+	escaped    bool // Esc was pressed in a file, so : opens the command bar next.
+	pasting    bool // Between the two bracketed paste events.
+	paste      strings.Builder
+	command    *string   // The : bar's text, when it's open.
+	switcher   *switcher // The open switcher.
+	prompts    []*prompt // Questions waiting for an answer. The first one is showing.
+	message    string
+	quit       bool
+
+	recovery      *editor.Recovery
+	register      string      // The last text copied here, for when there's no clipboard tool.
+	clipboardJobs chan func() // Run in order, off the UI goroutine.
+	tasks         chan func() // Run on the UI goroutine, for other goroutines.
+	done          chan struct{}
 }
 
 // Run shows the UI until the user quits, with dir as the starting folder. startup
@@ -74,18 +83,40 @@ func Run(screen tcell.Screen, projects []project.Project, dir, startup string) e
 		dirOf:    make([]int, len(all)),
 		dirs:     map[string]*dirState{},
 		message:  startup,
+
+		clipboardJobs: make(chan func(), 16),
+		tasks:         make(chan func()),
+		done:          make(chan struct{}),
 	}
 	a.dirOf[p] = d
 	defer a.closeAllTabs()
 
+	// If the folder can't be found, writes fail and report it through this message.
+	recoveryDir, _ := editor.RecoveryDir()
+	a.recovery = editor.NewRecovery(recoveryDir, func(path string, err error) {
+		a.post(func() { a.message = "Your unsaved work isn't protected: " + err.Error() })
+	})
+	defer a.recovery.Wait() // Lets waiting recovery files finish when stopped by a signal.
+	a.offerRecovery()
+
+	// SIGHUP arrives when the terminal window is closed.
 	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer signal.Stop(stop)
 
 	events := make(chan tcell.Event)
-	done := make(chan struct{})
-	defer close(done)
-	go screen.ChannelEvents(events, done)
+	defer close(a.done)
+	go screen.ChannelEvents(events, a.done)
+	go func() {
+		for {
+			select {
+			case job := <-a.clipboardJobs:
+				job()
+			case <-a.done:
+				return
+			}
+		}
+	}()
 
 	a.resizeTabs()
 	a.draw()
@@ -94,6 +125,8 @@ func Run(screen tcell.Screen, projects []project.Project, dir, startup string) e
 		select {
 		case ev := <-events:
 			a.handle(ev)
+		case task := <-a.tasks:
+			task()
 		case <-a.redraw:
 			if tick == nil {
 				tick = time.After(frame)
@@ -104,6 +137,7 @@ func Run(screen tcell.Screen, projects []project.Project, dir, startup string) e
 		case <-stop:
 			return nil
 		}
+		a.leaveFinishedTab()
 		a.draw()
 	}
 	return nil
@@ -113,6 +147,33 @@ func (a *app) requestRedraw() {
 	select {
 	case a.redraw <- struct{}{}:
 	default: // One is already waiting.
+	}
+}
+
+// post runs f on the UI goroutine.
+func (a *app) post(f func()) {
+	select {
+	case a.tasks <- f:
+	case <-a.done:
+	}
+}
+
+// leaveFinishedTab gives the keys back when a focused terminal tab's command ends.
+// Otherwise they'd keep going to a tool that's gone, and : would seem to do nothing.
+func (a *app) leaveFinishedTab() {
+	if !a.tabFocused {
+		return
+	}
+	it := a.tab()
+	if it == nil {
+		a.tabFocused = false
+		return
+	}
+	if it.term != nil {
+		if done, code := it.term.Exited(); done {
+			a.tabFocused = false
+			a.message = fmt.Sprintf("%s exited with code %d. Ctrl+W closes its tab.", it.name(), code)
+		}
 	}
 }
 
@@ -128,7 +189,7 @@ func (a *app) dir() *dirState {
 	return st
 }
 
-func (a *app) tab() *term.Tab {
+func (a *app) tab() *tabItem {
 	if st := a.dir(); st.cur < len(st.tabs) {
 		return st.tabs[st.cur]
 	}
@@ -138,8 +199,10 @@ func (a *app) tab() *term.Tab {
 func (a *app) closeAllTabs() {
 	var wg sync.WaitGroup
 	for _, st := range a.dirs {
-		for _, t := range st.tabs {
-			wg.Go(t.Close)
+		for _, it := range st.tabs {
+			if it.term != nil {
+				wg.Go(it.term.Close)
+			}
 		}
 	}
 	wg.Wait()
@@ -155,8 +218,12 @@ func (a *app) handle(ev tcell.Event) {
 	case *tcell.EventPaste:
 		a.pasting = ev.Start()
 		if ev.End() {
-			if t := a.tab(); a.termFocused && t != nil {
-				t.Paste(a.paste.String())
+			if it := a.tab(); a.tabFocused && it != nil && a.command == nil && a.switcher == nil && len(a.prompts) == 0 {
+				if it.term != nil {
+					it.term.Paste(a.paste.String())
+				} else {
+					a.pasteInto(it, a.paste.String())
+				}
 			}
 			a.paste.Reset()
 		}
@@ -185,8 +252,12 @@ func (a *app) addPaste(ev *tcell.EventKey) {
 
 func (a *app) handleKey(ev *tcell.EventKey) {
 	a.message = ""
+	if len(a.prompts) > 0 { // Asked before anything else, so no answer gets skipped.
+		a.handlePromptKey(ev)
+		return
+	}
 	if term.IsLeaveKey(ev) { // Q-74: the one key a terminal tab never receives.
-		a.termFocused, a.chord, a.command, a.switcher = false, false, nil, nil
+		a.tabFocused, a.chord, a.escaped, a.command, a.switcher = false, false, false, nil, nil
 		return
 	}
 	switch {
@@ -194,38 +265,45 @@ func (a *app) handleKey(ev *tcell.EventKey) {
 		a.handleSwitcherKey(ev)
 	case a.command != nil:
 		a.handleCommandKey(ev)
-	case a.termFocused:
-		if t := a.tab(); t != nil {
-			t.Key(ev)
-		} else {
-			a.termFocused = false
+	case a.tabFocused:
+		switch it := a.tab(); {
+		case it == nil:
+			a.tabFocused = false
+		case it.term != nil:
+			it.term.Key(ev)
+		default:
+			a.handleEditorKey(it, ev)
 		}
 	default:
 		a.handlePanelKey(ev)
 	}
 }
 
-// handlePanelKey handles keys outside terminal tabs. Each shortcut has two forms
-// (Q-80): Alt+key on Linux and Windows, and Ctrl+K then key on macOS, where Option
-// types special characters by default. Both work everywhere, so no OS check is needed.
-func (a *app) handlePanelKey(ev *tcell.EventKey) {
+// handleShortcutKey handles the shortcuts that work outside terminal tabs, and reports
+// whether it used the key. Each has two forms (Q-80): Alt+key on Linux and Windows, and
+// Ctrl+K then key on macOS, where Option types special characters by default. Both work
+// everywhere, so no OS check is needed.
+func (a *app) handleShortcutKey(ev *tcell.EventKey) bool {
 	chorded := a.chord
 	a.chord = false
-	key := ev.Key()
-	if key == tcell.KeyCtrlK {
+	if ev.Key() == tcell.KeyCtrlK || ctrlLetter(ev) == 'k' {
 		a.chord = true
 		a.message = "Ctrl+K: press d, o, comma or period"
-		return
+		return true
 	}
-	if key == tcell.KeyRune && (chorded || ev.Modifiers()&tcell.ModAlt != 0) {
+	if ev.Key() == tcell.KeyRune && (chorded || ev.Modifiers()&tcell.ModAlt != 0) {
 		a.handleShortcut(string(ev.Rune()))
+		return true
+	}
+	return chorded // Any other key cancels the chord.
+}
+
+func (a *app) handlePanelKey(ev *tcell.EventKey) {
+	if a.handleShortcutKey(ev) {
 		return
 	}
-	if chorded {
-		return // Any other key cancels the chord.
-	}
-
 	st := a.dir()
+	key := ev.Key()
 	switch key {
 	case tcell.KeyUp:
 		st.tree.Move(-1)
@@ -239,9 +317,9 @@ func (a *app) handlePanelKey(ev *tcell.EventKey) {
 		a.openSelected(st)
 	case tcell.KeyTab:
 		if a.tab() != nil {
-			a.termFocused = true
+			a.focusTab()
 		} else {
-			a.message = "No terminal tabs here. Use :term to start one."
+			a.message = "No tabs here. Enter opens a file, and :term starts a tool."
 		}
 	case tcell.KeyCtrlW:
 		a.closeTab(st)
@@ -276,7 +354,7 @@ func (a *app) openSelected(st *dirState) {
 	case row.IsDir:
 		st.tree.SetOpen(!row.Open)
 	default:
-		a.message = row.Name + ": the editor arrives in M1. Use :term to open it in a tool."
+		a.openFile(st, row.Path)
 	}
 }
 
@@ -284,22 +362,26 @@ func (a *app) openSelected(st *dirState) {
 func (a *app) moveTab(delta int) {
 	st := a.dir()
 	if len(st.tabs) == 0 {
-		a.message = "No terminal tabs here. Use :term to start one."
+		a.message = "No tabs here. Enter opens a file, and :term starts a tool."
 		return
 	}
 	st.cur = (st.cur + delta + len(st.tabs)) % len(st.tabs)
-	a.termFocused = true
+	a.focusTab()
 }
 
-func (a *app) closeTab(st *dirState) {
-	if st.cur >= len(st.tabs) {
+func (a *app) removeTab(st *dirState, it *tabItem) {
+	i := slices.Index(st.tabs, it)
+	if i < 0 {
 		return
 	}
-	t := st.tabs[st.cur]
-	st.tabs = slices.Delete(st.tabs, st.cur, st.cur+1) // Clears the old slot, so the tab can be freed.
+	st.tabs = slices.Delete(st.tabs, i, i+1) // Clears the old slot, so the tab can be freed.
 	st.cur = max(0, min(st.cur, len(st.tabs)-1))
 	go func() { // It can wait for a stubborn tool, and the UI mustn't.
-		t.Close()
+		if it.term != nil {
+			it.term.Close()
+		} else {
+			it.ed.File.Close() //nolint:errcheck // Only frees memory, and the tab is gone.
+		}
 		debug.FreeOSMemory() // Closing is when users expect RAM back (D-28), not minutes later.
 	}()
 }
@@ -333,7 +415,13 @@ func (a *app) run(line string) {
 	}
 	switch fields[0] {
 	case "q", "quit":
-		a.quit = true
+		a.askQuit(map[*tabItem]bool{})
+	case "w", "save":
+		if it := a.tab(); it != nil && it.ed != nil {
+			a.save(it, func() {})
+		} else {
+			a.message = "There's no file to save here."
+		}
 	case "project":
 		a.openProjectSwitcher()
 	case "dir":
@@ -345,7 +433,7 @@ func (a *app) run(line string) {
 		// ponytail: no quoting yet, D3 replaces this with the harness list.
 		a.startTab(fields[1:])
 	default:
-		a.message = "Unknown command: " + fields[0] + ". Try term, project, dir, close, or q."
+		a.message = "Unknown command: " + fields[0] + ". Try save, term, project, dir, close, or q."
 	}
 }
 
@@ -370,9 +458,9 @@ func (a *app) startTab(args []string) {
 		return
 	}
 	st := a.dir()
-	st.tabs = append(st.tabs, t)
+	st.tabs = append(st.tabs, &tabItem{term: t})
 	st.cur = len(st.tabs) - 1
-	a.termFocused = true
+	a.tabFocused = true
 }
 
 // Switcher, the same for projects and directories.
@@ -420,7 +508,7 @@ func (a *app) openDirSwitcher() {
 
 // afterSwitch shows the new directory's views. Tabs elsewhere keep running (Q-34).
 func (a *app) afterSwitch() {
-	a.termFocused = false
+	a.tabFocused = false
 	a.dir().tree.Refresh()
 }
 
@@ -471,8 +559,10 @@ func (a *app) termSize() (width, height int) {
 func (a *app) resizeTabs() {
 	w, h := a.termSize()
 	for _, st := range a.dirs {
-		for _, t := range st.tabs {
-			t.Resize(w, h)
+		for _, it := range st.tabs {
+			if it.term != nil {
+				it.term.Resize(w, h)
+			}
 		}
 	}
 }
@@ -513,7 +603,7 @@ func (a *app) draw() {
 		left = tw + 1
 	}
 	a.drawTabs(st, left, w)
-	a.drawTerminal(st, left)
+	a.drawTabArea(st, left)
 	a.drawStatus(w, h)
 	if a.switcher != nil {
 		a.drawSwitcher(w, h)
@@ -523,7 +613,7 @@ func (a *app) draw() {
 
 func (a *app) drawTree(st *dirState, width, height int) {
 	title := muted
-	if !a.termFocused {
+	if !a.tabFocused {
 		title = accent
 	}
 	a.put(1, 1, width, "Files", title)
@@ -554,7 +644,7 @@ func (a *app) drawTree(st *dirState, width, height int) {
 		style := tcell.StyleDefault
 		if i == st.tree.Sel {
 			style = tcell.StyleDefault.Underline(true)
-			if !a.termFocused {
+			if !a.tabFocused {
 				style = active
 			}
 		}
@@ -564,15 +654,23 @@ func (a *app) drawTree(st *dirState, width, height int) {
 
 func (a *app) drawTabs(st *dirState, left, width int) {
 	x := left + 1
-	for i, t := range st.tabs {
-		label := " ▶ " + t.Name + " "
-		if done, code := t.Exited(); done {
-			label = fmt.Sprintf(" ▶ %s [exit %d] ", t.Name, code)
+	for i, it := range st.tabs {
+		label := " " + it.name() + " "
+		switch {
+		case it.ed != nil:
+			if it.ed.File.Modified() {
+				label = " " + it.name() + "* "
+			}
+		default:
+			label = " ▶ " + it.name() + " "
+			if done, code := it.term.Exited(); done {
+				label = fmt.Sprintf(" ▶ %s [exit %d] ", it.name(), code)
+			}
 		}
 		style := muted
 		if i == st.cur {
 			style = tcell.StyleDefault.Bold(true)
-			if a.termFocused {
+			if a.tabFocused {
 				style = active
 			}
 		}
@@ -580,32 +678,46 @@ func (a *app) drawTabs(st *dirState, left, width int) {
 	}
 }
 
-func (a *app) drawTerminal(st *dirState, left int) {
+func (a *app) drawTabArea(st *dirState, left int) {
 	w, h := a.termSize()
-	t := a.tab()
-	if t == nil {
-		a.put(left+1, 3, left+w, "No terminal tabs here.", tcell.StyleDefault)
-		a.put(left+1, 4, left+w, "Press : then type: term claude", muted)
-		return
-	}
-	t.Draw(a.screen, left, 2, w, h)
-	if x, y, visible := t.Cursor(); visible && a.termFocused && a.switcher == nil && a.command == nil {
-		a.screen.ShowCursor(left+x, 2+y)
+	it := a.tab()
+	switch {
+	case it == nil:
+		a.put(left+1, 3, left+w, "No tabs here.", tcell.StyleDefault)
+		a.put(left+1, 4, left+w, "Enter opens a file. To start a tool, press : then type: term claude", muted)
+	case it.ed != nil:
+		a.drawEditor(it.ed, left, 2, w, h)
+	default:
+		it.term.Draw(a.screen, left, 2, w, h)
+		if x, y, visible := it.term.Cursor(); visible && a.tabFocused && a.switcher == nil && a.command == nil && len(a.prompts) == 0 {
+			a.screen.ShowCursor(left+x, 2+y)
+		}
 	}
 }
 
 func (a *app) drawStatus(w, h int) {
 	y := h - 1
 	switch {
+	case len(a.prompts) > 0:
+		a.drawPrompt(w, y)
 	case a.command != nil:
 		x := a.put(0, y, w, ":"+*a.command, tcell.StyleDefault)
 		a.screen.ShowCursor(min(x, w-1), y)
 	case a.message != "":
 		a.put(1, y, w, a.message, tcell.StyleDefault)
-	case a.termFocused:
+	case a.tabFocused && a.tab() != nil && a.tab().ed != nil:
+		e := a.tab().ed
+		line, col := e.Position()
+		where := fmt.Sprintf("Ln %d, Col %d", line+1, col+1)
+		if e.File.ReadOnly() {
+			where = "Read-only  " + where
+		}
+		a.put(max(1, w-len(where)-1), y, w, where, tcell.StyleDefault)
+		a.put(1, y, max(1, w-len(where)-2), `Ctrl+S save   Ctrl+\ files   Esc : commands`, muted)
+	case a.tabFocused:
 		a.put(1, y, w, `Ctrl+\ leaves the terminal`, muted)
 	default:
-		a.put(1, y, w, "Alt+O or :project   Alt+D or :dir   Alt+, Alt+. tabs   Tab terminal   : commands", muted)
+		a.put(1, y, w, "Enter open   Alt+O or :project   Alt+D or :dir   Alt+, Alt+. tabs   Tab enter tab   : commands", muted)
 	}
 }
 

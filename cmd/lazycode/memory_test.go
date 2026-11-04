@@ -101,7 +101,7 @@ func TestMemoryStaysUnderLimit(t *testing.T) {
 			d.enter()
 			d.wait("stream done")
 			d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-			d.wait("Tab terminal")
+			d.wait("Tab enter tab")
 			tabs++
 		}
 		time.Sleep(3 * time.Second) // Let the Go runtime settle.
@@ -116,7 +116,7 @@ func TestMemoryStaysUnderLimit(t *testing.T) {
 		d.key(tcell.KeyCtrlW, tcell.ModCtrl)
 		time.Sleep(50 * time.Millisecond)
 	}
-	d.wait("No terminal tabs here.")
+	d.wait("No tabs here.")
 	time.Sleep(5 * time.Second)
 	report("all tabs closed")
 	if rss, _ := procMemoryMB(t, tab.Pid()); rss > 100 {

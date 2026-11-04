@@ -1,5 +1,4 @@
-// LazyCode is a light code editor that runs in your terminal. This is the M0
-// prototype: projects, a file tree and terminal tabs, with no editor yet.
+// LazyCode is a light code editor that runs in your terminal.
 package main
 
 import (

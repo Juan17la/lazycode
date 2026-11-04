@@ -160,6 +160,22 @@ path = %q
 	d.key(tcell.KeyLeft, 0)
 	d.wait("▸ sub")
 
+	// A file opens from the tree, takes typing, and saves. Unicode goes through the
+	// real terminal on every OS.
+	d.key(tcell.KeyDown, 0)
+	d.enter()
+	d.wait("Ln 1, Col 1")
+	d.typeText("héllo 世界")
+	d.wait("héllo 世界")
+	d.wait("a.txt*")
+	d.key(tcell.KeyCtrlS, tcell.ModCtrl)
+	d.wait("Saved a.txt")
+	if got, err := os.ReadFile(filepath.Join(one, "a.txt")); err != nil || string(got) != "héllo 世界" {
+		t.Fatalf("saved %q, %v", got, err)
+	}
+	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
+	d.wait("Tab enter tab")
+
 	// Alt+D switches directory.
 	d.alt('d')
 	d.wait("Switch directory")
@@ -199,7 +215,7 @@ path = %q
 	// Ctrl+\ leaves the tab. The same keys now reach LazyCode, not the tool.
 	d.wait(`Ctrl+\ leaves`)
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-	d.wait("Tab terminal")
+	d.wait("Tab enter tab")
 	d.typeText(":")
 	d.typeText("nope")
 	d.enter()
@@ -225,17 +241,17 @@ path = %q
 
 	// :close removes the finished tab.
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-	d.wait("Tab terminal")
+	d.wait("Tab enter tab")
 	d.typeText(":close")
 	d.enter()
-	d.wait("No terminal tabs here.")
+	d.wait("No tabs here.")
 
 	// A tab still running at quit is stopped with the app. :q exits cleanly.
 	d.typeText(":term " + tool)
 	d.enter()
 	d.wait("tool ready")
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-	d.wait("Tab terminal")
+	d.wait("Tab enter tab")
 	d.typeText(":q")
 	d.enter()
 	select {
