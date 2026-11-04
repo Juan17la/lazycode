@@ -71,6 +71,10 @@ These were proposed on the basis that they'd become decisions when M0 started, u
 | P-12 | Alt+H replaces in a file, and Alt+S splits, instead of the proposed Ctrl+H and Alt+\\ | Tests showed those two can't be read in most terminals | Commands only |
 | P-13 | Run OpenCode with `--standalone` | Otherwise its service keeps about 320 MB after sleeping | Accept the service, sharing it between sessions |
 | P-14 | 250 MiB Go memory limit | Keeps 10 full tabs at 239 MB, against 362 MB | Lower scrollback |
+| P-15 | Read editable files into memory, and map only read-only files over 100 MiB | Tested on Linux: rewriting a mapped file changes the text under the buffer, and truncating it crashes the editor. Mapping didn't lower RSS either | Memory-map all large files |
+| P-16 | Detect external changes by comparing contents | Times can miss a quick same-size rewrite, and a touch isn't a change | Size and modification time |
+| P-17 | Clipboard through the OS's tools, then the terminal's OSC 52 code, then an internal copy | macOS Terminal has no OSC 52, and SSH sessions have no tools. Adds no dependency | A clipboard library |
+| P-18 | Check for external changes when focus enters a file, until `D5` watches for them | Saving already refuses to overwrite, and this shows changes without a watcher | Wait for `D5` |
 
 ## Replaced decisions
 

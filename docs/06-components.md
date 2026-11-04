@@ -42,15 +42,16 @@ internal/
 
 ## Editor core and text buffer
 
-**`buffer`:** A piece table: the original file stays unchanged, new text goes in an append-only slice, and a list of pieces describes the document.
+**`buffer`:** A piece table: the original file stays unchanged, new text goes in an append-only slice, and a balanced tree of pieces describes the document. The tree is never modified in place. Each edit makes a new root sharing most nodes with the old one, so background work can read a snapshot without locks.
 
 | Requirement | How it's met |
 |---|---|
-| 100 MB files (Q-14) | The original file is read lazily or memory-mapped, not parsed into objects. The line index is built in the background. With about 2.5 million lines, it takes about 20 MB at 8 bytes per line. |
-| Bigger files (Q-65) | Over 100 MB opens read-only without highlighting. Offsets are 64-bit, so the limit can rise later. |
+| 100 MB files (Q-14) | The original file is read as plain bytes, not parsed into objects, and not memory-mapped (P-15). There's no separate line index: pieces hold at most 16 KB and count their line feeds, which takes about 0.5 MB at 100 MB. See [12](12-performance-budget.md#text-buffer). |
+| Bigger files (Q-65) | Over 100 MiB opens read-only and memory-mapped, without highlighting. Offsets are 64-bit, so the limit can rise later. Truncating such a file while it's open crashes the editor on Linux and macOS. |
 | Binary files (Q-65) | A message only. Detected by looking for NUL bytes at the start of the file. |
-| Undo | Saved piece changes. A multi-cursor edit counts as one step. |
-| Safe saving | Write to a temporary file, flush it, then rename. Nothing replaces the file until the write succeeds. |
+| Undo | Each step is an old tree root. A multi-cursor edit counts as one step, and typing can join the previous step. |
+| Safe saving | Write to a temporary file, flush it, then rename. Nothing replaces the file until the write succeeds. Permissions, owner where allowed, and symlinks are kept. Hard links, extended attributes and Windows ACLs aren't. |
+| External changes (P-16) | Saving compares the file on disk with the last load or save, and refuses if they differ. The user then chooses to overwrite or reload. Watching for changes as they happen is `D5`. |
 | Encoding | UTF-8. Other encodings: later. Line endings are preserved. |
 
 Text width uses a Unicode width library, because emoji and CJK characters occupy two cells.
@@ -63,6 +64,11 @@ Text width uses a Unicode width library, because emoji and CJK characters occupy
 | Ctrl+F2 (Q-17, Q-80) | Select all occurrences. Ctrl+K then A on macOS. |
 | Edits | Applied from last cursor to first, so that offsets stay valid. |
 | Find and replace (Q-17) | Plain text in the current file. |
+| Cursor movement | By whole characters: an emoji or accented letter is one step, and so is `\r\n`. Up and down keep the column, counting wide characters and tabs. |
+| Undo | Typing undoes a word at a time. The cursor and selection come back with the text. |
+| Typing | Enter keeps the line's indent and line ending. Tab follows the file's tabs or spaces, and indents a selection. Pasted text takes the file's line endings. |
+| File contents on screen | Control characters, invalid UTF-8 and bidirectional controls are drawn as `?` or `\uFFFD`, and never reach the terminal. |
+| Clipboard (P-17) | `pbcopy`, `wl-copy`, `xclip` or `xsel` if available. Otherwise the terminal's OSC 52 code to copy, and an internal copy to paste. On Windows, Windows Terminal delivers Ctrl+V as a paste. |
 | Auto-save (Q-16) | Off by default. |
 | Crash recovery (Q-61) | Unsaved edits are written to a recovery file about a second after typing stops, and offered on the next start. |
 | Closing unsaved work (Q-61) | LazyCode asks. |

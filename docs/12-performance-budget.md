@@ -82,6 +82,27 @@ Measured on 2026-11-04, on the owner's Linux machine (`M0-09`), with `TestMemory
 
 Before fixes, 10 tabs reached 362 MB, and closing them gave nothing back. A 250 MiB Go memory limit, clearing the closed tab's slot and returning memory on close fixed that. `GOGC=50` also helped (274 MB at 10 tabs), but the limit did better, and only applies when it's needed. Past about 15 full tabs, the limit makes the garbage collector work harder. That wasn't measured.
 
+### Text buffer
+
+Measured on 2026-11-04, on the owner's Linux machine (Intel Core Ultra 5 125H, not the i3), with the benchmarks in `internal/buffer` (`CORE-01`). The file is 100 MiB of 50-byte lines.
+
+| Operation | Time | Memory allocated |
+|---|---|---|
+| Open, from disk (`CORE-02`) | 77 ms | 108 MB: the file itself, plus 3.5 MB, mostly temporary |
+| Save (`CORE-02`) | 0.25 s, and it blocks the UI for now | 0.1 MB |
+| Write a recovery file (`CORE-02`) | 0.15 s, on another goroutine | 0.1 MB |
+| Build the buffer from bytes already in memory | 10 ms | 3.5 MB, mostly temporary |
+| One edit, after 20,000 scattered edits | 9 µs | 5.9 KB, the upper limit on what one undo step keeps |
+| Draw a whole frame at 120 by 50 (`CORE-03`) | 1.1 ms | 0.4 MB |
+| Read 60 lines, after 20,000 scattered edits | 0.12 ms | 3.8 KB |
+| Replace 100,000 places, as one undo step | 0.46 s | 574 MB, mostly temporary |
+
+**Very long lines are the weak spot.** Drawing a 1 MB line with the cursor at its far end takes 17 ms per frame, about the whole 16 ms budget on this machine, so it will be over on the i3. It's quicker nearer the start of the line. The same line of non-ASCII text is several times slower, because only ASCII has a fast path.
+
+**A 100 MiB file slightly misses the "under 100 MB extra" target,** because it's read into memory (P-15), and comes close to the 300 MB limit alongside 5 full terminal tabs: about 191 MB plus 108 MB. That combination hasn't been measured. Memory-mapping wouldn't fix it: on the same machine, scanning a mapped 100 MiB file for lines added 100 MB of RSS too.
+
+Undo history has no limit yet. At the upper limit of 5.9 KB per step, 10,000 steps keep about 59 MB alive, and typed text joined into one step keeps far less.
+
 ### Budget check (estimate)
 
 | Part | Worst normal case |

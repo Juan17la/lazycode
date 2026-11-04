@@ -125,6 +125,8 @@ Colour is never the only signal, because each state has its own shape.
 - A click moves focus (Q-13).
 - Editor areas, panels and the command bar use the keymap.
 - **Terminal tabs get all keys except Ctrl+\** (Q-74). The command bar shows that key while a terminal tab has focus.
+- When a terminal tab's command exits, focus returns to the file tree, so keys don't go to a tool that's gone.
+- Ctrl+\ also moves focus from a file to the file tree, and Tab moves it back.
 
 ## Default keymap
 

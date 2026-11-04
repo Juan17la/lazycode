@@ -13,6 +13,7 @@
 | Tampered update | A bad release reaches users | Checksums, GitHub releases only. Releases are unsigned (Q-71). |
 | Install command misuse | A language tool's install runs the wrong thing | Show the exact command, and run it only after confirmation (Q-68) |
 | Plugin changes after review | Author pushes bad code | Store pins an exact commit and checksum |
+| Malicious file contents | Escape sequences or bidirectional controls in a file affect the terminal, or hide what code really does | The editor draws them as `?`, and tests check that none reach the screen |
 | Malicious terminal output | Escape sequences set the clipboard or move text | Emulator filters them, never passes them to the user's terminal |
 | Command injection | A file name containing `; rm -rf` | Pass argument lists, never build shell strings |
 | Tampered download | Modified release | Published checksums, verified by the install script |

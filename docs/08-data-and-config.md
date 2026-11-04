@@ -141,6 +141,8 @@ Plugins live in `plugins/` in the config folder.
 
 **Proposed:** Edits are written to a recovery file about a second after typing stops, and are offered again on the next start. Files are deleted when the edit is saved or discarded. Recovery files are readable by the user only, since they can contain secrets.
 
+Each file holds a one-line JSON header (path, process ID, time) followed by the full text. Files from a process that's still running aren't offered, so a second LazyCode window can't take another's work. Restoring leaves the text unsaved, with undo going back to what's on disk.
+
 ## Missing directories
 
 **Decided (Q-66):** A missing directory is marked, and the user chooses whether to remove it. It's never removed silently, because an unplugged drive looks identical to a deleted folder.
