@@ -32,7 +32,7 @@
 | macOS | A small `.app` that opens a terminal | macOS has no general "default terminal", so it uses Terminal.app unless set otherwise |
 | Windows | A Start menu shortcut | Opens in the system's default terminal |
 
-Not tested yet. That's prototype item `M0-06`.
+Tested on CI on 2026-11-04 (`M0-06`), with `packaging/install-icon` and `scripts/test-icon`, from a folder with a space in its name. Linux opened xterm, and macOS opened Terminal.app. On Windows, LazyCode started, but which terminal hosted it wasn't identified. Not tried yet: a real desktop's app search, or a Linux desktop with its own terminal choice, such as the owner's niri and Kitty.
 
 **Builds:** The C parser (Q-69) means releases are built on real Linux, macOS and Windows CI runners. Tools such as GoReleaser may still help with packaging and checksums.
 

@@ -68,16 +68,30 @@ TypeScript, repetitive synthetic input, parsed once. RSS includes the test progr
 
 **Chosen: the C binding, with highlighting off above about 1 MB (Q-69).** The first full parse of a 1 MB file takes 260 ms here and longer on an i3, so it must run in the background. Later edits are incremental, which wasn't measured.
 
+### Prototype
+
+Measured on 2026-11-04, on the owner's Linux machine (`M0-09`), with `TestMemoryStaysUnderLimit`. Tabs are 120 columns with a full 1,000-line scrollback. The tools' own memory isn't counted (Q-70). **There's no editor yet.** CI fails if any step reaches 300 MB, or if over 100 MB stays after closing every tab.
+
+| State | RSS | Peak |
+|---|---|---|
+| Idle, no tabs | 19 MB | 19 MB |
+| 1 full tab | 57 MB | 57 MB |
+| 5 full tabs | 191 MB | 191 MB |
+| 10 full tabs | 236 MB | 239 MB |
+| All tabs closed | 38 MB | 239 MB |
+
+Before fixes, 10 tabs reached 362 MB, and closing them gave nothing back. A 250 MiB Go memory limit, clearing the closed tab's slot and returning memory on close fixed that. `GOGC=50` also helped (274 MB at 10 tabs), but the limit did better, and only applies when it's needed. Past about 15 full tabs, the limit makes the garbage collector work harder. That wasn't measured.
+
 ### Budget check (estimate)
 
 | Part | Worst normal case |
 |---|---|
 | Editor and open buffers | 50–150 MB |
 | Syntax trees for visible files | Included above, unless files are near the 1 MB cap |
-| 5 awake terminal tabs, full | Up to 180 MB |
-| **Total** | **Up to 330 MB** |
+| 5 awake terminal tabs, full | 191 MB, measured, including the base |
+| **Total** | **About 240–340 MB** |
 
-That's slightly over the limit, so it needs work if it proves true: automatic sleep, a lower scrollback, or a more compact store. The prototype must measure this.
+The high end is over the limit, although the memory limit should hold total use down while there's memory to reclaim. The editor's real size decides this, so measure again after `CORE-02`. If it's too high: automatic sleep, a lower scrollback, or a more compact store.
 
 ## Benchmark scenarios
 
@@ -131,4 +145,4 @@ Wait 5 minutes after opening the project, with no extensions or language servers
 - CI runners vary in speed, so memory checks are strict and timing checks are warnings.
 - Every release publishes its numbers.
 
-No target above has been tested against LazyCode, because LazyCode doesn't exist yet.
+Only the terminal tab and idle targets above have been measured, on the prototype. The rest need the editor.

@@ -68,6 +68,9 @@ These were proposed on the basis that they'd become decisions when M0 started, u
 | P-09 | Language packs in TOML, with no code | Easy for contributors | Lua only |
 | P-10 | Store index pins exact commits | Plugins can't change after review | Latest version on each install |
 | P-11 | `fsnotify` for live updates | Standard choice for OS file notifications | Polling |
+| P-12 | Alt+H replaces in a file, and Alt+S splits, instead of the proposed Ctrl+H and Alt+\\ | Tests showed those two can't be read in most terminals | Commands only |
+| P-13 | Run OpenCode with `--standalone` | Otherwise its service keeps about 320 MB after sleeping | Accept the service, sharing it between sessions |
+| P-14 | 250 MiB Go memory limit | Keeps 10 full tabs at 239 MB, against 362 MB | Lower scrollback |
 
 ## Replaced decisions
 
@@ -91,4 +94,5 @@ These were proposed on the basis that they'd become decisions when M0 started, u
 | Date | Correction |
 |---|---|
 | 2026-11-03 | The first feasibility version estimated 5–30 MB per terminal tab. Measurement showed up to 185 MB with a 10,000-line scrollback, in the tested library. Default scrollback lowered to 1,000 as a result. |
+| 2026-11-04 | The docs assumed OpenCode accepts any session ID, and that stopping a session frees its memory. It needs IDs starting with `ses`, and its background service stays. See [10](10-harness-integration.md). |
 | 2026-11-03 | Roadmap estimates for M1 and M2 corrected to 11–17 and 13–20 weeks. They've since changed again, with the new first-version scope. |

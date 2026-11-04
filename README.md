@@ -58,6 +58,8 @@ Press `:` outside a terminal tab.
 go test -race ./...
 ```
 
+To check that LazyCode's keys reach it in your terminal, run `go run ./cmd/keytest`, press each key it lists, then press q.
+
 The `internal/syntax` package uses tree-sitter's C library, so testing it needs a C compiler. The `lazycode` binary doesn't link it yet.
 
 ## Licence

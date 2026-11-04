@@ -159,11 +159,12 @@ LazyCode runs in the user's terminal, which receives keys first (Q-50). The defa
 | Ctrl+S | Save | Proposed |
 | Ctrl+Z, Ctrl+Y | Undo, redo | Proposed |
 | Ctrl+X, Ctrl+C, Ctrl+V | Cut, copy, paste | Proposed |
-| Ctrl+F, Ctrl+H | Find, replace in file | Proposed |
+| Ctrl+F | Find in file | Proposed |
+| Alt+H | Replace in file | Proposed, because terminals send Ctrl+H as Backspace |
 | Alt+F | Search panel | Proposed, replacing Ctrl+Shift+F |
 | Ctrl+P | Open a file by name | Proposed |
 | Ctrl+W | Close tab | Proposed |
-| Alt+\\ | Split | Proposed, because Ctrl+\\ now leaves terminal tabs |
+| Alt+S | Split | Proposed, because Ctrl+\\ leaves terminal tabs, and Alt+\\ can't be read |
 | F12, F2 | Go to definition, rename | Proposed |
 | Shift+Alt+F | Format | Proposed |
 | Alt+D | Switch directory | Decided (Q-74) |
@@ -184,12 +185,15 @@ Terminal and OS defaults, which users can usually change in settings. Priority t
 | Ctrl+F2 | macOS: focus the menu bar. | Apple docs | Avoided on macOS (Q-80) |
 | Alt+F2 | Linux desktops: commonly opens a run dialog. | General knowledge, not checked | Avoided (Q-80) |
 | Alt+key | macOS: types special characters unless the Option setting is on. | Apple's Terminal list, secondary source | Avoided on macOS (Q-80) |
+| Ctrl+H | Most terminals: sends the same byte as Backspace. | Tested (`M0-07`) | Avoided |
+| Alt+\\ | Most terminals: sends `ESC \`, a control sequence that's dropped. | Tested (`M0-07`) | Avoided |
+| Ctrl+V | Windows Terminal: pastes. It arrives as a paste, which does the same job. | Tested (`M0-07`) | Accepted |
 | Ctrl+Tab | Windows Terminal and Kitty: next tab. | Microsoft docs, Kitty source | Avoided (Q-74) |
 | Ctrl+Shift+D | Windows Terminal: duplicate tab. | Microsoft docs | Avoided (Q-74) |
 | Ctrl+Shift+Space | Windows Terminal: new tab dropdown. | Microsoft docs | Avoided (Q-74) |
 | Ctrl+Shift+P | Kitty: prefix for hints. | Kitty source | Avoided (Q-74) |
 
-**No default found** in Windows Terminal's docs, Kitty's docs or Apple's lists for: Ctrl+\\, Alt+D, Alt+O, Alt+P, Alt+, and Alt+. on Linux and Windows, or Ctrl+K on macOS, where Apple lists it as reaching the program. That doesn't prove they arrive, and none of this has been tested in real terminals yet. That's prototype item `M0-07`.
+**No default found** in Windows Terminal's docs, Kitty's docs or Apple's lists for: Ctrl+\\, Alt+D, Alt+O, Alt+P, Alt+, and Alt+. on Linux and Windows, or Ctrl+K on macOS, where Apple lists it as reaching the program. **Tested on 2026-11-04 (`M0-07`).** `cmd/keytest` ran in real Windows Terminal, macOS Terminal and Kitty on CI, with simulated key presses, and every listed key arrived. Kitty also passed with a Spanish layout, including Ctrl+\\. The presses were simulated, so a physical keyboard and other layouts are still worth a try: run `go run ./cmd/keytest` in the terminal, press each key, then press q.
 
 ## Mouse behaviour
 
