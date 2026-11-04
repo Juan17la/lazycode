@@ -181,14 +181,9 @@ func (a *app) addPaste(ev *tcell.EventKey) {
 	}
 }
 
-func isCtrlBackslash(ev *tcell.EventKey) bool {
-	return ev.Key() == tcell.KeyCtrlBackslash ||
-		(ev.Key() == tcell.KeyRune && string(ev.Rune()) == "\\" && ev.Modifiers()&tcell.ModCtrl != 0)
-}
-
 func (a *app) handleKey(ev *tcell.EventKey) {
 	a.message = ""
-	if isCtrlBackslash(ev) { // Q-74: the one key a terminal tab never receives.
+	if term.IsLeaveKey(ev) { // Q-74: the one key a terminal tab never receives.
 		a.termFocused, a.chord, a.command, a.switcher = false, false, nil, nil
 		return
 	}

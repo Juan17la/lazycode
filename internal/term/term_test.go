@@ -122,6 +122,38 @@ func TestModifiedKeySeq(t *testing.T) {
 	}
 }
 
+// Ctrl+\ is the one key that must always work, and each OS delivers it differently.
+func TestIsLeaveKey(t *testing.T) {
+	for name, ev := range map[string]*tcell.EventKey{
+		"unix":         tcell.NewEventKey(tcell.KeyCtrlBackslash, 0, tcell.ModCtrl),
+		"control char": tcell.NewEventKey(tcell.KeyRune, 0x1c, tcell.ModNone),
+		"windows":      tcell.NewEventKey(tcell.KeyRune, '|', tcell.ModCtrl),
+		"kitty":        tcell.NewEventKey(tcell.KeyRune, '\\', tcell.ModCtrl),
+	} {
+		if !IsLeaveKey(ev) {
+			t.Errorf("%s: %v not recognised", name, ev.Name())
+		}
+	}
+	for name, ev := range map[string]*tcell.EventKey{
+		"plain pipe":      tcell.NewEventKey(tcell.KeyRune, '|', 0),
+		"plain backslash": tcell.NewEventKey(tcell.KeyRune, '\\', 0),
+		"ctrl+k":          tcell.NewEventKey(tcell.KeyCtrlK, 0, tcell.ModCtrl),
+	} {
+		if IsLeaveKey(ev) {
+			t.Errorf("%s must not leave the terminal", name)
+		}
+	}
+}
+
+func TestWindowsCtrlPunctuationIsForwardedCorrectly(t *testing.T) {
+	for in, want := range map[rune]rune{'}': ']', '~': '^', '{': '['} {
+		got, ok := toEmulatorKey(tcell.NewEventKey(tcell.KeyRune, in, tcell.ModCtrl))
+		if !ok || got.Code != want {
+			t.Errorf("Ctrl+%c: got %q, want %q", in, got.Code, want)
+		}
+	}
+}
+
 func TestToEmulatorKey(t *testing.T) {
 	ctrlA, _ := toEmulatorKey(tcell.NewEventKey(tcell.KeyCtrlA, 0, tcell.ModCtrl))
 	if ctrlA.Code != 'a' || ctrlA.Text != "" {

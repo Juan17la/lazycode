@@ -211,6 +211,23 @@ var emulatorKeys = map[tcell.Key]rune{
 var ctrlPunctuation = map[tcell.Key]rune{
 	tcell.KeyCtrlSpace: vt.KeySpace, tcell.KeyCtrlLeftSq: '[', tcell.KeyCtrlBackslash: '\\',
 	tcell.KeyCtrlRightSq: ']', tcell.KeyCtrlCarat: '^', tcell.KeyCtrlUnderscore: '_',
+	tcell.KeyFS: '\\', tcell.KeyGS: ']', tcell.KeyRS: '^', tcell.KeyUS: '_',
+}
+
+// windowsCtrlRunes undoes a tcell quirk on Windows: it adds 0x60 to control
+// characters, which suits letters but turns Ctrl+\ into Ctrl+|, and so on.
+var windowsCtrlRunes = map[rune]rune{'{': '[', '|': '\\', '}': ']', '~': '^'}
+
+// IsLeaveKey reports whether ev is Ctrl+\, however this OS's terminal delivers it.
+func IsLeaveKey(ev *tcell.EventKey) bool {
+	switch ev.Key() {
+	case tcell.KeyCtrlBackslash, tcell.KeyFS:
+		return true
+	case tcell.KeyRune:
+		r := ev.Rune()
+		return ev.Modifiers()&tcell.ModCtrl != 0 && (r == '\\' || r == '|')
+	}
+	return false
 }
 
 func toEmulatorKey(ev *tcell.EventKey) (vt.KeyPressEvent, bool) {
@@ -223,6 +240,9 @@ func toEmulatorKey(ev *tcell.EventKey) (vt.KeyPressEvent, bool) {
 	case key == tcell.KeyRune:
 		r := ev.Rune()
 		if ev.Modifiers()&tcell.ModCtrl != 0 {
+			if base, ok := windowsCtrlRunes[r]; ok {
+				r = base
+			}
 			return vt.KeyPressEvent{Code: unicode.ToLower(r), Mod: mod | vt.ModCtrl}, true
 		}
 		return vt.KeyPressEvent{Code: r, Text: string(r), Mod: mod}, r != 0
