@@ -17,6 +17,9 @@ import (
 
 // The test binary also plays the AI tool that runs inside LazyCode's terminal tab.
 func TestMain(m *testing.M) {
+	if os.Getenv("LAZYCODE_E2E_TOOL") == "stream" {
+		streamLines()
+	}
 	if os.Getenv("LAZYCODE_E2E_TOOL") != "" {
 		fmt.Println("tool ready")
 		in := bufio.NewScanner(os.Stdin)

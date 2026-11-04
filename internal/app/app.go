@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -294,9 +296,12 @@ func (a *app) closeTab(st *dirState) {
 		return
 	}
 	t := st.tabs[st.cur]
-	st.tabs = append(st.tabs[:st.cur], st.tabs[st.cur+1:]...)
+	st.tabs = slices.Delete(st.tabs, st.cur, st.cur+1) // Clears the old slot, so the tab can be freed.
 	st.cur = max(0, min(st.cur, len(st.tabs)-1))
-	go t.Close() // It can wait for a stubborn tool, and the UI mustn't.
+	go func() { // It can wait for a stubborn tool, and the UI mustn't.
+		t.Close()
+		debug.FreeOSMemory() // Closing is when users expect RAM back (D-28), not minutes later.
+	}()
 }
 
 func (a *app) handleCommandKey(ev *tcell.EventKey) {

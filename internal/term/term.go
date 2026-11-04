@@ -147,6 +147,9 @@ func (t *Tab) Exited() (bool, int) {
 	}
 }
 
+// Pid returns the command's process ID.
+func (t *Tab) Pid() int { return t.cmd.Process.Pid }
+
 // Done is closed when the command has ended.
 func (t *Tab) Done() <-chan struct{} { return t.exited }
 
