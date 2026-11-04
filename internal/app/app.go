@@ -214,6 +214,9 @@ func (a *app) closeAllTabs() {
 			for _, it := range p.tabs {
 				if it.term != nil {
 					wg.Go(it.term.Close)
+				} else {
+					// Windows won't let anything delete a file while it's mapped.
+					it.ed.File.Close() //nolint:errcheck // Only frees memory, and the app is stopping.
 				}
 			}
 		}
