@@ -49,8 +49,8 @@ func TestRealToolsResumeTheirChat(t *testing.T) {
 		},
 		{
 			name:   "opencode",
-			start:  func(id string) []string { return []string{"opencode", "--session", id} },
-			resume: func(id string) []string { return []string{"opencode", "--session", id} },
+			start:  func(id string) []string { return []string{"opencode", "--standalone", "--session", id} },
+			resume: func(id string) []string { return []string{"opencode", "--standalone", "--session", id} },
 			id:     func() string { return "ses_" + strings.ReplaceAll(uuid(t), "-", "") },
 			ready:  "┃",
 		},
