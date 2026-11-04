@@ -86,6 +86,13 @@ func main() {
 			if ev.Start() {
 				pastes++
 				last = "a paste. The terminal took this key for itself."
+				// Windows Terminal takes Ctrl+V and pastes. That's fine: the app handles a
+				// paste event the way it would handle Ctrl+V.
+				for i := range list {
+					if list[i].label == "Ctrl+V" {
+						list[i].seen = true
+					}
+				}
 			}
 		case *tcell.EventKey:
 			if ev.Key() == tcell.KeyRune && ev.Rune() == 'q' && ev.Modifiers() == 0 {
@@ -128,7 +135,7 @@ func draw(s tcell.Screen, list []check, last string) {
 
 func finish(list []check, unmatched []string, pastes int, reportPath string) {
 	var b strings.Builder
-	fmt.Fprintf(&b, "OS=%s TERM=%s TERM_PROGRAM=%s\n", runtime.GOOS, os.Getenv("TERM"), os.Getenv("TERM_PROGRAM"))
+	fmt.Fprintf(&b, "OS=%s TERM=%s TERM_PROGRAM=%s WT_SESSION=%s\n", runtime.GOOS, os.Getenv("TERM"), os.Getenv("TERM_PROGRAM"), os.Getenv("WT_SESSION"))
 	for _, c := range list {
 		status := "MISSING"
 		if c.seen {

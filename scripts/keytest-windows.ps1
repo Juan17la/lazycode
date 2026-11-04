@@ -8,6 +8,7 @@ if (-not $wt) { throw 'Windows Terminal is not installed here' }
 "Windows Terminal: $($wt.Source)"
 
 Add-Type -AssemblyName System.Windows.Forms
+Set-Clipboard -Value 'z' # Windows Terminal takes Ctrl+V to paste, which needs something to paste.
 $report = Join-Path $env:TEMP 'keytest-report.txt'
 Remove-Item $report -ErrorAction SilentlyContinue
 Start-Process wt.exe -ArgumentList @('--', $Bin, '--report', $report)

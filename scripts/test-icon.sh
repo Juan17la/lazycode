@@ -19,7 +19,7 @@ Darwin)
 esac
 
 i=0
-while ! pid=$(pgrep -x lazycode | head -n 1); do
+while pid=$(pgrep -x lazycode | head -n 1) && [ -z "$pid" ]; do
 	i=$((i + 1))
 	if [ "$i" -gt 30 ]; then
 		echo "FAIL: lazycode never started" >&2
