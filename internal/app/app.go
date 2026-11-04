@@ -1,5 +1,5 @@
 // Package app is the UI loop. One goroutine owns all state here (P-01), and other
-// goroutines only ask it to redraw.
+// goroutines only ask it to redraw or to run something.
 package app
 
 import (
@@ -7,36 +7,29 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime/debug"
-	"slices"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
-	"unicode"
 
+	"github.com/Juan17la/lazycode/internal/buffer"
+	"github.com/Juan17la/lazycode/internal/config"
 	"github.com/Juan17la/lazycode/internal/editor"
+	"github.com/Juan17la/lazycode/internal/keymap"
 	"github.com/Juan17la/lazycode/internal/project"
 	"github.com/Juan17la/lazycode/internal/term"
 	"github.com/Juan17la/lazycode/internal/tree"
 	"github.com/gdamore/tcell/v2"
-	"github.com/mattn/go-runewidth"
 )
 
 const frame = time.Second / 60 // Terminal output redraws at most this often.
 
-var (
-	accent = tcell.StyleDefault.Foreground(tcell.PaletteColor(208)).Bold(true)
-	muted  = tcell.StyleDefault.Dim(true)
-	active = tcell.StyleDefault.Reverse(true)
-)
-
 // dirState is what belongs to one directory: its tree and its tabs (D-30).
 type dirState struct {
-	tree *tree.Tree
-	tabs []*tabItem
-	cur  int
-	top  int // First tree row on screen.
+	tree  *tree.Tree
+	root  *split // The arrangement of panes.
+	focus *pane  // The pane new tabs go in, and that keys go to.
+	top   int    // First tree row on screen.
 }
 
 type app struct {
@@ -47,6 +40,12 @@ type app struct {
 	dirOf    []int // Active directory of each project.
 	dirs     map[string]*dirState
 
+	cfg        config.Config
+	keys       *keymap.Map
+	th         theme
+	showSecond bool // The second panel is open (Q-18).
+	filesPanel int  // Which panel holds the Files view: 0 is the first, 1 the second.
+
 	tabFocused bool
 	chord      bool // Ctrl+K was pressed, and the next key finishes it.
 	escaped    bool // Esc was pressed in a file, so : opens the command bar next.
@@ -54,15 +53,41 @@ type app struct {
 	paste      strings.Builder
 	command    *string   // The : bar's text, when it's open.
 	switcher   *switcher // The open switcher.
+	find       *findBar  // The open find bar.
 	prompts    []*prompt // Questions waiting for an answer. The first one is showing.
 	message    string
 	quit       bool
+	hits       []hit // What the mouse can click, from the last frame.
 
 	recovery      *editor.Recovery
+	autoSaves     map[*buffer.File]*time.Timer
 	register      string      // The last text copied here, for when there's no clipboard tool.
 	clipboardJobs chan func() // Run in order, off the UI goroutine.
 	tasks         chan func() // Run on the UI goroutine, for other goroutines.
 	done          chan struct{}
+}
+
+func newApp(screen tcell.Screen, projects []project.Project, dir, startup string) *app {
+	all, p, d := project.Locate(projects, dir)
+	a := &app{
+		screen:   screen,
+		redraw:   make(chan struct{}, 1),
+		projects: all,
+		project:  p,
+		dirOf:    make([]int, len(all)),
+		dirs:     map[string]*dirState{},
+		cfg:      config.Default(),
+		keys:     keymap.Default(),
+		message:  startup,
+
+		autoSaves:     map[*buffer.File]*time.Timer{},
+		clipboardJobs: make(chan func(), 16),
+		tasks:         make(chan func()),
+		done:          make(chan struct{}),
+	}
+	a.dirOf[p] = d
+	a.th = themeFor(a.cfg.UI.Theme)
+	return a
 }
 
 // Run shows the UI until the user quits, with dir as the starting folder. startup
@@ -73,23 +98,13 @@ func Run(screen tcell.Screen, projects []project.Project, dir, startup string) e
 	}
 	defer screen.Fini()
 	screen.EnablePaste()
+	// Clicks and the wheel only (Q-13). Shift+drag still selects text in most terminals.
+	// ponytail: dragging later means asking for MouseDragEvents here too.
+	screen.EnableMouse(tcell.MouseButtonEvents)
 
-	all, p, d := project.Locate(projects, dir)
-	a := &app{
-		screen:   screen,
-		redraw:   make(chan struct{}, 1),
-		projects: all,
-		project:  p,
-		dirOf:    make([]int, len(all)),
-		dirs:     map[string]*dirState{},
-		message:  startup,
-
-		clipboardJobs: make(chan func(), 16),
-		tasks:         make(chan func()),
-		done:          make(chan struct{}),
-	}
-	a.dirOf[p] = d
+	a := newApp(screen, projects, dir, startup)
 	defer a.closeAllTabs()
+	a.loadSettings()
 
 	// If the folder can't be found, writes fail and report it through this message.
 	recoveryDir, _ := editor.RecoveryDir()
@@ -118,7 +133,6 @@ func Run(screen tcell.Screen, projects []project.Project, dir, startup string) e
 		}
 	}()
 
-	a.resizeTabs()
 	a.draw()
 	var tick <-chan time.Time
 	for !a.quit {
@@ -183,29 +197,68 @@ func (a *app) dir() *dirState {
 	path := a.dirPath()
 	st := a.dirs[path]
 	if st == nil {
-		st = &dirState{tree: tree.New(path)}
+		first := &pane{}
+		st = &dirState{tree: tree.New(path), root: &split{pane: first}, focus: first}
 		a.dirs[path] = st
 	}
 	return st
 }
 
-func (a *app) tab() *tabItem {
-	if st := a.dir(); st.cur < len(st.tabs) {
-		return st.tabs[st.cur]
-	}
-	return nil
-}
+// tab returns the focused pane's current tab, if it has one.
+func (a *app) tab() *tabItem { return a.dir().focus.current() }
 
 func (a *app) closeAllTabs() {
 	var wg sync.WaitGroup
 	for _, st := range a.dirs {
-		for _, it := range st.tabs {
-			if it.term != nil {
-				wg.Go(it.term.Close)
+		for _, p := range st.root.panes() {
+			for _, it := range p.tabs {
+				if it.term != nil {
+					wg.Go(it.term.Close)
+				}
 			}
 		}
 	}
 	wg.Wait()
+}
+
+// Settings.
+
+func (a *app) settingsPath(name string) string {
+	dir, err := config.Dir()
+	if err != nil {
+		return name
+	}
+	return filepath.Join(dir, name)
+}
+
+// loadSettings reads the config files. A broken config.toml keeps the settings in use,
+// and keys.toml applies whatever it can (doc 07).
+func (a *app) loadSettings() {
+	var problems []string
+	cfg, err := config.Load(a.settingsPath("config.toml"))
+	if err != nil {
+		problems = append(problems, err.Error())
+	} else {
+		a.cfg = cfg
+	}
+	keys, err := keymap.Load(a.settingsPath("keys.toml"))
+	if err != nil {
+		problems = append(problems, err.Error())
+	}
+	a.keys = keys
+	a.th = themeFor(a.cfg.UI.Theme)
+	for _, st := range a.dirs {
+		for _, p := range st.root.panes() {
+			for _, it := range p.tabs {
+				if it.ed != nil {
+					it.ed.TabSize = a.cfg.Editor.TabSize
+				}
+			}
+		}
+	}
+	if len(problems) > 0 {
+		a.message = strings.Join(append(problems, a.message), "  ")
+	}
 }
 
 // Input.
@@ -214,17 +267,12 @@ func (a *app) handle(ev tcell.Event) {
 	switch ev := ev.(type) {
 	case *tcell.EventResize:
 		a.screen.Sync()
-		a.resizeTabs()
+	case *tcell.EventMouse:
+		a.handleMouse(ev)
 	case *tcell.EventPaste:
 		a.pasting = ev.Start()
 		if ev.End() {
-			if it := a.tab(); a.tabFocused && it != nil && a.command == nil && a.switcher == nil && len(a.prompts) == 0 {
-				if it.term != nil {
-					it.term.Paste(a.paste.String())
-				} else {
-					a.pasteInto(it, a.paste.String())
-				}
-			}
+			a.finishPaste(a.paste.String())
 			a.paste.Reset()
 		}
 	case *tcell.EventKey:
@@ -234,6 +282,18 @@ func (a *app) handle(ev tcell.Event) {
 		default:
 			a.handleKey(ev)
 		}
+	}
+}
+
+func (a *app) finishPaste(text string) {
+	switch it := a.tab(); {
+	case a.find != nil:
+		a.find.paste(a, text)
+	case !a.tabFocused || it == nil || a.command != nil || a.switcher != nil || len(a.prompts) > 0:
+	case it.term != nil:
+		it.term.Paste(text)
+	default:
+		a.pasteInto(it, text)
 	}
 }
 
@@ -258,132 +318,72 @@ func (a *app) handleKey(ev *tcell.EventKey) {
 	}
 	if term.IsLeaveKey(ev) { // Q-74: the one key a terminal tab never receives.
 		a.tabFocused, a.chord, a.escaped, a.command, a.switcher = false, false, false, nil, nil
+		a.closeFind()
 		return
 	}
 	switch {
 	case a.switcher != nil:
 		a.handleSwitcherKey(ev)
+		return
 	case a.command != nil:
 		a.handleCommandKey(ev)
-	case a.tabFocused:
-		switch it := a.tab(); {
-		case it == nil:
-			a.tabFocused = false
-		case it.term != nil:
-			it.term.Key(ev)
-		default:
-			a.handleEditorKey(it, ev)
-		}
-	default:
-		a.handlePanelKey(ev)
+		return
+	case a.find != nil:
+		a.handleFindKey(ev)
+		return
 	}
+	it := a.tab()
+	if a.tabFocused && it == nil {
+		a.tabFocused = false
+	}
+	if a.tabFocused && it.term != nil {
+		it.term.Key(ev)
+		return
+	}
+	context := keymap.Panel
+	if a.tabFocused {
+		context = keymap.Editor
+	}
+	a.handleBoundKey(context, it, ev)
 }
 
-// handleShortcutKey handles the shortcuts that work outside terminal tabs, and reports
-// whether it used the key. Each has two forms (Q-80): Alt+key on Linux and Windows, and
-// Ctrl+K then key on macOS, where Option types special characters by default. Both work
-// everywhere, so no OS check is needed.
-func (a *app) handleShortcutKey(ev *tcell.EventKey) bool {
-	chorded := a.chord
-	a.chord = false
-	if ev.Key() == tcell.KeyCtrlK || ctrlLetter(ev) == 'k' {
+// handleBoundKey runs what the keymap says, and types what it doesn't claim. Every
+// shortcut has two forms (Q-80): Alt+key on Linux and Windows, and Ctrl+K then key on
+// macOS, where Option types special characters by default. Both work everywhere, so no
+// OS check is needed.
+func (a *app) handleBoundKey(context keymap.Context, it *tabItem, ev *tcell.EventKey) {
+	name := keymap.Name(ev)
+	escaped := a.escaped
+	a.escaped = false
+	if a.chord {
+		a.chord = false
+		if action := a.keys.LookupChord(context, name); action != "" {
+			a.do(action)
+		}
+		return // Any other key cancels the chord.
+	}
+	if escaped && context == keymap.Editor && name == ":" {
+		a.openCommand()
+		return
+	}
+	if action := a.keys.Lookup(context, name); action != "" {
+		a.do(action)
+		return
+	}
+	if name == "ctrl+k" {
 		a.chord = true
-		a.message = "Ctrl+K: press d, o, comma or period"
-		return true
-	}
-	if ev.Key() == tcell.KeyRune && (chorded || ev.Modifiers()&tcell.ModAlt != 0) {
-		a.handleShortcut(string(ev.Rune()))
-		return true
-	}
-	return chorded // Any other key cancels the chord.
-}
-
-func (a *app) handlePanelKey(ev *tcell.EventKey) {
-	if a.handleShortcutKey(ev) {
+		a.message = "Ctrl+K: press d, o, comma, period or a"
 		return
 	}
-	st := a.dir()
-	key := ev.Key()
-	switch key {
-	case tcell.KeyUp:
-		st.tree.Move(-1)
-	case tcell.KeyDown:
-		st.tree.Move(1)
-	case tcell.KeyLeft:
-		st.tree.SetOpen(false)
-	case tcell.KeyRight:
-		st.tree.SetOpen(true)
-	case tcell.KeyEnter:
-		a.openSelected(st)
-	case tcell.KeyTab:
-		if a.tab() != nil {
-			a.focusTab()
-		} else {
-			a.message = "No tabs here. Enter opens a file, and :term starts a tool."
-		}
-	case tcell.KeyCtrlW:
-		a.closeTab(st)
-	case tcell.KeyRune:
-		switch string(ev.Rune()) {
-		case ":":
-			empty := ""
-			a.command = &empty
-		case "r":
-			st.tree.Refresh()
-		}
+	mods := ev.Modifiers()
+	if context == keymap.Editor && ev.Key() == tcell.KeyRune && mods&(tcell.ModCtrl|tcell.ModAlt) == 0 {
+		a.editWith(it, func() error { return it.ed.Type(string(ev.Rune())) })
 	}
 }
 
-func (a *app) handleShortcut(key string) {
-	switch strings.ToLower(key) {
-	case "o":
-		a.openProjectSwitcher()
-	case "d":
-		a.openDirSwitcher()
-	case ",":
-		a.moveTab(-1)
-	case ".":
-		a.moveTab(1)
-	}
-}
-
-func (a *app) openSelected(st *dirState) {
-	row, ok := st.tree.Selected()
-	switch {
-	case !ok:
-	case row.IsDir:
-		st.tree.SetOpen(!row.Open)
-	default:
-		a.openFile(st, row.Path)
-	}
-}
-
-// moveTab goes to the previous or next tab in this directory, and focuses it.
-func (a *app) moveTab(delta int) {
-	st := a.dir()
-	if len(st.tabs) == 0 {
-		a.message = "No tabs here. Enter opens a file, and :term starts a tool."
-		return
-	}
-	st.cur = (st.cur + delta + len(st.tabs)) % len(st.tabs)
-	a.focusTab()
-}
-
-func (a *app) removeTab(st *dirState, it *tabItem) {
-	i := slices.Index(st.tabs, it)
-	if i < 0 {
-		return
-	}
-	st.tabs = slices.Delete(st.tabs, i, i+1) // Clears the old slot, so the tab can be freed.
-	st.cur = max(0, min(st.cur, len(st.tabs)-1))
-	go func() { // It can wait for a stubborn tool, and the UI mustn't.
-		if it.term != nil {
-			it.term.Close()
-		} else {
-			it.ed.File.Close() //nolint:errcheck // Only frees memory, and the tab is gone.
-		}
-		debug.FreeOSMemory() // Closing is when users expect RAM back (D-28), not minutes later.
-	}()
+func (a *app) openCommand() {
+	empty := ""
+	a.command = &empty
 }
 
 func (a *app) handleCommandKey(ev *tcell.EventKey) {
@@ -408,16 +408,18 @@ func (a *app) handleCommandKey(ev *tcell.EventKey) {
 	}
 }
 
+// run handles the : commands. Each full name has a short form, as in Neovim (Q-22).
 func (a *app) run(line string) {
 	fields := strings.Fields(line)
 	if len(fields) == 0 {
 		return
 	}
+	it := a.tab()
 	switch fields[0] {
 	case "q", "quit":
-		a.askQuit(map[*tabItem]bool{})
+		a.askQuit(map[*buffer.File]bool{})
 	case "w", "save":
-		if it := a.tab(); it != nil && it.ed != nil {
+		if it != nil && it.ed != nil {
 			a.save(it, func() {})
 		} else {
 			a.message = "There's no file to save here."
@@ -427,14 +429,43 @@ func (a *app) run(line string) {
 	case "dir":
 		a.openDirSwitcher()
 	case "close":
-		a.closeTab(a.dir())
+		a.closeTab()
 	case "term":
 		// The command is split into arguments and never passed through a shell.
 		// ponytail: no quoting yet, D3 replaces this with the harness list.
 		a.startTab(fields[1:])
+	case "split":
+		a.splitPane(len(fields) < 2 || fields[1] != "down")
+	case "selectall":
+		if it != nil && it.ed != nil {
+			a.do("select.all_occurrences")
+		} else {
+			a.message = "There's no file to select in here."
+		}
+	case "find":
+		a.do("find.open")
+	case "replace":
+		a.do("find.replace")
+	case "view":
+		a.moveFilesView()
+	case "config":
+		name, content := "config.toml", config.Template
+		if len(fields) > 1 && fields[1] == "keys" {
+			name, content = "keys.toml", keymap.Template
+		}
+		a.openSettings(name, content)
 	default:
-		a.message = "Unknown command: " + fields[0] + ". Try save, term, project, dir, close, or q."
+		a.message = "Unknown command: " + fields[0] + ". Try save, term, split, find, config, project, dir, close, or q."
 	}
+}
+
+func (a *app) openSettings(name, content string) {
+	path := a.settingsPath(name)
+	if err := config.EnsureFile(path, content); err != nil {
+		a.message = "Can't create " + name + ": " + err.Error()
+		return
+	}
+	a.openFile(a.dir(), path)
 }
 
 func defaultShell() []string {
@@ -451,15 +482,17 @@ func (a *app) startTab(args []string) {
 	if len(args) == 0 {
 		args = defaultShell()
 	}
-	w, h := a.termSize()
-	t, err := term.Start(a.dirPath(), args, w, h, a.requestRedraw)
+	st := a.dir()
+	a.layout(st)
+	size := st.focus.content()
+	t, err := term.Start(a.dirPath(), args, size.w, size.h, a.requestRedraw)
 	if err != nil {
 		a.message = err.Error()
 		return
 	}
-	st := a.dir()
-	st.tabs = append(st.tabs, &tabItem{term: t})
-	st.cur = len(st.tabs) - 1
+	t.SetScrollback(a.cfg.Terminal.Scrollback)
+	st.focus.tabs = append(st.focus.tabs, &tabItem{term: t, w: size.w, h: size.h})
+	st.focus.cur = len(st.focus.tabs) - 1
 	a.tabFocused = true
 }
 
@@ -509,6 +542,7 @@ func (a *app) openDirSwitcher() {
 // afterSwitch shows the new directory's views. Tabs elsewhere keep running (Q-34).
 func (a *app) afterSwitch() {
 	a.tabFocused = false
+	a.closeFind()
 	a.dir().tree.Refresh()
 }
 
@@ -534,218 +568,5 @@ func (a *app) handleSwitcherKey(ev *tcell.EventKey) {
 	case tcell.KeyRune:
 		s.filter += string(ev.Rune())
 		s.sel = 0
-	}
-}
-
-// Drawing.
-
-// treeWidth is the file tree's width. It hides in very narrow windows.
-func (a *app) treeWidth() int {
-	w, _ := a.screen.Size()
-	if w < 40 {
-		return 0
-	}
-	return min(32, w/3)
-}
-
-func (a *app) termSize() (width, height int) {
-	w, h := a.screen.Size()
-	if tw := a.treeWidth(); tw > 0 {
-		w -= tw + 1
-	}
-	return max(1, w), max(1, h-3) // Title, tab bar and status lines.
-}
-
-func (a *app) resizeTabs() {
-	w, h := a.termSize()
-	for _, st := range a.dirs {
-		for _, it := range st.tabs {
-			if it.term != nil {
-				it.term.Resize(w, h)
-			}
-		}
-	}
-}
-
-// put draws text, stops at maxX, and returns the next column. Control characters
-// become "?", so that a file name can't send escape sequences to the terminal.
-func (a *app) put(x, y, maxX int, text string, style tcell.Style) int {
-	for _, r := range text {
-		if unicode.IsControl(r) {
-			r = '?'
-		}
-		w := runewidth.RuneWidth(r)
-		if x+w > maxX {
-			break
-		}
-		a.screen.SetContent(x, y, r, nil, style)
-		x += w
-	}
-	return x
-}
-
-func (a *app) draw() {
-	s := a.screen
-	s.Clear()
-	s.HideCursor()
-	w, h := s.Size()
-	st := a.dir()
-
-	x := a.put(0, 0, w, " "+a.projects[a.project].Name, tcell.StyleDefault.Bold(true))
-	a.put(x, 0, w, " › "+filepath.Base(a.dirPath()), tcell.StyleDefault)
-
-	left := 0
-	if tw := a.treeWidth(); tw > 0 {
-		a.drawTree(st, tw, h-2)
-		for y := 1; y < h-1; y++ {
-			s.SetContent(tw, y, '│', nil, muted)
-		}
-		left = tw + 1
-	}
-	a.drawTabs(st, left, w)
-	a.drawTabArea(st, left)
-	a.drawStatus(w, h)
-	if a.switcher != nil {
-		a.drawSwitcher(w, h)
-	}
-	s.Show()
-}
-
-func (a *app) drawTree(st *dirState, width, height int) {
-	title := muted
-	if !a.tabFocused {
-		title = accent
-	}
-	a.put(1, 1, width, "Files", title)
-
-	y0, rows := 2, height-1
-	if st.tree.Err != nil {
-		a.put(1, y0, width, "Can't read this directory", tcell.StyleDefault)
-		return
-	}
-	if len(st.tree.Rows) == 0 {
-		a.put(1, y0, width, "Empty directory", muted)
-		return
-	}
-	// Keep the selection on screen.
-	st.top = max(0, min(st.top, st.tree.Sel))
-	if st.tree.Sel >= st.top+rows {
-		st.top = st.tree.Sel - rows + 1
-	}
-	for i := st.top; i < len(st.tree.Rows) && i < st.top+rows; i++ {
-		row := st.tree.Rows[i]
-		marker := "  "
-		if row.IsDir {
-			marker = "▸ "
-			if row.Open {
-				marker = "▾ "
-			}
-		}
-		style := tcell.StyleDefault
-		if i == st.tree.Sel {
-			style = tcell.StyleDefault.Underline(true)
-			if !a.tabFocused {
-				style = active
-			}
-		}
-		a.put(1, y0+i-st.top, width, strings.Repeat("  ", row.Depth)+marker+row.Name, style)
-	}
-}
-
-func (a *app) drawTabs(st *dirState, left, width int) {
-	x := left + 1
-	for i, it := range st.tabs {
-		label := " " + it.name() + " "
-		switch {
-		case it.ed != nil:
-			if it.ed.File.Modified() {
-				label = " " + it.name() + "* "
-			}
-		default:
-			label = " ▶ " + it.name() + " "
-			if done, code := it.term.Exited(); done {
-				label = fmt.Sprintf(" ▶ %s [exit %d] ", it.name(), code)
-			}
-		}
-		style := muted
-		if i == st.cur {
-			style = tcell.StyleDefault.Bold(true)
-			if a.tabFocused {
-				style = active
-			}
-		}
-		x = a.put(x, 1, width, label, style) + 1
-	}
-}
-
-func (a *app) drawTabArea(st *dirState, left int) {
-	w, h := a.termSize()
-	it := a.tab()
-	switch {
-	case it == nil:
-		a.put(left+1, 3, left+w, "No tabs here.", tcell.StyleDefault)
-		a.put(left+1, 4, left+w, "Enter opens a file. To start a tool, press : then type: term claude", muted)
-	case it.ed != nil:
-		a.drawEditor(it.ed, left, 2, w, h)
-	default:
-		it.term.Draw(a.screen, left, 2, w, h)
-		if x, y, visible := it.term.Cursor(); visible && a.tabFocused && a.switcher == nil && a.command == nil && len(a.prompts) == 0 {
-			a.screen.ShowCursor(left+x, 2+y)
-		}
-	}
-}
-
-func (a *app) drawStatus(w, h int) {
-	y := h - 1
-	switch {
-	case len(a.prompts) > 0:
-		a.drawPrompt(w, y)
-	case a.command != nil:
-		x := a.put(0, y, w, ":"+*a.command, tcell.StyleDefault)
-		a.screen.ShowCursor(min(x, w-1), y)
-	case a.message != "":
-		a.put(1, y, w, a.message, tcell.StyleDefault)
-	case a.tabFocused && a.tab() != nil && a.tab().ed != nil:
-		e := a.tab().ed
-		line, col := e.Position()
-		where := fmt.Sprintf("Ln %d, Col %d", line+1, col+1)
-		if e.File.ReadOnly() {
-			where = "Read-only  " + where
-		}
-		a.put(max(1, w-len(where)-1), y, w, where, tcell.StyleDefault)
-		a.put(1, y, max(1, w-len(where)-2), `Ctrl+S save   Ctrl+\ files   Esc : commands`, muted)
-	case a.tabFocused:
-		a.put(1, y, w, `Ctrl+\ leaves the terminal`, muted)
-	default:
-		a.put(1, y, w, "Enter open   Alt+O or :project   Alt+D or :dir   Alt+, Alt+. tabs   Tab enter tab   : commands", muted)
-	}
-}
-
-func (a *app) drawSwitcher(w, h int) {
-	s := a.switcher
-	matches := s.matches()
-	bw := max(1, min(50, w-4))
-	bh := max(1, min(len(matches), h-6))
-	x0, y0 := (w-bw)/2, max(0, (h-bh)/2-2)
-
-	for y := y0; y < y0+bh+3; y++ {
-		for x := x0; x < x0+bw; x++ {
-			a.screen.SetContent(x, y, ' ', nil, tcell.StyleDefault)
-		}
-	}
-	maxX := x0 + bw
-	a.put(x0+1, y0, maxX, s.title, accent)
-	end := a.put(x0+1, y0+1, maxX, "> "+s.filter, tcell.StyleDefault)
-	a.screen.ShowCursor(min(end, maxX-1), y0+1)
-	if len(matches) == 0 {
-		a.put(x0+1, y0+2, maxX, "No matches", muted)
-	}
-	for i := 0; i < bh && i < len(matches); i++ {
-		style := tcell.StyleDefault
-		prefix := "  "
-		if i == s.sel {
-			style, prefix = active, "› "
-		}
-		a.put(x0+1, y0+2+i, maxX, prefix+s.labels[matches[i]], style)
 	}
 }

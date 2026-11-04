@@ -1,6 +1,8 @@
 package editor
 
 import (
+	"bytes"
+	"slices"
 	"unicode"
 	"unicode/utf8"
 
@@ -17,6 +19,8 @@ type Cell struct {
 	Text     string
 	Width    int
 	Selected bool
+	Cursor   bool // A cursor other than the main one, which the terminal draws itself.
+	Match    bool // Part of a find match.
 	Special  bool // Text stands in for something that can't be shown as it is.
 }
 
@@ -33,7 +37,7 @@ func walk(text []byte, col, tabSize int, fn func(g glyph) bool) {
 	for len(text) > 0 {
 		// Printable ASCII followed by ASCII is always a whole character, and skipping
 		// segmentation is what keeps a line of minified code near the frame budget.
-		// ponytail: a 1 MB line of non-ASCII text still takes about 30 ms per move.
+		// ponytail: a 1 MB line of non-ASCII text is several times slower than ASCII.
 		// Remembering columns along the line is the upgrade if that shows up.
 		if c := text[0]; c >= 0x20 && c < 0x7f && (len(text) == 1 || text[1] < 0x80) {
 			if !fn(glyph{offset: offset, col: col, width: 1, text: string(text[:1])}) {
@@ -101,11 +105,16 @@ func (e *Editor) offsetAtColumn(line, col int) int {
 	return result
 }
 
-// Scroll sets the size of the text area, and scrolls to keep the cursor in it.
+// Scroll sets the size of the text area, and scrolls to keep the main cursor in it if the
+// cursor or the text has changed. So the wheel can look elsewhere until the next edit or move.
 func (e *Editor) Scroll(width, height int) {
 	e.height = max(1, height)
-	line, col := e.Position()
 	e.ScrollLine = max(0, min(e.ScrollLine, e.File.LineCount()-1))
+	if e.followed.pos == e.cur().pos && e.followed.text.Same(e.File.Snapshot) && e.followed.valid {
+		return
+	}
+	e.followed.valid, e.followed.pos, e.followed.text = true, e.cur().pos, e.File.Snapshot
+	line, col := e.Position()
 	if line < e.ScrollLine {
 		e.ScrollLine = line
 	} else if line >= e.ScrollLine+e.height {
@@ -118,42 +127,105 @@ func (e *Editor) Scroll(width, height int) {
 	}
 }
 
+// ScrollBy moves the view without moving the cursors, as the mouse wheel does.
+func (e *Editor) ScrollBy(lines int) {
+	e.ScrollLine = max(0, min(e.ScrollLine+lines, e.File.LineCount()-1))
+}
+
 // ScreenCursor returns the cursor's position in the text area.
 func (e *Editor) ScreenCursor() (x, y int) {
 	line, col := e.Position()
 	return col - e.ScrollCol, line - e.ScrollLine
 }
 
+// selectedAt reports whether offset is inside a selection.
+func (e *Editor) selectedAt(offset int) bool {
+	i, _ := slices.BinarySearchFunc(e.cursors, offset, func(c cursor, at int) int {
+		if c.end() <= at {
+			return -1
+		}
+		return 1
+	})
+	return i < len(e.cursors) && e.cursors[i].start() <= offset
+}
+
+// otherCursorAt reports whether a cursor other than the main one sits at offset. The
+// terminal only draws one cursor, so the view draws the rest.
+func (e *Editor) otherCursorAt(offset int) bool {
+	i, _ := slices.BinarySearchFunc(e.cursors, offset, func(c cursor, at int) int {
+		if c.end() < at {
+			return -1
+		}
+		return 1
+	})
+	for ; i < len(e.cursors) && e.cursors[i].start() <= offset; i++ {
+		if e.cursors[i].pos == offset && i != e.primary {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesOn returns where Highlight appears in text, as start and end pairs.
+func (e *Editor) matchesOn(text []byte) [][2]int {
+	if e.Highlight == "" {
+		return nil
+	}
+	needle := []byte(e.Highlight)
+	var found [][2]int
+	for at := 0; ; {
+		i := bytes.Index(text[at:], needle)
+		if i < 0 {
+			return found
+		}
+		found = append(found, [2]int{at + i, at + i + len(needle)})
+		at += i + len(needle)
+	}
+}
+
 // Row returns what to draw for a line, for a text area of this width.
 func (e *Editor) Row(line, width int) []Cell {
 	start, end, next := e.lineSpan(line)
-	selStart, selEnd := e.Selection()
-	selected := func(offset int) bool { return selStart <= offset && offset < selEnd }
-
 	var cells []Cell
 	right := e.ScrollCol + width
-	blank := func(from, to int, sel bool) {
-		for x := max(from, e.ScrollCol); x < min(to, right); x++ {
-			cells = append(cells, Cell{X: x - e.ScrollCol, Text: " ", Width: 1, Selected: sel})
-		}
-	}
 	endCol := 0
 	limit := min(end, start+right*maxBytesPerColumn)
-	walk(e.File.Slice(start, limit), 0, e.TabSize, func(g glyph) bool {
-		sel := selected(start + g.offset)
+	text := e.File.Slice(start, limit)
+	matches := e.matchesOn(text)
+	walk(text, 0, e.TabSize, func(g glyph) bool {
+		offset := start + g.offset
 		endCol = g.col + g.width
-		switch {
-		case g.col >= right:
+		if g.col >= right {
 			return false
-		case g.text == " " || g.col < e.ScrollCol || endCol > right: // A tab, or cut off by an edge.
-			blank(g.col, endCol, sel)
-		default:
-			cells = append(cells, Cell{X: g.col - e.ScrollCol, Text: g.text, Width: g.width, Selected: sel, Special: g.special})
 		}
+		if endCol <= e.ScrollCol {
+			return true // Off the left edge. On a very long line, most of it is.
+		}
+		for len(matches) > 0 && matches[0][1] <= g.offset {
+			matches = matches[1:]
+		}
+		cell := Cell{
+			Selected: e.selectedAt(offset),
+			Cursor:   e.otherCursorAt(offset),
+			Match:    len(matches) > 0 && matches[0][0] <= g.offset,
+		}
+		if g.text == " " || g.col < e.ScrollCol || endCol > right { // A tab, or cut off by an edge.
+			cell.Text, cell.Width = " ", 1
+			for x := max(g.col, e.ScrollCol); x < min(endCol, right); x++ {
+				cell.X = x - e.ScrollCol
+				cells = append(cells, cell)
+				cell.Cursor = false
+			}
+			return true
+		}
+		cell.X, cell.Text, cell.Width, cell.Special = g.col-e.ScrollCol, g.text, g.width, g.special
+		cells = append(cells, cell)
 		return true
 	})
-	if end < next && selected(end) { // Show that the line break is selected too.
-		blank(endCol, endCol+1, true)
+	// Show a selected line break, and a cursor at the end of a line.
+	selected := end < next && e.selectedAt(end)
+	if other := e.otherCursorAt(end); (selected || other) && endCol >= e.ScrollCol && endCol < right && limit == end {
+		cells = append(cells, Cell{X: endCol - e.ScrollCol, Text: " ", Width: 1, Selected: selected, Cursor: other})
 	}
 	return cells
 }

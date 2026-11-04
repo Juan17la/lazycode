@@ -180,6 +180,30 @@ func (t *Tab) Resize(width, height int) {
 	t.pty.Resize(width, height) //nolint:errcheck // Fails only once the command is gone.
 }
 
+// SetScrollback sets how many lines the tab keeps. See scrollbackLines for what they cost.
+func (t *Tab) SetScrollback(lines int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.emu.SetScrollbackSize(lines)
+}
+
+// Mouse sends a mouse event at a position in the tab. The emulator only passes it on if the
+// command turned mouse reporting on.
+func (t *Tab) Mouse(x, y int, wheelUp, wheelDown, pressed bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	switch {
+	case wheelUp:
+		t.emu.SendMouse(vt.MouseWheel{X: x, Y: y, Button: vt.MouseWheelUp})
+	case wheelDown:
+		t.emu.SendMouse(vt.MouseWheel{X: x, Y: y, Button: vt.MouseWheelDown})
+	case pressed:
+		t.emu.SendMouse(vt.MouseClick{X: x, Y: y, Button: vt.MouseLeft})
+	default:
+		t.emu.SendMouse(vt.MouseRelease{X: x, Y: y, Button: vt.MouseLeft})
+	}
+}
+
 // Paste sends text the way the tool asked for it, using bracketed paste if enabled.
 func (t *Tab) Paste(text string) {
 	t.mu.Lock()

@@ -230,6 +230,73 @@ func TestMatchesPlainStrings(t *testing.T) {
 	}
 }
 
+func TestIndexAcrossChunksAndPieces(t *testing.T) {
+	filler := strings.Repeat("x", searchChunk-3)
+	b := New([]byte(filler + "needle" + filler + "needle" + "tail"))
+	first := len(filler)
+	second := first + len("needle") + len(filler)
+	needle := []byte("needle")
+	if got := b.Index(needle, 0); got != first {
+		t.Fatalf("Index = %d, want %d", got, first)
+	}
+	if got := b.Index(needle, first+1); got != second {
+		t.Fatalf("Index = %d, want %d", got, second)
+	}
+	if got := b.Index(needle, second+1); got != -1 {
+		t.Fatalf("Index = %d", got)
+	}
+	if got := b.LastIndex(needle, b.Len()); got != second {
+		t.Fatalf("LastIndex = %d, want %d", got, second)
+	}
+	if got := b.LastIndex(needle, second+5); got != first {
+		t.Fatalf("LastIndex = %d, want %d", got, first)
+	}
+	if got := b.LastIndex(needle, first+5); got != -1 {
+		t.Fatalf("LastIndex = %d", got)
+	}
+
+	// A match split between the original and added text.
+	b = New([]byte("nee dle"))
+	edit(t, b, Edit{3, 4, ""})
+	if got := b.Index(needle, 0); got != 0 {
+		t.Fatalf("Index across pieces = %d", got)
+	}
+	if got := b.Index(nil, 0); got != -1 {
+		t.Fatalf("empty needle: %d", got)
+	}
+	if got := b.LastIndex(nil, 5); got != -1 {
+		t.Fatalf("empty needle: %d", got)
+	}
+	if got := b.Index(needle, -5); got != 0 {
+		t.Fatalf("negative from: %d", got)
+	}
+}
+
+func FuzzIndex(f *testing.F) {
+	f.Add("abcabc", "bc", 1)
+	f.Fuzz(func(t *testing.T, text, needle string, from int) {
+		s := New([]byte(text)).Snapshot
+		from = max(from, 0)
+		want := -1
+		if needle != "" && from <= len(text) {
+			if i := strings.Index(text[from:], needle); i >= 0 {
+				want = from + i
+			}
+		}
+		if got := s.Index([]byte(needle), from); got != want {
+			t.Fatalf("Index(%q, %q, %d) = %d, want %d", text, needle, from, got, want)
+		}
+		end := min(from, len(text))
+		want = -1
+		if needle != "" {
+			want = strings.LastIndex(text[:end], needle)
+		}
+		if got := s.LastIndex([]byte(needle), end); got != want {
+			t.Fatalf("LastIndex(%q, %q, %d) = %d, want %d", text, needle, end, got, want)
+		}
+	})
+}
+
 func FuzzEdits(f *testing.F) {
 	f.Add([]byte{})
 	f.Add([]byte("some edits, then undo and redo"))

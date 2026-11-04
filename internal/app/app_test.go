@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/Juan17la/lazycode/internal/buffer"
+	"github.com/Juan17la/lazycode/internal/config"
 	"github.com/Juan17la/lazycode/internal/editor"
+	"github.com/Juan17la/lazycode/internal/keymap"
 	"github.com/Juan17la/lazycode/internal/project"
 	"github.com/gdamore/tcell/v2"
 )
@@ -30,6 +32,9 @@ func TestMain(m *testing.M) {
 		var n int
 		fmt.Sscan(code, &n) //nolint:errcheck // Tests pass a number.
 		fmt.Println("tool ran")
+		if os.Getenv("LAZYCODE_TEST_STAY") != "" {
+			time.Sleep(time.Minute)
+		}
 		os.Exit(n)
 	}
 	os.Exit(m.Run())
@@ -153,6 +158,18 @@ func (u *ui) wait(want string) {
 	u.t.Fatalf("screen never showed %q:\n%s", want, u.text())
 }
 
+func (u *ui) waitCount(text string, want int) {
+	u.t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Count(u.text(), text) == want {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	u.t.Fatalf("screen doesn't show %q %d times:\n%s", text, want, u.text())
+}
+
 func (u *ui) waitGone(text string) {
 	u.t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
@@ -167,7 +184,10 @@ func (u *ui) waitGone(text string) {
 
 // post retries, because PostEvent drops the event when the queue is full.
 func (u *ui) post(ev tcell.Event) {
-	for u.screen.PostEvent(ev) != nil {
+	for range 2000 { // Gives up once the app has stopped reading.
+		if u.screen.PostEvent(ev) == nil {
+			return
+		}
 		time.Sleep(time.Millisecond)
 	}
 }
@@ -327,19 +347,6 @@ func TestBinaryAndMissingFilesGiveAMessage(t *testing.T) {
 	u.key(tcell.KeyEnter)
 	u.wait("bin.dat is a binary file")
 	u.wait("No tabs here.")
-}
-
-func TestOpenTheSameFileTwice(t *testing.T) {
-	u := start(t, map[string]string{"a.txt": "one"})
-	u.key(tcell.KeyEnter)
-	u.wait("Ln 1, Col 1")
-	u.key(tcell.KeyCtrlBackslash)
-	u.waitGone("Ln 1, Col 1")
-	u.key(tcell.KeyEnter)
-	u.wait("Ln 1, Col 1")
-	if strings.Count(u.text(), " a.txt ") > 2 { // In the tree, and once as a tab.
-		t.Fatalf("opened twice:\n%s", u.text())
-	}
 }
 
 func TestQuitAsksAboutUnsavedWork(t *testing.T) {
@@ -666,6 +673,790 @@ func waitForEmpty(t *testing.T, dir string) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("the recovery file wasn't removed")
+}
+
+// CORE-05: multiple cursors, through the keys.
+
+func TestMultipleCursorsThroughKeys(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "foo bar foo\nfoo\n"})
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.key(tcell.KeyCtrlD) // Selects the word.
+	u.wait("Ln 1, Col 4")
+	u.key(tcell.KeyCtrlD) // Adds the next one.
+	u.wait("2 cursors")
+	u.key(tcell.KeyCtrlD)
+	u.wait("3 cursors")
+	u.key(tcell.KeyCtrlD)
+	u.wait("No more to select.")
+	u.press("x")
+	u.wait("x bar x")
+	u.key(tcell.KeyCtrlZ) // One step (UC-15).
+	u.wait("foo bar foo")
+	u.waitGone("a.txt*")
+	u.wait("3 cursors") // The cursors came back too.
+
+	u.key(tcell.KeyEsc) // Back to one.
+	u.waitGone("3 cursors")
+}
+
+func TestSelectAllOccurrencesEachWay(t *testing.T) {
+	check := func(name string, trigger func(u *ui)) {
+		t.Run(name, func(t *testing.T) {
+			u := start(t, map[string]string{"a.txt": "dog cat dog\n"})
+			u.key(tcell.KeyEnter)
+			u.wait("Ln 1, Col 1")
+			trigger(u)
+			u.wait("2 selected")
+			u.press("z")
+			u.wait("z cat z")
+		})
+	}
+	check("Ctrl+F2", func(u *ui) { u.mod(tcell.KeyF2, tcell.ModCtrl) })
+	check("Ctrl+K then A", func(u *ui) { // macOS (Q-80).
+		u.key(tcell.KeyCtrlK)
+		u.wait("Ctrl+K: press")
+		u.press("a")
+	})
+	check(":selectall", func(u *ui) {
+		u.key(tcell.KeyEsc)
+		u.press(":selectall")
+		u.key(tcell.KeyEnter)
+	})
+}
+
+// CORE-06: find and replace.
+
+func TestFindBar(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "one two\none three\n"})
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.key(tcell.KeyCtrlF)
+	u.wait("Find: ")
+	u.wait("0 matches")
+
+	u.press("one")
+	u.wait("Find: one")
+	u.wait("2 matches")
+	u.key(tcell.KeyEnter) // Next match.
+	u.key(tcell.KeyEsc)
+	u.waitGone("Find:")
+	u.wait("Ln 2, Col 4")
+	u.press("X") // The selection stays, so typing replaces it.
+	u.wait("X three")
+
+	u.key(tcell.KeyCtrlF)
+	u.press("nothing here")
+	u.wait("0 matches")
+	u.key(tcell.KeyBackspace2)
+	u.key(tcell.KeyEsc)
+	if got := u.file("a.txt"); got != "one two\none three\n" {
+		t.Fatalf("finding changed the file: %q", got)
+	}
+}
+
+func TestFindArrowsAndPaste(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "ab\nab\nab\n"})
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.key(tcell.KeyCtrlF)
+	u.post(tcell.NewEventPaste(true))
+	u.press("ab")
+	u.key(tcell.KeyEnter) // A line break in a paste is dropped.
+	u.post(tcell.NewEventPaste(false))
+	u.wait("Find: ab")
+	u.wait("3 matches")
+	u.key(tcell.KeyDown)
+	u.key(tcell.KeyDown)
+	u.key(tcell.KeyUp)
+	u.key(tcell.KeyEsc)
+	u.wait("Ln 2, Col 3")
+}
+
+func TestReplaceBar(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "cat cat cat cat\n"})
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'h', tcell.ModAlt))
+	u.wait("Replace:")
+	u.press("dog") // The replacement has focus first.
+	u.key(tcell.KeyTab)
+	u.press("cat")
+	u.wait("4 matches")
+	u.key(tcell.KeyTab)
+	u.key(tcell.KeyEnter) // Replaces the selected match.
+	u.wait("dog cat cat cat")
+	u.wait("3 matches")
+	u.key(tcell.KeyEnter)
+	u.wait("dog dog cat cat")
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'a', tcell.ModAlt))
+	u.wait("Replaced 2.")
+	u.wait("dog dog dog dog")
+	u.key(tcell.KeyEsc)
+	u.key(tcell.KeyCtrlZ) // Replacing all is one step.
+	u.wait("dog dog cat cat")
+	u.wait("a.txt*")
+}
+
+func TestReplaceInAReadOnlyFile(t *testing.T) {
+	u := start(t, map[string]string{"big.log": strings.Repeat("line\n", 2000)})
+	if err := os.Truncate(filepath.Join(u.dir, "big.log"), 100<<20+1); err != nil {
+		t.Fatal(err)
+	}
+	u.key(tcell.KeyEnter)
+	u.wait("over 100 MB")
+	u.press("x")
+	u.wait("big.log is read-only.")
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'h', tcell.ModAlt))
+	u.press("y")
+	u.key(tcell.KeyTab)
+	u.press("line")
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'a', tcell.ModAlt))
+	u.wait("big.log is read-only.")
+	u.wait("line")
+}
+
+// CORE-07: splits.
+
+func TestSplitsShowOneFileTwice(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "shared text\n"})
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt))
+	u.waitCount("shared text", 2)
+	u.press("new ") // Edits show in both views.
+	u.waitCount("new shared text", 2)
+	u.waitCount("a.txt*", 2)
+
+	// Closing one view loses nothing, and doesn't ask.
+	u.key(tcell.KeyCtrlW)
+	u.waitCount("new shared text", 1)
+	u.wait("a.txt*")
+	u.key(tcell.KeyCtrlS)
+	u.wait("Saved a.txt")
+	if got := u.file("a.txt"); got != "new shared text\n" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestClosingTheLastViewAsks(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "text\n"})
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt))
+	u.waitCount("text", 2)
+	u.press("x")
+	u.waitCount("xtext", 2)
+	u.key(tcell.KeyCtrlW)
+	u.waitCount("xtext", 1)
+	u.key(tcell.KeyCtrlW)
+	u.wait("Save changes to a.txt?")
+	u.press("c")
+	u.wait("xtext")
+}
+
+func TestQuitAsksOnceForAFileInTwoViews(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "text\n"})
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt))
+	u.press("x")
+	u.waitCount("xtext", 2)
+	u.key(tcell.KeyCtrlBackslash)
+	u.run("q")
+	u.wait("before quitting?")
+	u.press("d")
+	u.quit()
+}
+
+func TestFileAndTerminalSideBySide(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "file text\n"})
+	tool, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("LAZYCODE_TEST_EXIT", "0")
+	t.Setenv("LAZYCODE_TEST_STAY", "1") // The tool stays running.
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+
+	u.key(tcell.KeyEsc)
+	u.press(":split")
+	u.key(tcell.KeyEnter)
+	u.waitCount("file text", 2)
+	u.key(tcell.KeyCtrlW) // Leaves an empty split, the other view having closed.
+	u.waitCount("file text", 1)
+
+	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt))
+	u.waitCount("file text", 2)
+	u.key(tcell.KeyEsc)
+	u.press(":term " + tool)
+	u.key(tcell.KeyEnter)
+	u.wait("tool ran")
+	u.waitCount("file text", 1) // That pane now shows the tool.
+
+	// Alt+W isn't seen by LazyCode inside a terminal, so leave first.
+	u.key(tcell.KeyCtrlBackslash)
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'w', tcell.ModAlt))
+	u.wait("Ln 1, Col 1")
+}
+
+func TestEmptySplitTakesFilesAndCloses(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "one\n", "b.txt": "two\n"})
+	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt)) // Nothing open, so it's empty.
+	u.wait("Empty split")
+	u.waitCount("No tabs here.", 2)
+	u.key(tcell.KeyEnter)
+	u.wait("one")
+	u.waitCount("No tabs here.", 1)
+	u.key(tcell.KeyCtrlBackslash)
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'w', tcell.ModAlt)) // To the empty one.
+	u.wait("Empty split")
+	u.key(tcell.KeyDown)
+	u.key(tcell.KeyEnter)
+	u.wait("two")
+	u.waitGone("No tabs here.")
+	u.key(tcell.KeyCtrlW)
+	u.waitGone("two") // That pane goes with its last tab.
+	u.wait("one")
+}
+
+func TestSplitDownStacksThem(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "text\n"})
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.key(tcell.KeyEsc)
+	u.press(":split down")
+	u.key(tcell.KeyEnter)
+	u.waitCount("text", 2)
+	u.wait("─")
+}
+
+func TestAlreadyOpenSaysSo(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "one"})
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.key(tcell.KeyCtrlBackslash)
+	u.key(tcell.KeyEnter)
+	u.wait("a.txt is already open.") // Q-15.
+}
+
+// CORE-08: panels, mouse and themes.
+
+func TestSecondPanel(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "text\n"})
+	u.screen.SetSize(120, 30)
+	u.wait("Files")
+	u.key(tcell.KeyCtrlB)
+	u.wait("No views here")
+	u.key(tcell.KeyCtrlB)
+	u.waitGone("No views here")
+
+	// :view moves Files over, and opens the panel for it. The first panel is then empty.
+	u.run("view")
+	u.wait("No views here")
+	u.wait("a.txt")
+	u.run("view")
+	u.wait("a.txt")
+
+	// Closing the panel holding Files brings the view back.
+	u.run("view")
+	u.wait("No views here")
+	u.key(tcell.KeyCtrlB)
+	u.waitGone("No views here")
+	u.wait("Files")
+	u.wait("a.txt")
+}
+
+func TestPanelsHideWhenNarrow(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "file body\n"})
+	u.screen.SetSize(120, 30)
+	u.key(tcell.KeyEnter)
+	u.wait("file body")
+	u.key(tcell.KeyCtrlBackslash)
+	u.key(tcell.KeyCtrlB)
+	u.wait("No views here")
+	u.screen.SetSize(79, 30) // The second goes first (doc 07).
+	u.post(tcell.NewEventResize(79, 30))
+	u.waitGone("No views here")
+	u.wait("Files")
+	u.screen.SetSize(39, 30) // Then the first.
+	u.post(tcell.NewEventResize(39, 30))
+	u.waitGone("Files")
+	u.wait("file body")
+}
+
+func (u *ui) click(x, y int) { u.post(tcell.NewEventMouse(x, y, tcell.Button1, 0)); u.release(x, y) }
+
+func (u *ui) release(x, y int) { u.post(tcell.NewEventMouse(x, y, tcell.ButtonNone, 0)) }
+
+func (u *ui) wheel(x, y int, button tcell.ButtonMask) {
+	u.post(tcell.NewEventMouse(x, y, button, 0))
+}
+
+// clickOn clicks the first place text appears on screen.
+func (u *ui) clickOn(text string) {
+	u.t.Helper()
+	u.wait(text)
+	for y, line := range strings.Split(u.text(), "\n") {
+		if i := strings.Index(line, text); i >= 0 {
+			u.click(len([]rune(line[:i])), y)
+			return
+		}
+	}
+	u.t.Fatalf("%q isn't on screen", text)
+}
+
+func TestMouseOpensFilesAndMovesTheCursor(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "alpha\nbeta\ngamma\n", "b.txt": "second\n"})
+	u.clickOn("a.txt")
+	u.wait("Ln 1, Col 1")
+	u.clickOn("gamma") // Line 3, at its start.
+	u.wait("Ln 3, Col 1")
+	u.clickOn("b.txt")
+	u.wait("second")
+	u.wait("Ln 1, Col 1")
+
+	// A click on a tab goes there.
+	u.clickOn(" a.txt ") // The tree's row has two spaces before it.
+	u.wait("gamma")
+
+	// A click past the end of a line goes to its end.
+	w, _ := u.screen.Size()
+	lines := strings.Split(u.text(), "\n")
+	for y, line := range lines {
+		if strings.Contains(line, "beta") {
+			u.click(w-1, y)
+			u.wait("Ln 2, Col 5")
+			break
+		}
+	}
+}
+
+func TestShiftClickSelects(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "alpha\nbeta\n"})
+	u.key(tcell.KeyEnter)
+	u.wait("alpha")
+	for y, line := range strings.Split(u.text(), "\n") {
+		if strings.Contains(line, "beta") {
+			u.post(tcell.NewEventMouse(len([]rune(line[:strings.Index(line, "beta")])), y, tcell.Button1, tcell.ModShift))
+			break
+		}
+	}
+	u.wait("Ln 2, Col 1")
+	u.key(tcell.KeyDelete) // Removes what's selected.
+	u.wait("beta")
+	u.waitGone("alpha")
+}
+
+func TestMouseWheelScrollsWithoutMovingTheCursor(t *testing.T) {
+	var text strings.Builder
+	for i := range 100 {
+		fmt.Fprintf(&text, "row-%d\n", i)
+	}
+	u := start(t, map[string]string{"a.txt": text.String()})
+	u.key(tcell.KeyEnter)
+	u.wait("row-0")
+	w, h := u.screen.Size()
+	u.wheel(w-1, h/2, tcell.WheelDown)
+	u.wheel(w-1, h/2, tcell.WheelDown)
+	u.waitGone("row-0\n")
+	u.wait("row-6")
+	u.wait("Ln 1, Col 1")
+	u.wheel(w-1, h/2, tcell.WheelUp)
+	u.wheel(w-1, h/2, tcell.WheelUp)
+	u.wait("row-0")
+	u.press("x") // Typing comes back to the cursor.
+	u.wheel(w-1, h/2, tcell.WheelDown)
+	u.waitGone("xrow-0")
+	u.press("y")
+	u.wait("xyrow-0")
+}
+
+func TestMouseInTheTree(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "one"})
+	if err := os.Mkdir(filepath.Join(u.dir, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	u.key(tcell.KeyCtrlBackslash)
+	u.run("project") // Refreshes the tree when switched back to.
+	u.key(tcell.KeyEnter)
+	u.wait("▸ sub")
+	u.clickOn("▸ sub")
+	u.wait("▾ sub")
+	w, h := u.screen.Size()
+	_ = w
+	u.wheel(2, h/2, tcell.WheelDown) // Moves the selection.
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+}
+
+func TestMouseAnswersQuestions(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "one"})
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.press("x")
+	u.wait("xone")
+	u.key(tcell.KeyCtrlW)
+	u.wait("Save changes")
+	u.clickOn("xone") // A question takes everything until it's answered.
+	u.wait("Save changes")
+	u.clickOn("[c] Cancel")
+	u.waitGone("Save changes")
+	u.wait("xone")
+}
+
+func TestMouseInASwitcher(t *testing.T) {
+	root := t.TempDir()
+	one, two := filepath.Join(root, "one"), filepath.Join(root, "two")
+	for _, d := range []string{one, two} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	t.Setenv("AppData", filepath.Join(root, "config"))
+	t.Setenv("HOME", root)
+	screen := &recordingScreen{SimulationScreen: tcell.NewSimulationScreen("UTF-8")}
+	u := &ui{t: t, screen: screen, dir: one, exited: make(chan error, 1)}
+	go func() {
+		u.exited <- Run(screen, []project.Project{{Name: "p", Dirs: []string{one, two}}}, one, "")
+	}()
+	t.Cleanup(func() {
+		u.key(tcell.KeyCtrlBackslash)
+		u.run("q")
+		<-u.exited
+	})
+	u.wait("p › one")
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'd', tcell.ModAlt))
+	u.wait("Switch directory")
+	u.click(0, 0) // Outside cancels.
+	u.waitGone("Switch directory")
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'd', tcell.ModAlt))
+	u.wait("Switch directory")
+	for y, line := range strings.Split(u.text(), "\n") {
+		if strings.Contains(line, "  two") {
+			u.click(len([]rune(line[:strings.Index(line, "two")])), y)
+			break
+		}
+	}
+	u.wait("p › two")
+}
+
+func TestThemeColoursApply(t *testing.T) {
+	dark, light := themeFor("dark"), themeFor("light")
+	if dark.accent == light.accent || dark.muted == light.muted {
+		t.Fatal("the themes look the same")
+	}
+	// Nothing depends on colour alone (Q-48).
+	for name, th := range map[string]theme{"dark": dark, "light": light} {
+		if fg, _, attrs := th.accent.Decompose(); fg == tcell.ColorDefault || attrs&tcell.AttrBold == 0 {
+			t.Errorf("%s: accent should be coloured and bold", name)
+		}
+		if _, _, attrs := th.active.Decompose(); attrs&tcell.AttrReverse == 0 {
+			t.Errorf("%s: selections should be reversed", name)
+		}
+		if _, _, attrs := th.match.Decompose(); attrs&tcell.AttrUnderline == 0 {
+			t.Errorf("%s: matches should be underlined", name)
+		}
+	}
+}
+
+func TestLowColourTerminal(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "dog dog\n"})
+	u.screen.SetSize(80, 25)
+	u.key(tcell.KeyEnter)
+	u.wait("dog dog")
+	u.key(tcell.KeyCtrlF)
+	u.press("dog")
+	u.wait("2 matches") // Draws without trouble, whatever the colours.
+}
+
+// CORE-09: config, rebinding and commands.
+
+func writeSettings(t *testing.T, name, content string) {
+	t.Helper()
+	dir, err := config.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func prepared(t *testing.T, dir string, settings map[string]string) *ui {
+	t.Helper()
+	root := filepath.Dir(dir)
+	t.Setenv("HOME", root)
+	t.Setenv("USERPROFILE", root)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	t.Setenv("AppData", filepath.Join(root, "config"))
+	t.Setenv("WAYLAND_DISPLAY", "")
+	t.Setenv("DISPLAY", "")
+	for name, content := range settings {
+		writeSettings(t, name, content)
+	}
+	return launch(t, dir)
+}
+
+func workDir(t *testing.T, files map[string]string) string {
+	t.Helper()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, "work")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+func TestConfigApplies(t *testing.T) {
+	dir := workDir(t, map[string]string{"a.txt": "\tx\n"})
+	u := prepared(t, dir, map[string]string{"config.toml": `
+[editor]
+tab_size = 8
+[ui]
+sidebar = "right"
+`})
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.key(tcell.KeyRight)
+	u.wait("Ln 1, Col 9") // The tab is 8 wide.
+
+	// The sidebar is on the right: its divider sits past the text.
+	line := strings.Split(u.text(), "\n")[2]
+	if !strings.HasSuffix(strings.TrimRight(line, " "), "│") && !strings.Contains(line, "│") {
+		t.Fatalf("no divider: %q", line)
+	}
+	if strings.Index(line, "│") < 20 {
+		t.Fatalf("the panel should be on the right: %q", line)
+	}
+}
+
+func TestBrokenConfigSaysWhere(t *testing.T) {
+	dir := workDir(t, nil)
+	u := prepared(t, dir, map[string]string{"config.toml": "[ui]\ntheme = \"pink\"\n"})
+	u.wait("theme must be")
+	u.wait("Files") // Still running, on the defaults.
+}
+
+func TestConfigCommandOpensAndAppliesOnSave(t *testing.T) {
+	dir := workDir(t, map[string]string{"a.txt": "\tx\n"})
+	u := prepared(t, dir, nil)
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.key(tcell.KeyRight)
+	u.wait("Ln 1, Col 5")
+
+	u.key(tcell.KeyEsc)
+	u.press(":config")
+	u.key(tcell.KeyEnter)
+	u.wait("LazyCode settings") // A new file starts from the template.
+	if got := readConfig(t, "config.toml"); got != config.Template {
+		t.Fatalf("template: %q", got)
+	}
+
+	// A bad value is reported on save, and the last good settings stay.
+	u.mod(tcell.KeyHome, tcell.ModCtrl)
+	u.press("[bad")
+	u.key(tcell.KeyCtrlS)
+	u.wait("config.toml, line")
+	u.key(tcell.KeyCtrlZ)
+	u.key(tcell.KeyCtrlZ)
+	u.waitGone("[bad")
+
+	// Replace the file's text with a good value, and it applies at once.
+	u.key(tcell.KeyCtrlA)
+	u.key(tcell.KeyBackspace2)
+	u.post(tcell.NewEventPaste(true))
+	u.press("[editor]")
+	u.key(tcell.KeyEnter)
+	u.press("tab_size = 2")
+	u.post(tcell.NewEventPaste(false))
+	u.key(tcell.KeyCtrlS)
+	u.wait("Saved config.toml")
+	u.post(tcell.NewEventKey(tcell.KeyRune, ',', tcell.ModAlt))
+	u.wait("Ln 1, Col 3") // The tab is now 2 wide.
+}
+
+func readConfig(t *testing.T, name string) string {
+	t.Helper()
+	dir, err := config.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+func TestKeysCanBeRebound(t *testing.T) {
+	dir := workDir(t, map[string]string{"a.txt": "text\n"})
+	u := prepared(t, dir, map[string]string{"keys.toml": `
+[keys]
+"f5" = "file.save"
+"ctrl+s" = "none"
+"alt+x" = "tab.close"
+`})
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.press("x")
+	u.wait("a.txt*")
+	u.key(tcell.KeyCtrlS) // Turned off.
+	u.key(tcell.KeyLeft)
+	u.wait("Ln 1, Col 1")
+	if got := u.file("a.txt"); got != "text\n" {
+		t.Fatalf("Ctrl+S still saved: %q", got)
+	}
+	u.key(tcell.KeyF5)
+	u.wait("Saved a.txt")
+
+	// The macOS form of an Alt key follows it.
+	u.key(tcell.KeyCtrlK)
+	u.wait("Ctrl+K: press")
+	u.press("x")
+	u.wait("No tabs here.")
+}
+
+func TestBadKeysAreReported(t *testing.T) {
+	dir := workDir(t, nil)
+	u := prepared(t, dir, map[string]string{"keys.toml": "[keys]\n\"ctrl+q\" = \"no.such\"\n"})
+	u.wait("no.such")
+	u.wait("Files")
+}
+
+func TestLeaveKeyCantBeRebound(t *testing.T) {
+	dir := workDir(t, map[string]string{"a.txt": "text\n"})
+	u := prepared(t, dir, map[string]string{"keys.toml": "[keys]\n\"ctrl+\\\\\" = \"file.save\"\n"})
+	u.wait("reserved")
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.press("x")
+	u.key(tcell.KeyCtrlBackslash)
+	u.waitGone("Ctrl+S save")
+	if got := u.file("a.txt"); got != "text\n" {
+		t.Fatalf("the reserved key saved: %q", got)
+	}
+}
+
+func TestAutoSave(t *testing.T) {
+	dir := workDir(t, map[string]string{"a.txt": "text\n", "b.txt": "other\n"})
+	u := prepared(t, dir, map[string]string{"config.toml": "[editor]\nauto_save = true\n"})
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.press("x")
+	u.waitFile("a.txt", "xtext\n")
+	u.waitGone("a.txt*")
+
+	// A change on disk is never overwritten, and edits survive.
+	u.press("y")
+	u.wait("a.txt*")
+	writeDisk(t, u, "a.txt", "tool\n")
+	u.wait("Not auto-saved")
+	if got := u.file("a.txt"); got != "tool\n" {
+		t.Fatalf("overwritten: %q", got)
+	}
+	u.wait("a.txt*")
+}
+
+// A regression test: the timer used to save what "Don't save" had just thrown away.
+func TestAutoSaveRespectsDontSave(t *testing.T) {
+	dir := workDir(t, map[string]string{"a.txt": "text\n"})
+	u := prepared(t, dir, map[string]string{"config.toml": "[editor]\nauto_save = true\n"})
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.press("x")
+	u.wait("a.txt*")
+	u.key(tcell.KeyCtrlW)
+	u.wait("Save changes to a.txt?")
+	u.press("d")
+	u.wait("No tabs here.")
+	time.Sleep(autoSaveDelay + 300*time.Millisecond)
+	if got := u.file("a.txt"); got != "text\n" {
+		t.Fatalf("saved after choosing not to: %q", got)
+	}
+}
+
+func TestAutoSaveIsOffByDefault(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "text\n"})
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 1, Col 1")
+	u.press("x")
+	u.wait("a.txt*")
+	time.Sleep(autoSaveDelay + 300*time.Millisecond)
+	if got := u.file("a.txt"); got != "text\n" {
+		t.Fatalf("saved without asking: %q", got)
+	}
+}
+
+func TestEveryKeymapActionIsHandled(t *testing.T) {
+	screen := tcell.NewSimulationScreen("UTF-8")
+	if err := screen.Init(); err != nil {
+		t.Fatal(err)
+	}
+	defer screen.Fini()
+	dir := workDir(t, map[string]string{"a.txt": "text\n"})
+	t.Setenv("WAYLAND_DISPLAY", "")
+	t.Setenv("DISPLAY", "")
+	a := newApp(screen, []project.Project{{Name: "p", Dirs: []string{dir}}}, dir, "")
+	recoveryDir := t.TempDir()
+	a.recovery = editor.NewRecovery(recoveryDir, nil)
+	defer close(a.done)
+	go func() {
+		for {
+			select {
+			case <-a.clipboardJobs:
+			case <-a.done:
+				return
+			}
+		}
+	}()
+	f, err := buffer.Open(filepath.Join(dir, "a.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, action := range keymap.Actions() {
+		st := a.dir()
+		if st.focus.current() == nil {
+			a.addEditor(st, f)
+		}
+		a.switcher, a.command, a.prompts = nil, nil, nil
+		a.closeFind()
+		if !a.do(action) {
+			t.Errorf("%s isn't handled", action)
+		}
+		a.draw()
+	}
+	a.recovery.Wait()
+}
+
+func TestSmallWindowsWithSplitsDontCrash(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "some text 世界\n"})
+	u.key(tcell.KeyEnter)
+	u.wait("some text")
+	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt))
+	u.key(tcell.KeyCtrlB)
+	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt))
+	for _, size := range [][2]int{{10, 5}, {3, 3}, {1, 1}, {39, 4}, {2, 40}, {200, 2}, {80, 25}} {
+		u.screen.SetSize(size[0], size[1])
+		u.post(tcell.NewEventResize(size[0], size[1]))
+		u.click(0, 0)
+		u.press("x")
+	}
+	u.wait("Files")
 }
 
 // One whole frame of a 100 MiB file, on a simulated screen. The budget for a key press

@@ -18,7 +18,7 @@ press() { osascript -e "tell application \"System Events\" to $1"; sleep 0.2; }
 osascript -e 'tell application "Terminal" to activate'
 sleep 1
 press 'key code 42 using control down' # Ctrl+\
-for letter in b c d f k n o p s v w x y z; do
+for letter in a b c d f k n o p s v w x y z; do
 	press "keystroke \"$letter\" using control down"
 done
 press 'key code 120' # F2

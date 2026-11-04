@@ -23,6 +23,9 @@ import (
 // 8 bytes per line would take about 20 MB.
 const maxPiece = 16 * 1024
 
+// searchChunk is how much text a search copies out at a time.
+const searchChunk = 1 << 20
+
 // node is one piece, and the root of a treap of pieces ordered by document position.
 type node struct {
 	left, right *node
@@ -187,6 +190,39 @@ func (s Snapshot) Line(line int) []byte {
 	}
 	text := s.Slice(s.LineStart(line), end)
 	return bytes.TrimSuffix(bytes.TrimSuffix(text, []byte{'\n'}), []byte{'\r'})
+}
+
+// Index returns the offset of the first match of needle at or after from, or -1.
+func (s Snapshot) Index(needle []byte, from int) int {
+	if len(needle) == 0 {
+		return -1
+	}
+	// Overlap so that a match across two chunks is still seen.
+	buf := make([]byte, 0, min(s.Len(), searchChunk+len(needle)-1))
+	for at := max(from, 0); at+len(needle) <= s.Len(); at += searchChunk {
+		buf = s.appendRange(buf[:0], s.root, at, min(at+searchChunk+len(needle)-1, s.Len()))
+		if i := bytes.Index(buf, needle); i >= 0 {
+			return at + i
+		}
+	}
+	return -1
+}
+
+// LastIndex returns the offset of the last match of needle that ends at or before
+// end, or -1.
+func (s Snapshot) LastIndex(needle []byte, end int) int {
+	if len(needle) == 0 {
+		return -1
+	}
+	buf := make([]byte, 0, min(s.Len(), searchChunk+len(needle)-1))
+	for to := min(end, s.Len()); to >= len(needle); to -= searchChunk {
+		from := max(to-searchChunk-len(needle)+1, 0)
+		buf = s.appendRange(buf[:0], s.root, from, to)
+		if i := bytes.LastIndex(buf, needle); i >= 0 {
+			return from + i
+		}
+	}
+	return -1
 }
 
 // split divides the tree at a document offset, cutting a piece in two if needed.

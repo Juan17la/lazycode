@@ -173,6 +173,15 @@ path = %q
 	if got, err := os.ReadFile(filepath.Join(one, "a.txt")); err != nil || string(got) != "héllo 世界" {
 		t.Fatalf("saved %q, %v", got, err)
 	}
+	// ConPTY handles mouse input differently, so this one is for real terminals elsewhere.
+	if runtime.GOOS != "windows" {
+		d.key(tcell.KeyHome, 0)
+		d.wait("Ln 1, Col 1")
+		// 33 columns of tree and divider, then 3 of line numbers, so this is column 2.
+		d.tab.Mouse(38, 2, false, false, true)
+		d.tab.Mouse(38, 2, false, false, false)
+		d.wait("Ln 1, Col 3")
+	}
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
 	d.wait("Tab enter tab")
 

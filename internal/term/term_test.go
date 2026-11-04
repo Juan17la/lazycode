@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +21,21 @@ func TestMain(m *testing.M) {
 	case "sleep":
 		fmt.Println("helper ready")
 		time.Sleep(time.Hour)
+	case "mouse":
+		fmt.Print("\x1b[?1000h\x1b[?1006h") // Asks for mouse reports, in the SGR format.
+		fmt.Println("helper ready")
+		sc := bufio.NewScanner(os.Stdin)
+		for sc.Scan() {
+			fmt.Printf("GOT:%q\n", sc.Text())
+		}
+		os.Exit(1)
+	case "nomouse":
+		fmt.Println("helper ready")
+		sc := bufio.NewScanner(os.Stdin)
+		for sc.Scan() {
+			fmt.Printf("GOT:%q\n", sc.Text())
+		}
+		os.Exit(1)
 	case "count":
 		// Echoes every line, like a tool in a terminal does, and counts them.
 		fmt.Println("helper ready")
@@ -166,4 +182,32 @@ func TestToEmulatorKey(t *testing.T) {
 	if _, ok := toEmulatorKey(tcell.NewEventKey(tcell.KeyRune, 0, 0)); ok {
 		t.Error("an empty rune event must not be sent")
 	}
+}
+
+func TestMouseReachesToolsThatAskForIt(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("ConPTY delivers input to a console program differently, and this reads lines")
+	}
+	tab := startHelper(t, "mouse")
+	tab.Mouse(2, 1, false, false, true)
+	tab.Mouse(2, 1, false, false, false)
+	tab.Mouse(2, 1, false, true, false)
+	tab.Key(tcell.NewEventKey(tcell.KeyEnter, 0, 0))
+	waitFor(t, tab, "<0;3;2M") // Column and row count from 1.
+	waitFor(t, tab, "<0;3;2m")
+	waitFor(t, tab, "<65;3;2M")
+}
+
+func TestMouseDoesntReachToolsThatDidntAsk(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("ConPTY delivers input to a console program differently, and this reads lines")
+	}
+	tab := startHelper(t, "nomouse")
+	tab.Mouse(2, 1, false, false, true)
+	tab.Mouse(2, 1, false, true, false)
+	for _, r := range "x" {
+		tab.Key(tcell.NewEventKey(tcell.KeyRune, r, 0))
+	}
+	tab.Key(tcell.NewEventKey(tcell.KeyEnter, 0, 0))
+	waitFor(t, tab, `GOT:"x"`)
 }

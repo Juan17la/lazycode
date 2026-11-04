@@ -39,7 +39,7 @@ func alt(r rune, label string) check {
 func checks(goos string) []check {
 	list := []check{
 		{label: `Ctrl+\`, match: term.IsLeaveKey},
-		ctrl(tcell.KeyCtrlB, "Ctrl+B"), ctrl(tcell.KeyCtrlC, "Ctrl+C"), ctrl(tcell.KeyCtrlD, "Ctrl+D"),
+		ctrl(tcell.KeyCtrlA, "Ctrl+A"), ctrl(tcell.KeyCtrlB, "Ctrl+B"), ctrl(tcell.KeyCtrlC, "Ctrl+C"), ctrl(tcell.KeyCtrlD, "Ctrl+D"),
 		ctrl(tcell.KeyCtrlF, "Ctrl+F"), ctrl(tcell.KeyCtrlN, "Ctrl+N"),
 		ctrl(tcell.KeyCtrlO, "Ctrl+O"), ctrl(tcell.KeyCtrlP, "Ctrl+P"), ctrl(tcell.KeyCtrlS, "Ctrl+S"),
 		ctrl(tcell.KeyCtrlV, "Ctrl+V"), ctrl(tcell.KeyCtrlW, "Ctrl+W"), ctrl(tcell.KeyCtrlX, "Ctrl+X"),
@@ -51,7 +51,7 @@ func checks(goos string) []check {
 	}
 	return append(list,
 		alt('d', "Alt+D"), alt('o', "Alt+O"), alt('p', "Alt+P"), alt('f', "Alt+F"),
-		alt('h', "Alt+H"), alt('s', "Alt+S"), alt(',', "Alt+,"), alt('.', "Alt+."),
+		alt('h', "Alt+H"), alt('s', "Alt+S"), alt('w', "Alt+W"), alt('v', "Alt+V"), alt(',', "Alt+,"), alt('.', "Alt+."),
 		check{label: "Ctrl+F2", match: func(e *tcell.EventKey) bool {
 			return e.Key() == tcell.KeyF2 && e.Modifiers()&tcell.ModCtrl != 0
 		}},

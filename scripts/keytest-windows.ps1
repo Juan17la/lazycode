@@ -19,8 +19,8 @@ $shell = New-Object -ComObject WScript.Shell
 Start-Sleep -Seconds 1
 
 # SendKeys: ^ is Ctrl and % is Alt.
-$keys = '^\', '^b', '^c', '^d', '^f', '^n', '^o', '^p', '^s', '^v', '^w', '^x', '^y', '^z',
-'{F2}', '{F12}', '{ESC}', '%d', '%o', '%p', '%f', '%h', '%s', '%,', '%.', '^{F2}', 'q'
+$keys = '^\', '^a', '^b', '^c', '^d', '^f', '^n', '^o', '^p', '^s', '^v', '^w', '^x', '^y', '^z',
+'{F2}', '{F12}', '{ESC}', '%d', '%o', '%p', '%f', '%h', '%s', '%w', '%v', '%,', '%.', '^{F2}', 'q'
 foreach ($k in $keys) {
     [System.Windows.Forms.SendKeys]::SendWait($k)
     Start-Sleep -Milliseconds 250
