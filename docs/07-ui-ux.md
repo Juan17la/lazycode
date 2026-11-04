@@ -146,8 +146,10 @@ LazyCode runs in the user's terminal, which receives keys first (Q-50). The defa
 | `:dir` | | Switch directory. A backup for its shortcut. | Decided (Q-74) |
 | `:session` | | Start an AI session | Proposed |
 | `:update` | | Install the latest release | Decided (Q-79) |
-| `:split` | | Split the view | Proposed |
+| `:split` | | Split the view. `:split down` splits below. | Proposed |
 | `:selectall` | | Select all occurrences | Decided (Q-80) |
+| `:find`, `:replace` | | Find or replace in the file | Proposed |
+| `:view` | | Move the Files view to the other panel | Proposed |
 
 ### Shortcuts
 
@@ -167,6 +169,9 @@ LazyCode runs in the user's terminal, which receives keys first (Q-50). The defa
 | Ctrl+P | Open a file by name | Proposed |
 | Ctrl+W | Close tab | Proposed |
 | Alt+S | Split | Proposed, because Ctrl+\\ leaves terminal tabs, and Alt+\\ can't be read |
+| Alt+W | Next split | Proposed (P-21) |
+| Alt+V | Move a view to the other panel, from the tree | Proposed (P-21) |
+| Ctrl+A | Select everything | Proposed |
 | F12, F2 | Go to definition, rename | Proposed |
 | Shift+Alt+F | Format | Proposed |
 | Alt+D | Switch directory | Decided (Q-74) |

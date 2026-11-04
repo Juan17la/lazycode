@@ -75,6 +75,10 @@ These were proposed on the basis that they'd become decisions when M0 started, u
 | P-16 | Detect external changes by comparing contents | Times can miss a quick same-size rewrite, and a touch isn't a change | Size and modification time |
 | P-17 | Clipboard through the OS's tools, then the terminal's OSC 52 code, then an internal copy | macOS Terminal has no OSC 52, and SSH sessions have no tools. Adds no dependency | A clipboard library |
 | P-18 | Check for external changes when focus enters a file, until `D5` watches for them | Saving already refuses to overwrite, and this shows changes without a watcher | Wait for `D5` |
+| P-19 | A second view of a file keeps its cursor's line and column when the other view edits | Far simpler than mapping through each edit. The cursor can land on different text, but it's visible before typing | Map cursors through every edit |
+| P-20 | Find matches exact text and case only | Your answer was plain text, and it avoids Unicode case rules. Easy to add a toggle if you want one | Case-insensitive by default, as VS Code does |
+| P-21 | Alt+W moves between splits, and Alt+V moves a view between panels | Alt+Left and Alt+Right clash in Windows Terminal (Q-80). Both are in `cmd/keytest` | Commands only |
+| P-22 | Not added: a command package. The `:` commands are a switch in `app` | Only plugins need them registered, so that can wait for M5 | A registry now |
 
 ## Replaced decisions
 

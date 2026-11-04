@@ -96,8 +96,18 @@ Measured on 2026-11-04, on the owner's Linux machine (Intel Core Ultra 5 125H, n
 | Draw a whole frame at 120 by 50 (`CORE-03`) | 1.1 ms | 0.4 MB |
 | Read 60 lines, after 20,000 scattered edits | 0.12 ms | 3.8 KB |
 | Replace 100,000 places, as one undo step | 0.46 s | 574 MB, mostly temporary |
+| Each key in the find bar, for a word that isn't there (`CORE-06`) | 62 ms, over the 16 ms budget | 1 MB |
 
-**Very long lines are the weak spot.** Drawing a 1 MB line with the cursor at its far end takes 17 ms per frame, about the whole 16 ms budget on this machine, so it will be over on the i3. It's quicker nearer the start of the line. The same line of non-ASCII text is several times slower, because only ASCII has a fast path.
+These are outside the 100 MiB file:
+
+| Operation | Time | Memory allocated |
+|---|---|---|
+| One key press with 10,000 cursors (`CORE-05`) | 84 ms, over the 16 ms budget | 64 MB, mostly temporary |
+| Frame with the cursor at the end of a 1 MB line | 12 ms | 1 MB |
+
+**Very long lines are a weak spot.** That 1 MB line is under budget on this machine, but will likely be over on the i3. It's quicker nearer the start of the line. The same line of non-ASCII text is several times slower, because only ASCII has a fast path.
+
+**Work that scales with the file or the cursor count runs on the UI goroutine.** Normal files and normal cursor counts are far under the budget. Counting find matches in a 100 MiB file and typing with 10,000 cursors aren't. Counting in the background is the upgrade if that gets noticed.
 
 **A 100 MiB file slightly misses the "under 100 MB extra" target,** because it's read into memory (P-15), and comes close to the 300 MB limit alongside 5 full terminal tabs: about 191 MB plus 108 MB. That combination hasn't been measured. Memory-mapping wouldn't fix it: on the same machine, scanning a mapped 100 MiB file for lines added 100 MB of RSS too.
 

@@ -62,14 +62,15 @@ Text width uses a Unicode width library, because emoji and CJK characters occupy
 |---|---|
 | Ctrl+D (Q-17) | Select the word, then add the next occurrence. |
 | Ctrl+F2 (Q-17, Q-80) | Select all occurrences. Ctrl+K then A on macOS. |
-| Edits | Applied from last cursor to first, so that offsets stay valid. |
-| Find and replace (Q-17) | Plain text in the current file. |
+| Edits | Applied from last cursor to first, so that offsets stay valid. Cursors that meet become one. With one line per cursor, each gets its own line on paste. |
+| Find and replace (Q-17, P-20) | Plain text in the current file, matching case exactly. The bar counts up to 10,000 matches. Replacing all is one undo step. |
+| Two views of a file (P-19) | Each has its own cursors and scrolling. An edit in one leaves the other's cursor on the same line and column. |
 | Cursor movement | By whole characters: an emoji or accented letter is one step, and so is `\r\n`. Up and down keep the column, counting wide characters and tabs. |
 | Undo | Typing undoes a word at a time. The cursor and selection come back with the text. |
 | Typing | Enter keeps the line's indent and line ending. Tab follows the file's tabs or spaces, and indents a selection. Pasted text takes the file's line endings. |
 | File contents on screen | Control characters, invalid UTF-8 and bidirectional controls are drawn as `?` or `\uFFFD`, and never reach the terminal. |
 | Clipboard (P-17) | `pbcopy`, `wl-copy`, `xclip` or `xsel` if available. Otherwise the terminal's OSC 52 code to copy, and an internal copy to paste. On Windows, Windows Terminal delivers Ctrl+V as a paste. |
-| Auto-save (Q-16) | Off by default. |
+| Auto-save (Q-16) | Off by default, and `auto_save` in `config.toml` turns it on. It saves a second after typing stops, and never overwrites a change on disk or asks: it says so, and the edits stay unsaved. |
 | Crash recovery (Q-61) | Unsaved edits are written to a recovery file about a second after typing stops, and offered on the next start. |
 | Closing unsaved work (Q-61) | LazyCode asks. |
 
@@ -77,9 +78,10 @@ Text width uses a Unicode width library, because emoji and CJK characters occupy
 
 **`ui`:**
 
-- **Panels:** At most two (Q-18). Each can hold any set of views, and sit on either side.
-- **Tabs:** **Each directory has its own tab bar** (Q-62). Types are file and terminal, and they look different (Q-25).
-- **Splits:** A simple tree of editor areas (Q-15). Dragging can be added later, because mouse handling is routed through the same layout tree (Q-13).
+- **Panels:** At most two (Q-18). `sidebar` in `config.toml` chooses the first panel's side, and the second takes the other. Only the Files view exists so far, and it can move between them.
+- **Tabs:** **Each directory has its own tabs** (Q-62), and each split has its own tab bar. Types are file and terminal, and they look different (Q-25).
+- **Splits:** A simple tree of editor areas (Q-15). Each is split evenly, and dragging can set the ratio later. A file can show in two splits. A terminal only shows in one, because it has a single screen size.
+- **Mouse:** What's clickable is recorded as it's drawn, so the mouse always follows the layout, and dragging can use the same regions later (Q-13).
 - **Command bar:** One line for `:` commands and messages.
 
 ## File tree
