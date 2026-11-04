@@ -114,9 +114,9 @@ The piece table makes this cheap, because reloading only needs a new original fi
 | Language | Go | Decided (Q-09) | Local base: 5.9 MB, binary 3.7 MB |
 | Terminal drawing | `gdamore/tcell/v2` | Proposed | v2.13.10 builds for all three OSes |
 | Lua | `yuin/gopher-lua` | Proposed, following Q-30 | Adds about 2 MB, used by micro |
-| Pseudo-terminal | `aymanbagabas/go-pty` | Proposed | v0.2.3 builds for all three, needs Go 1.25+. Ran on Linux only. |
+| Pseudo-terminal | `aymanbagabas/go-pty` | Proposed | v0.2.3 passes CI on all three, needs Go 1.25+. |
 | Terminal emulator | `charmbracelet/x/vt` | Proposed, with risk | v0.1.0, MIT, heavy memory per cell |
-| Highlighting | Official `tree-sitter/go-tree-sitter` | Chosen under Q-69 | 75 MB total on a 1 MB file. Needs a C compiler. Linux tested only. |
+| Highlighting | Official `tree-sitter/go-tree-sitter` | Chosen under Q-69 | 75 MB total on a 1 MB file, measured on Linux. Needs a C compiler. Parser tests pass in CI on all three. |
 | Text buffer | Own piece table | Proposed | See [06](06-components.md) |
 | Git and GitHub | The `git` and `gh` commands | Decided for `gh` (Q-21), proposed for `git` | No libraries to keep updated |
 | Language servers | Own small LSP client | Proposed | Only 3 features needed at first |

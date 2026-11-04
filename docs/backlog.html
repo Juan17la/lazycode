@@ -234,9 +234,9 @@ const ITEMS = [
   {id:'DEC-03',g:'plan',n:'Answer new questions Q-74 to Q-79',d:'done',rel:'first'},
   {id:'DEC-04',g:'plan',n:'Answer Q-80, three small key fixes',d:'done',rel:'first'},
 
-  {id:'M0-01',g:'m0',n:'Create the repository, Go module and CI on three systems',rel:'first'},
-  {id:'M0-02',g:'m0',n:'Prototype: project switcher, file tree, terminal tab running a real AI tool',deps:['M0-01'],rel:'first'},
-  {id:'M0-03',g:'m0',n:'Run the prototype and the C parser build on Windows and macOS',deps:['M0-02'],rel:'first'},
+  {id:'M0-01',g:'m0',n:'Create the repository, Go module and CI on three systems',note:'CI passes on Linux, macOS and Windows.',d:'done',rel:'first'},
+  {id:'M0-02',g:'m0',n:'Prototype: project switcher, file tree, terminal tab running a real AI tool',note:'Claude Code and OpenCode started and drew correctly on Linux. No prompt was sent to either.',deps:['M0-01'],d:'done',rel:'first'},
+  {id:'M0-03',g:'m0',n:'Run the prototype and the C parser build on Windows and macOS',note:'CI passes: end-to-end test with a stand-in tool, and the C parser with all four languages. Still to do by hand: Windows Terminal and macOS Terminal, and a real AI tool on each.',deps:['M0-02'],d:'doing',rel:'first'},
   {id:'M0-04',g:'m0',n:'Measure the official C tree-sitter binding',note:'75 MB on a 1 MB file, chosen under Q-69. Linux only so far.',d:'done',rel:'first'},
   {id:'M0-06',g:'m0',n:'Test the app icon opening the default terminal on each system',deps:['M0-02'],rel:'first'},
   {id:'M0-07',g:'m0',n:'Test that the chosen keys arrive in Windows Terminal, macOS Terminal and Kitty',deps:['M0-02'],rel:'first'},

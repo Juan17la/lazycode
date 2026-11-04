@@ -58,7 +58,7 @@ Key sequences run against a simulated screen, and the result is compared with a 
 
 **Priority terminals (Q-75):** Windows Terminal, macOS Terminal and Kitty must work fully. Release checks cover these. Others, including your own Warp, only get occasional checks.
 
-The pure-Go parts have only been compiled for Windows and macOS, and the C parser only on Linux. Running them is a first step of M0.
+CI now runs the prototype on all three systems, in a real PTY or ConPTY with a stand-in tool, and parses all four languages with the C parser. A real AI tool has only run on Linux, and no priority terminal has been tried by hand yet (`M0-03`, `M0-07`).
 
 ## Sleep and live update tests
 
