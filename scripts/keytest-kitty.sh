@@ -24,7 +24,7 @@ run() {
 	xdotool windowfocus "$window" || true
 	sleep 2
 	for key in ctrl+backslash ctrl+a ctrl+b ctrl+c ctrl+d ctrl+f ctrl+n ctrl+o ctrl+p ctrl+s ctrl+v \
-		ctrl+w ctrl+x ctrl+y ctrl+z F2 F12 Escape alt+d alt+o alt+p alt+f alt+h alt+s alt+w alt+v alt+i alt+e \
+		ctrl+w ctrl+x ctrl+y ctrl+z F2 F12 Escape alt+d alt+o alt+p alt+f alt+g alt+h alt+s alt+w alt+v alt+i alt+e \
 		alt+comma alt+period alt+shift+f ctrl+F2; do
 		xdotool key "$key"
 		sleep 0.2

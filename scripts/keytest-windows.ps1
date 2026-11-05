@@ -20,7 +20,7 @@ Start-Sleep -Seconds 1
 
 # SendKeys: ^ is Ctrl and % is Alt.
 $keys = '^\', '^a', '^b', '^c', '^d', '^f', '^n', '^o', '^p', '^s', '^v', '^w', '^x', '^y', '^z',
-'{F2}', '{F12}', '{ESC}', '%d', '%o', '%p', '%f', '%h', '%s', '%w', '%v', '%i', '%e', '%,', '%.', '%+f', '^{F2}', 'q'
+'{F2}', '{F12}', '{ESC}', '%d', '%o', '%p', '%f', '%g', '%h', '%s', '%w', '%v', '%i', '%e', '%,', '%.', '%+f', '^{F2}', 'q'
 foreach ($k in $keys) {
     [System.Windows.Forms.SendKeys]::SendWait($k)
     Start-Sleep -Milliseconds 250
