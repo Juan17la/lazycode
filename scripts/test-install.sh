@@ -11,7 +11,7 @@ work=$(mktemp -d)
 server=
 trap '[ -z "$server" ] || kill "$server" 2>/dev/null; rm -rf "$work"' EXIT
 
-case $(uname -s) in Linux) os=linux ;; Darwin) os=darwin ;; esac
+case $(uname -s) in Linux) os=linux rc=.bashrc ;; Darwin) os=darwin rc=.bash_profile ;; esac
 case $(uname -m) in x86_64 | amd64) arch=amd64 ;; *) arch=arm64 ;; esac
 asset=lazycode_${os}_${arch}
 tag=v0.0.0-installtest
@@ -66,8 +66,8 @@ else
 	echo "NOTE: cmd/lazycode/main.go has no version variable yet, so --version wasn't checked"
 fi
 pass "installed, executable, mode 755, same bytes as the release"
-[ "$(grep -c 'added by the lazycode installer' "$h/.bashrc")" = 1 ] || fail "PATH line not added once"
-pass "PATH line added to .bashrc"
+[ "$(grep -c 'added by the lazycode installer' "$h/$rc")" = 1 ] || fail "PATH line not added once"
+pass "PATH line added to $rc"
 if [ "$os" = linux ]; then
 	grep -q '^Exec=' "$h/.local/share/applications/lazycode.desktop" || fail "no desktop entry"
 	pass "app icon created"
@@ -78,7 +78,7 @@ fi
 
 # 2. Running it again doesn't add the line twice, and replaces the binary.
 install good "$h" || { cat "$work/out"; fail "second install failed"; }
-[ "$(grep -c 'added by the lazycode installer' "$h/.bashrc")" = 1 ] || fail "PATH line added twice"
+[ "$(grep -c 'added by the lazycode installer' "$h/$rc")" = 1 ] || fail "PATH line added twice"
 pass "second run leaves one PATH line"
 
 # 3. A wrong checksum is refused and nothing is installed.
@@ -86,7 +86,7 @@ h=$work/h2
 if install badsum "$h"; then fail "bad checksum was accepted"; fi
 grep -q 'checksum mismatch' "$work/out" || fail "no mismatch message: $(cat "$work/out")"
 [ ! -e "$h/.local/bin/lazycode" ] || fail "binary installed despite bad checksum"
-[ ! -e "$h/.bashrc" ] || fail "shell file changed despite bad checksum"
+[ ! -e "$h/$rc" ] || fail "shell file changed despite bad checksum"
 pass "bad checksum refused, nothing installed"
 
 # 4. A missing checksum entry is refused.
@@ -100,7 +100,7 @@ pass "missing checksum entry refused, nothing installed"
 h=$work/h4
 install good "$h" LAZYCODE_NO_MODIFY_PATH=1 || { cat "$work/out"; fail "install with opt-out failed"; }
 [ -x "$h/.local/bin/lazycode" ] || fail "binary not installed"
-[ ! -e "$h/.bashrc" ] || fail "LAZYCODE_NO_MODIFY_PATH ignored"
+[ ! -e "$h/$rc" ] || fail "LAZYCODE_NO_MODIFY_PATH ignored"
 pass "LAZYCODE_NO_MODIFY_PATH=1 leaves shell files alone"
 
 # 6. No hash tool: refuse. The PATH here has curl and uname, and no sha256sum or shasum.

@@ -85,7 +85,11 @@ func TestWorkspaceSurvivesARestart(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 
-	config, err := os.ReadFile(filepath.Join(root, "config", "lazycode", "projects.toml"))
+	configDir, err := os.UserConfigDir() // macOS ignores XDG_CONFIG_HOME.
+	if err != nil {
+		t.Fatal(err)
+	}
+	config, err := os.ReadFile(filepath.Join(configDir, "lazycode", "projects.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}

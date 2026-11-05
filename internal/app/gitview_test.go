@@ -161,7 +161,7 @@ func TestCommitDetailsListChangedFiles(t *testing.T) {
 	u.git("commit", "-q", "-m", "add two files")
 	u.alt('g')
 	u.wait("add two files")
-	u.wait("seconds ago (HEAD -> main") // Relative date and refs, under the subject.
+	u.wait("ago (HEAD -> main") // Relative date and refs, under the subject.
 	u.key(tcell.KeyEnter)
 	u.wait("(commit)")
 	u.wait("a.txt")

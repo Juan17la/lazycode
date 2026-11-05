@@ -2,6 +2,7 @@ package git
 
 import (
 	"context"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -45,7 +46,7 @@ func Root(ctx context.Context, dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimRight(string(out), "\r\n"), nil
+	return filepath.FromSlash(strings.TrimRight(string(out), "\r\n")), nil // Git writes / on Windows too.
 }
 
 // ReadStatus gets the status. Safe for the background: see the package comment.
