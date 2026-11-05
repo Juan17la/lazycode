@@ -66,7 +66,13 @@ TypeScript, repetitive synthetic input, parsed once. RSS includes the test progr
 | 1 MB | 260 ms, 75 MB | 632 ms, 204 MB |
 | 10 MB | 3.0 s, 679 MB | 6.4 s, 1,592 MB |
 
-**Chosen: the C binding, with highlighting off above about 1 MB (Q-69).** The first full parse of a 1 MB file takes 260 ms here and longer on an i3, so it must run in the background. Later edits are incremental, which wasn't measured.
+**Chosen: the C binding, with highlighting off above about 1 MB (Q-69).** The first full parse of a 1 MB file takes 260 ms here and longer on an i3, so it must run in the background. Later edits are incremental.
+
+Measured with highlighting built (`E1`), on an Intel Core Ultra 5 125H with dense 1 MiB Go, in the background: first parse and query about 372 ms, and one key press about 142 ms, mostly the query over the whole tree. A frame of that file takes 1.30–1.38 ms, and of a 100 MB file 1.16–1.28 ms. RSS stays flat over repeated open and close. That parse tree is about 40 MB of C memory.
+
+### Directory search
+
+`BenchmarkSearch50000Files` (`B1`): 50,000 files of about 2 KB, warm cache, 18 logical cores: about 0.57 s outside Git, and 0.73 s in Git with every file untracked. This machine is not the i3 reference.
 
 ### Prototype
 
@@ -104,6 +110,8 @@ These are outside the 100 MiB file:
 |---|---|---|
 | One key press with 10,000 cursors (`CORE-05`) | 84 ms, over the 16 ms budget | 64 MB, mostly temporary |
 | Frame with the cursor at the end of a 1 MB line | 12 ms | 1 MB |
+
+With track D's sessions, watching and a once-a-second status check, `TestMemoryStaysUnderLimit` measured 17 MB idle, 191 MB with 5 full tabs, 235 MB peak with 10, and 37 MB after closing them.
 
 **Very long lines are a weak spot.** That 1 MB line is under budget on this machine, but will likely be over on the i3. It's quicker nearer the start of the line. The same line of non-ASCII text is several times slower, because only ASCII has a fast path.
 

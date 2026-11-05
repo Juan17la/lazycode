@@ -43,7 +43,8 @@ Key sequences run against a simulated screen, and the result is compared with a 
 - **Key forwarding:** The tool receives exact bytes, and the reserved key never gets through.
 - **Real tools before release:** Claude Code, Codex, OpenCode, `vim` and `htop` display correctly.
 - **Processes:** Closing a project ends all its children. No orphan processes remain after a forced crash.
-- **Fuzz:** Random output can't crash the emulator wrapper.
+- **Fuzz:** Random output can't crash or stall the emulator wrapper (`FuzzEmulatorOutput`). It found both, in `vt` itself.
+- **Forced crash:** `TestToolsDontOutliveACrash` kills LazyCode with `SIGKILL` on Linux and macOS, and the tool must go too. Windows isn't covered.
 
 ## Compatibility matrix
 

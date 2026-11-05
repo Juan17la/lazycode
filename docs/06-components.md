@@ -134,6 +134,7 @@ Text width uses a Unicode width library, because emoji and CJK characters occupy
 - Scrollback defaults to 1,000 lines, and can be changed (see [12](12-performance-budget.md)).
 - Screens are only redrawn when the tab is visible.
 - Handles resize, colours, mouse and pasted text.
+- The wheel goes to the tool if it asked for the mouse. Otherwise it scrolls back through what the tab has kept, and typing returns to the live screen.
 - Keys pass through, except Ctrl+\ (Q-74).
 - The emulator handles the tool's escape sequences. They never reach the user's terminal directly (see [11](11-security-and-privacy.md)).
 
@@ -142,13 +143,18 @@ Text width uses a Unicode width library, because emoji and CJK characters occupy
 - `SafeEmulator.CellAt` returns a pointer to the live screen after releasing its lock, which the race detector caught. `term` uses the plain emulator with its own lock instead.
 - `SendKey` silently drops special keys with modifiers, such as Shift+Tab and Ctrl+Left, which AI tools use. `term` sends those sequences itself.
 - Its input pipe is unbuffered, so a large paste can deadlock with a tool that echoes it. `term` queues input, and a test covers this.
+- Some output makes it panic, and huge numbers in control sequences make it loop while holding the lock that drawing needs. `term` contains both (P-25), and CI fuzzes it.
 - Some tools leave processes that can't be stopped with their tab: `opencode` started `opencode serve --service`, which moved itself under systemd and kept running. Sleep and memory work should expect this (`M0-08`, `M0-09`).
 
 ## Harness sessions
 
 **`session`:** Starts, lists, renames, hides, resumes, sleeps and tracks status. See [10](10-harness-integration.md).
 
-**`notify`:** OS notifications (Q-72). A small package per OS, using each system's standard notification method.
+**`notify`:** OS notifications (Q-72): `notify-send`, `osascript` or PowerShell, with text passed as data, so a session's name can't run as a command.
+
+**`run`:** What `:play` runs: the command remembered in `directories.toml`, or one detected from the project's files. Otherwise it asks, and remembers the answer.
+
+**`trust`:** Which directories may run code. See [11](11-security-and-privacy.md).
 
 ## Watching AI changes
 
@@ -164,6 +170,8 @@ File changes (fsnotify)
 ```
 
 **What lines are compared against (Proposed):** The last Git commit, as VS Code's line markers do. In a non-Git folder, the file as it was when opened. You didn't specify this in Q-76, so it's easy to change.
+
+**Implemented:** LazyCode watches the folders holding open files, and combines bursts of writes for 100 ms. Markers are worked out on another goroutine, for files up to 4 MiB. Files over 100 MiB say they changed, and don't reload (P-28).
 
 **Limits:** Only open files show markers. Your own unsaved edits count as modified too. LazyCode only sees files, so two sessions in one directory can't be told apart. Very frequent writes are combined, so that screen updates stay smooth.
 

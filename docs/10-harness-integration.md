@@ -54,7 +54,9 @@ LazyCode choosing the ID is the key idea. It knows which session is which withou
 
 **OpenCode's background service (Proposed):** By default, OpenCode starts `opencode serve --service`, which moves itself under the system's service manager and keeps about 320 MB after every tab has stopped. So stopping the tab doesn't free its memory. With `--standalone`, it uses about 435 MB while running, with a private server, and nothing stays after stopping, and the same chat still came back. That suits automatic sleep (Q-58), so the defaults above use it, at the cost of more memory for each awake session.
 
-**Starting tools from inside a tool:** If LazyCode itself is started from inside Claude Code, tools inherit its `CLAUDE*` variables, and Claude Code turns off transcript saving, which breaks resume. `D3` should remove those variables.
+**Starting tools from inside a tool:** If LazyCode itself is started from inside Claude Code, tools inherit its `CLAUDE*` variables, and Claude Code turns off transcript saving, which breaks resume. `term` removes those variables.
+
+**What's been tested in the app (`D3`, `D4`):** The whole lifecycle runs in tests with a stand-in tool: start, rename, hide, close, resume with the right ID after quitting, a failed resume, attention and sleeping. The real tools have only been run through `term` (`M0-08`), not through the sessions view, and detection hasn't been tried against them.
 
 ## Launch flow
 
@@ -112,7 +114,9 @@ The tool gets the normal environment, with `TERM` set appropriately, plus the co
 3. It has resume fields, so that the chat can come back
 4. Nothing it started is still running or using CPU
 
-On Linux, the fourth check can use the process tree. macOS and Windows need their own versions.
+**Implemented (P-26, P-27):** The fourth check adds up the CPU of the tool and everything it started, twice, a minute apart, and under 1 second between them counts as idle. If it can't be measured, the session stays awake. `ps` does this on Linux and macOS, and the Toolhelp API on Windows. A tab that's visible never sleeps.
+
+**Known limit:** A child waiting without using CPU, such as a timer or a network wait, looks idle, so a session whose tool is waiting on one can be stopped.
 
 **How it stops:** LazyCode asks the tool to exit normally, then forces it after a short wait. The terminal emulator and scrollback are freed. On resume, the tool draws its own screen and chat again.
 

@@ -112,26 +112,30 @@ Plugins live in `plugins/` in the config folder.
 
 ## Saved state
 
-`state/<project-id>.json`: not meant for hand editing, and written atomically. A corrupt file is ignored with a message.
+`state.json` (P-23): not meant for hand editing, and written atomically, on switching and on quitting. A corrupt file is ignored with a message. One file rather than one per project, because tabs belong to directories, and a directory can be in several projects. Saved AI sessions have their own file, `state/sessions.json`.
 
 ```json
 {
-  "active_directory": "~/code/frontend-facebook",
+  "active_directories": {"Facebook": "/home/me/code/frontend-facebook"},
   "directories": {
-    "~/code/frontend-facebook": {
-      "layout": "<saved splits and panels>",
-      "tabs": [{"type": "file", "path": "src/app.ts", "cursor": [12, 4]}]
+    "/home/me/code/frontend-facebook": {
+      "layout": {
+        "side_by_side": true,
+        "first": {"focus": true, "tabs": [{"path": "/home/me/code/frontend-facebook/src/app.ts", "line": 12, "col": 4, "scroll": 3}]},
+        "second": {"tabs": [{"path": "/home/me/code/frontend-facebook/src/app.ts"}]}
+      },
+      "open_folders": ["/home/me/code/frontend-facebook/src"]
     }
   },
-  "sessions": [{
-    "name": "auth rewrite",
-    "harness": "Claude Code",
-    "directory": "~/code/microservice-facebook-auth",
-    "tool_session_id": "<uuid>",
-    "hidden": false
-  }]
+  "show_second": false,
+  "files_panel": 0,
+  "show_all": false
 }
 ```
+
+A directory's tabs reopen the first time it's shown, so the rest of a project costs nothing until then. Only file tabs are saved. A file that has gone is skipped with a message, and its pane closes. Starting in a folder always opens on that folder, and other projects return to where they were.
+
+`projects.toml` is rewritten by `:project new`, `:dir add` and `:dir remove`, which keeps its data, any symlink and `~` paths, but not comments. A broken file is never rewritten, and the change is refused with a message. Each change reads the file first, so a hand edit isn't lost.
 
 **Decided (Q-39, Q-62, Q-73):** Open tabs for each directory, sessions in use, cursor positions and layout. Terminal contents aren't saved, because a resumed tool draws its own screen.
 

@@ -35,6 +35,8 @@ Shown on first run, and any step can be skipped (Q-16, Q-29).
 
 The screen also says LazyCode checks GitHub for updates, with a setting to turn that off (Q-79). On macOS, it explains the Ctrl+K shortcuts (Q-80).
 
+**Built (P-53, P-54):** Up and Down move, Space changes a row, Enter continues, and Esc skips. It shows while `config.toml` doesn't exist, and either way out creates that file. Each install is confirmed once more, then runs in a terminal tab started in the home folder, so its output can be read.
+
 ## Startup screen
 
 **Proposed:** Recent projects and three actions. No panels until a project is open.
@@ -144,12 +146,27 @@ LazyCode runs in the user's terminal, which receives keys first (Q-50). The defa
 | `:config` | | Open configuration | Decided |
 | `:project` | | Switch project. A backup for its shortcut. | Decided (Q-74) |
 | `:dir` | | Switch directory. A backup for its shortcut. | Decided (Q-74) |
+| `:project new NAME` | | Make a project holding the current directory | Proposed |
+| `:dir add PATH` | | Add a directory to this project. A relative path starts from the current directory. | Proposed |
+| `:dir remove` | | Take this directory out of the project. The folder is untouched. | Proposed |
+| `:tree` | | Show all of the project's directories in the tree, or go back to one (Q-41) | Proposed |
+| `:config projects` | | Open `projects.toml`. Saving it applies it. | Proposed |
 | `:session` | | Start an AI session | Proposed |
 | `:update` | | Install the latest release | Decided (Q-79) |
 | `:split` | | Split the view. `:split down` splits below. | Proposed |
 | `:selectall` | | Select all occurrences | Decided (Q-80) |
 | `:find`, `:replace` | | Find or replace in the file | Proposed |
 | `:view` | | Move the Files view to the other panel | Proposed |
+| `:search`, `:git` | | Show the Search or Git view | Proposed |
+| `:push`, `:pull`, `:fetch` | | The Git buttons | Proposed |
+| `:repo create` | | Create a GitHub repository through `gh` | Proposed |
+| `:definition`, `:rename`, `:format` | | Language server actions | Proposed |
+| `:session hidden` | | List hidden sessions, and bring one back | Proposed (P-42) |
+| `:project close` | | Close this project's tabs, and move to the next project | Proposed (P-43) |
+
+**Git view keys (P-32):** `p` push, `l` pull, `f` fetch, `c` commit, `s` stage or mark resolved, `u` unstage, `b` switch branch, `n` new branch, `m` merge, `x` abort a merge, `o` open the file, `i` create a repository, `r` refresh, Enter opens a diff or commit.
+
+**Search view keys:** Tab moves between Find and With, Enter opens a result or starts a replace from With, Esc goes back to the tab, and `:` opens the command bar when the field is empty.
 
 ### Shortcuts
 
@@ -166,6 +183,7 @@ LazyCode runs in the user's terminal, which receives keys first (Q-50). The defa
 | Ctrl+F | Find in file | Proposed |
 | Alt+H | Replace in file | Proposed, because terminals send Ctrl+H as Backspace |
 | Alt+F | Search panel | Proposed, replacing Ctrl+Shift+F |
+| Alt+G | Git panel | Proposed |
 | Ctrl+P | Open a file by name | Proposed |
 | Ctrl+W | Close tab | Proposed |
 | Alt+S | Split | Proposed, because Ctrl+\\ leaves terminal tabs, and Alt+\\ can't be read |

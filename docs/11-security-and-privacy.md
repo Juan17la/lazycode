@@ -36,8 +36,11 @@
 
 - Asked when a directory is added, or first opened.
 - Trust is stored locally, by directory path.
-- Trust can be removed with a command.
-- Git operations can also run hooks. **Proposed:** LazyCode's automatic background operations are read-only, and user-pressed operations such as push are only available after trust.
+- Trust can be removed with a command: `:untrust`.
+
+**Implemented so far (P-29):** `:play`, AI sessions, language servers and writing Git operations ask first, showing what will run, and offer to trust the folder, run once, or cancel (P-36, P-48). A directory is also asked about when it's first opened or added, and the answer is remembered, including no (P-55). No means anything that would run keeps asking first, and that includes language servers (P-48).
+
+- Git operations can also run hooks. LazyCode's automatic background operations are read-only, and turn off the programs a repository can name: `core.fsmonitor`, `log.showSignature`, external diffs, text conversion, and filters through an empty attribute source on Git 2.40 or newer. A test proves `core.fsmonitor` doesn't run. `log.showSignature` is turned off from Git's documentation, without a test of its own, and the filter setting's effect couldn't be shown either way.
 
 ## Credentials and tokens
 
@@ -88,6 +91,8 @@ AI tools manage their own logins.
 | `git`, `gh` | User's operation |
 | AI tools | Their own, and outside LazyCode's control |
 | Update check | **The one automatic connection.** To GitHub's latest release, at most once a day at startup (Q-79). GitHub sees the IP address, and no other data is sent. A setting turns it off. |
+
+`scripts/privacy-check.sh` lists what can connect or start a program. Only `internal/update` makes a connection itself. Without being asked, LazyCode also starts two local programs: `git`, for modified-line markers, and `ps`, for session activity on Linux and macOS.
 
 Local logs are for debugging only. They contain no file contents, and rotate at a limited size. User counts can only come from public data such as release downloads.
 
