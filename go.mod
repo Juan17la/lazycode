@@ -20,6 +20,8 @@ require (
 	github.com/tree-sitter/tree-sitter-typescript v0.23.2
 )
 
+require github.com/yuin/gopher-lua v1.1.1
+
 require (
 	github.com/charmbracelet/colorprofile v0.4.2 // indirect
 	github.com/charmbracelet/x/exp/ordered v0.1.0 // indirect
