@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/Juan17la/lazycode/internal/keymap"
 	"github.com/Juan17la/lazycode/internal/term"
 	"github.com/gdamore/tcell/v2"
 )
@@ -39,7 +40,8 @@ func alt(r rune, label string) check {
 // shiftAlt is a capital letter with Alt held, which is how Shift+Alt+letter arrives.
 func shiftAlt(r rune, label string) check {
 	return check{label: label, match: func(e *tcell.EventKey) bool {
-		return e.Key() == tcell.KeyRune && e.Modifiers()&tcell.ModAlt != 0 && e.Rune() == r
+		// The app's own naming: Kitty's protocol sends f with Alt and Shift, others a capital F.
+		return keymap.Name(e) == "alt+shift+"+strings.ToLower(string(r))
 	}}
 }
 
