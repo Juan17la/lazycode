@@ -46,6 +46,7 @@ type File struct {
 	hash    uint64
 	modTime time.Time    // Only for a mapped file, which is too big to hash each time.
 	unmap   func() error // Set if the original text is a memory mapping.
+	reloads int          // How many times the text has been replaced from disk.
 }
 
 // Open loads a file. A file over 100 MiB opens read-only.
@@ -289,10 +290,15 @@ func (f *File) Reload() error {
 	if err != nil {
 		return err
 	}
+	fresh.reloads = f.reloads + 1
 	f.Close() //nolint:errcheck // The new text is loaded, and the old mapping can't affect it.
 	*f = *fresh
 	return nil
 }
+
+// Reloads returns how many times the text has been replaced from disk. A Snapshot from before
+// the last one must not be read, as its memory mapping may be gone.
+func (f *File) Reloads() int { return f.reloads }
 
 // Close frees a mapped file's memory. Snapshots of that file must no longer be in use.
 // The File reads as empty afterwards.
@@ -306,4 +312,13 @@ func (f *File) Close() error {
 	f.readOnly = true
 	f.saved = f.root
 	return unmap()
+}
+
+// NewReadOnly is text that has no file behind it, such as a diff. It can't be edited or saved, so
+// closing it never asks, and path is only a name that nothing is written to.
+func NewReadOnly(path string, text []byte) *File {
+	f := &File{Buffer: New(text), Path: path}
+	f.readOnly = true
+	f.saved = f.root
+	return f
 }

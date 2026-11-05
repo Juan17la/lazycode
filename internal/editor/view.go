@@ -16,6 +16,7 @@ const maxBytesPerColumn = 32
 // Cell is one thing to draw on a row. X is relative to the text area.
 type Cell struct {
 	X        int
+	Offset   int // The byte in the file where the character starts, for syntax colours.
 	Text     string
 	Width    int
 	Selected bool
@@ -205,6 +206,7 @@ func (e *Editor) Row(line, width int) []Cell {
 			matches = matches[1:]
 		}
 		cell := Cell{
+			Offset:   offset,
 			Selected: e.selectedAt(offset),
 			Cursor:   e.otherCursorAt(offset),
 			Match:    len(matches) > 0 && matches[0][0] <= g.offset,
@@ -225,7 +227,7 @@ func (e *Editor) Row(line, width int) []Cell {
 	// Show a selected line break, and a cursor at the end of a line.
 	selected := end < next && e.selectedAt(end)
 	if other := e.otherCursorAt(end); (selected || other) && endCol >= e.ScrollCol && endCol < right && limit == end {
-		cells = append(cells, Cell{X: endCol - e.ScrollCol, Text: " ", Width: 1, Selected: selected, Cursor: other})
+		cells = append(cells, Cell{X: endCol - e.ScrollCol, Offset: end, Text: " ", Width: 1, Selected: selected, Cursor: other})
 	}
 	return cells
 }
@@ -238,3 +240,12 @@ func (e *Editor) GutterWidth() int {
 	}
 	return width + 2
 }
+
+// CursorOffset returns the byte offset of the main cursor.
+func (e *Editor) CursorOffset() int { return e.cur().pos }
+
+// WordAtCursor returns the word at or just before the main cursor, as byte offsets.
+func (e *Editor) WordAtCursor() (start, end int) { return e.wordAt(e.cur().pos) }
+
+// GoToOffset puts the only cursor at a byte offset, kept inside the text.
+func (e *Editor) GoToOffset(offset int) { e.moveTo(offset, false) }

@@ -450,6 +450,50 @@ func TestReloadKeepsThePlace(t *testing.T) {
 	}
 }
 
+// A regression test: Sync read the old text after a reload had unmapped it, which is a crash that
+// no recover can catch. Live updates would reach it whenever a very large file changes.
+func TestReloadingAMappedFileWithTwoViews(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "big.log")
+	write := func(first string) {
+		t.Helper()
+		// By renaming, as most tools save. Rewriting a mapped file in place corrupts what's
+		// on screen, which is why editable files aren't mapped (P-15).
+		temp := path + ".new"
+		if err := os.WriteFile(temp, []byte(first+strings.Repeat("line\n", 2000)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Truncate(temp, 100<<20+1); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(temp, path); err != nil {
+			t.Skip("this system won't replace a mapped file:", err)
+		}
+	}
+	write("first\n")
+	f, err := buffer.Open(path)
+	must(t, err)
+	defer f.Close()
+	if !f.ReadOnly() {
+		t.Fatal("expected a mapped file")
+	}
+	a, b := New(f, 4), New(f, 4)
+	a.GoTo(3, 2, false)
+	b.GoTo(5, 1, false)
+	write("changed\n")
+	must(t, a.Reload())
+	if line, col := a.Position(); line != 3 || col != 2 {
+		t.Fatalf("the view reloading moved to line %d, col %d", line, col)
+	}
+	b.Sync()
+	// The same offset, at the start of its line. The first line grew, so that's now line 4.
+	if line, col := b.Position(); line != 4 || col != 0 {
+		t.Fatalf("the other view is at line %d, col %d", line, col)
+	}
+	if got := string(f.Line(0)); got != "changed" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestSetTextIsOneStep(t *testing.T) {
 	e := open(t, "disk")
 	must(t, e.SetText("recovered"))

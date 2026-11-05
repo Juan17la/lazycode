@@ -3,8 +3,10 @@ package app
 import (
 	"runtime/debug"
 	"slices"
+	"time"
 
 	"github.com/Juan17la/lazycode/internal/editor"
+	"github.com/gdamore/tcell/v2"
 )
 
 // Below this width panels hide, the second first (doc 07).
@@ -148,6 +150,9 @@ func (a *app) resizeTabs(st *dirState) {
 			if it.term != nil && (it.w != size.w || it.h != size.h) {
 				it.term.Resize(size.w, size.h)
 				it.w, it.h = size.w, size.h
+				if it.sess != nil { // A tool redraws when resized, which isn't it working.
+					it.sess.ignoreUntil = time.Now().Add(resizeNoise)
+				}
 			}
 		}
 	}
@@ -214,6 +219,10 @@ func (a *app) removeTab(st *dirState, p *pane, it *tabItem) {
 		return
 	}
 	lastView := it.ed != nil && a.lastView(it)
+	if lastView {
+		delete(a.marks, it.ed.File)
+	}
+	a.tabClosed(st, it)
 	p.tabs = slices.Delete(p.tabs, i, i+1) // Clears the old slot, so the tab can be freed.
 	p.cur = max(0, min(p.cur, len(p.tabs)-1))
 	if len(p.tabs) == 0 && st.root.pane == nil {
@@ -236,23 +245,132 @@ func (a *app) removeTab(st *dirState, p *pane, it *tabItem) {
 	}()
 }
 
-// Panels (Q-18). Only the Files view exists so far. Git, search and AI sessions join it
-// in tracks A to D.
+// Panels (Q-18). Four views share the panels: each sits in one, and one of the panel's views is on top.
+
+const (
+	viewFiles  = "Files"
+	viewGit    = "Git"
+	viewSearch = "Search"
+	viewAI     = "AI"
+)
+
+// allViews are in the order the header row shows them (doc 07).
+var allViews = []string{viewFiles, viewGit, viewSearch, viewAI}
+
+// viewsIn returns the views in a panel, in header order.
+func (a *app) viewsIn(panel int) []string {
+	var in []string
+	for _, v := range allViews {
+		if a.panelOf[v] == panel {
+			in = append(in, v)
+		}
+	}
+	return in
+}
+
+// viewIn returns the view showing in a panel, or "" if it has none.
+func (a *app) viewIn(panel int) string {
+	in := a.viewsIn(panel)
+	if len(in) == 0 {
+		return ""
+	}
+	if slices.Contains(in, a.onTop[panel]) {
+		return a.onTop[panel]
+	}
+	return in[0]
+}
+
+// focusedView returns the view that keys go to when a tab hasn't got them.
+func (a *app) focusedView() string {
+	if view := a.viewIn(a.focusPanel); view != "" {
+		return view
+	}
+	return a.viewIn(1 - a.focusPanel)
+}
+
+// showView brings a view to the front of its panel, opening the panel if needed, and focuses it.
+func (a *app) showView(view string) {
+	panel := a.panelOf[view]
+	a.onTop[panel] = view
+	a.focusPanel = panel
+	a.tabFocused = false
+	a.closeFind()
+	if panel == 1 {
+		a.showSecond = true
+	}
+}
 
 func (a *app) toggleSecondPanel() {
 	a.showSecond = !a.showSecond
-	if !a.showSecond && a.filesPanel == 1 {
-		a.filesPanel = 0 // Closing a panel can't lose what's in it.
+	if !a.showSecond {
+		clear(a.panelOf) // Closing a panel can't lose what's in it.
+		a.focusPanel = 0
 	}
 	if w, _ := a.screen.Size(); a.showSecond && w < minWidthForSecondPanel {
 		a.message = "This window is too narrow for a second panel."
 	}
 }
 
-// moveFilesView moves the Files view to the other panel, opening it if needed.
+// setFilesPanel puts Files, Git and Search together in a panel, as the mockups in doc 07 show them.
+func (a *app) setFilesPanel(panel int) {
+	for _, v := range []string{viewFiles, viewGit, viewSearch} {
+		a.panelOf[v] = panel
+	}
+}
+
+// moveFilesView moves the focused view to the other panel, opening it if needed. AI moves alone, and
+// the other three move together. The Files group is what moves when focus is on a tab.
 func (a *app) moveFilesView() {
-	a.filesPanel = 1 - a.filesPanel
-	if a.filesPanel == 1 {
+	if !a.tabFocused && a.focusedView() == viewAI {
+		a.panelOf[viewAI] = 1 - a.panelOf[viewAI]
+		a.focusPanel = a.panelOf[viewAI]
+		a.onTop[a.focusPanel] = viewAI
+	} else {
+		view := a.focusedView()
+		if view == "" || view == viewAI {
+			view = viewFiles
+		}
+		a.setFilesPanel(1 - a.panelOf[view])
+		a.focusPanel = a.panelOf[view]
+		a.onTop[a.focusPanel] = view
+	}
+	if a.panelOf[viewFiles] == 1 || a.panelOf[viewAI] == 1 {
 		a.showSecond = true
 	}
+}
+
+// drawViewTitles draws the header row of a panel: each view's name, the one on top in brackets so
+// that it doesn't rely on colour. A click on a name brings that view forward.
+func (a *app) drawViewTitles(panel int, r rect) {
+	top := a.viewIn(panel)
+	focused := !a.tabFocused && a.focusedView() == top
+	x, maxX := r.x+1, r.x+r.w
+	for _, v := range a.viewsIn(panel) {
+		label, style := " "+v+" ", a.th.muted
+		if v == top {
+			label, style = "["+v+"]", a.th.primary.Bold(true)
+			if v == viewFiles && a.showAll {
+				label = "[Files, all directories]"
+			}
+			if focused {
+				style = a.th.accent
+			}
+		}
+		start := x
+		x = a.put(x, r.y, maxX, label, style)
+		view := v
+		a.hits = append(a.hits, hit{area: rect{start, r.y, x - start, 1}, click: func(int, int, tcell.ModMask) { a.showView(view) }})
+	}
+}
+
+// handlePanelKey gives keys to the Git and Search views, which have their own. It reports whether it
+// used the key.
+func (a *app) handlePanelKey(ev *tcell.EventKey) bool {
+	switch a.focusedView() {
+	case viewSearch:
+		return a.searchKey(ev)
+	case viewGit:
+		return a.gitKey(ev)
+	}
+	return false
 }

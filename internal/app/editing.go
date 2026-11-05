@@ -25,6 +25,23 @@ type tabItem struct {
 	term *term.Tab
 	w, h int // The size the terminal was last told.
 	ed   *editor.Editor
+	sess *sessionEntry // Set if it's listed in the AI sessions view.
+	play bool          // Started by :play.
+}
+
+// marker tells a terminal tab apart from a file, and changes while output is arriving (Q-25): the
+// filled shape means active.
+func (it *tabItem) marker() string {
+	active := time.Since(it.term.LastOutput()) < activeOutput
+	switch {
+	case it.sess != nil && !it.sess.isShell && active:
+		return "✦"
+	case it.sess != nil && !it.sess.isShell:
+		return "✧"
+	case active:
+		return "▶"
+	}
+	return "▷"
 }
 
 func (it *tabItem) name() string {
@@ -37,14 +54,24 @@ func (it *tabItem) name() string {
 // Opening files.
 
 // openSelected opens the tree's selection: a folder expands, and a file gets a tab.
-func (a *app) openSelected(st *dirState) {
-	row, ok := st.tree.Selected()
+func (a *app) openSelected() {
+	t := a.tree()
+	row, ok := t.Selected()
 	switch {
 	case !ok:
 	case row.IsDir:
-		st.tree.SetOpen(!row.Open)
+		t.SetOpen(!row.Open)
 	default:
-		a.openFile(st, row.Path)
+		if a.showAll { // Tabs belong to directories, so the file's directory comes first.
+			for d, dir := range a.projects[a.project].Dirs {
+				if d != a.dirOf[a.project] && inDir(dir, row.Path) {
+					a.dirOf[a.project] = d
+					a.afterSwitch()
+					break
+				}
+			}
+		}
+		a.openFile(a.dir(), row.Path)
 	}
 }
 
@@ -70,7 +97,7 @@ func (a *app) openFile(st *dirState, path string) {
 	}
 	a.addEditor(st, f)
 	if f.ReadOnly() {
-		a.message = filepath.Base(path) + " is over 100 MB, so it's read-only."
+		a.message = filepath.Base(path) + " is over 100 MB, so it's read-only, and has no syntax colours."
 	}
 }
 
@@ -229,6 +256,9 @@ func (a *app) savedSettings(f *buffer.File) {
 	if f.Path == a.settingsPath("config.toml") || f.Path == a.settingsPath("keys.toml") {
 		a.loadSettings()
 	}
+	if f.Path == a.settingsPath("projects.toml") {
+		a.reloadProjects()
+	}
 }
 
 func (a *app) isOpen(f *buffer.File) bool {
@@ -286,17 +316,26 @@ func (a *app) closeTab() {
 // askQuit quits once each file with unsaved work has been decided on. Nothing is thrown
 // away until then, so cancelling part way loses nothing.
 func (a *app) askQuit(discard map[*buffer.File]bool) {
-	for _, st := range a.dirs {
+	a.askUnsaved(func(string) bool { return true }, "before quitting", discard, func() { a.quit = true })
+}
+
+// askUnsaved asks about each modified file in the directories inScope selects, and runs then once
+// none is left undecided. A file that's also open outside the scope loses nothing, so it isn't asked.
+func (a *app) askUnsaved(inScope func(dir string) bool, when string, discard map[*buffer.File]bool, then func()) {
+	for dir, st := range a.dirs {
+		if !inScope(dir) {
+			continue
+		}
 		for _, p := range st.root.panes() {
 			for _, it := range p.tabs {
-				if it.ed == nil || !it.ed.File.Modified() || discard[it.ed.File] {
+				if it.ed == nil || !it.ed.File.Modified() || discard[it.ed.File] || a.shownOutside(it.ed.File, inScope) {
 					continue
 				}
-				a.ask(fmt.Sprintf("Save changes to %s before quitting?", it.name()),
-					choice{'s', "Save", func() { a.save(it, func() { a.askQuit(discard) }) }},
+				a.ask(fmt.Sprintf("Save changes to %s %s?", it.name(), when),
+					choice{'s', "Save", func() { a.save(it, func() { a.askUnsaved(inScope, when, discard, then) }) }},
 					choice{'d', "Don't save", func() {
 						discard[it.ed.File] = true
-						a.askQuit(discard)
+						a.askUnsaved(inScope, when, discard, then)
 					}},
 					choice{'c', "Cancel", func() {}})
 				return
@@ -306,7 +345,24 @@ func (a *app) askQuit(discard map[*buffer.File]bool) {
 	for f := range discard {
 		a.recovery.Discard(f.Path)
 	}
-	a.quit = true
+	then()
+}
+
+// shownOutside reports whether a tab outside the scope shows the file.
+func (a *app) shownOutside(f *buffer.File, inScope func(dir string) bool) bool {
+	for dir, st := range a.dirs {
+		if inScope(dir) {
+			continue
+		}
+		for _, p := range st.root.panes() {
+			for _, it := range p.tabs {
+				if it.ed != nil && it.ed.File == f {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // Recovery.
@@ -347,6 +403,7 @@ func (a *app) restore(rec editor.Recovered) {
 		return
 	}
 	a.moveToPath(rec.Path)
+	a.dropRestoredTabs(a.dir(), rec.Path)
 	if bytes.Equal(text, f.Slice(0, f.Len())) {
 		a.recovery.Discard(rec.Path)
 		a.addEditor(a.dir(), f)
@@ -366,8 +423,7 @@ func (a *app) restore(rec editor.Recovered) {
 func (a *app) moveToPath(path string) {
 	for p, project := range a.projects {
 		for d, dir := range project.Dirs {
-			rel, err := filepath.Rel(dir, path)
-			if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			if inDir(dir, path) {
 				a.project = p
 				a.dirOf[p] = d
 				a.afterSwitch()
@@ -375,6 +431,11 @@ func (a *app) moveToPath(path string) {
 			}
 		}
 	}
+}
+
+func inDir(dir, path string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // Prompts.

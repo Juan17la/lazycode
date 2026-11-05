@@ -16,9 +16,14 @@ import (
 	"github.com/Juan17la/lazycode/internal/config"
 	"github.com/Juan17la/lazycode/internal/editor"
 	"github.com/Juan17la/lazycode/internal/keymap"
+	"github.com/Juan17la/lazycode/internal/notify"
 	"github.com/Juan17la/lazycode/internal/project"
+	"github.com/Juan17la/lazycode/internal/run"
+	"github.com/Juan17la/lazycode/internal/session"
 	"github.com/Juan17la/lazycode/internal/term"
 	"github.com/Juan17la/lazycode/internal/tree"
+	"github.com/Juan17la/lazycode/internal/trust"
+	"github.com/Juan17la/lazycode/internal/update"
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -27,9 +32,10 @@ const frame = time.Second / 60 // Terminal output redraws at most this often.
 // dirState is what belongs to one directory: its tree and its tabs (D-30).
 type dirState struct {
 	tree  *tree.Tree
-	root  *split // The arrangement of panes.
-	focus *pane  // The pane new tabs go in, and that keys go to.
-	top   int    // First tree row on screen.
+	root  *split   // The arrangement of panes.
+	focus *pane    // The pane new tabs go in, and that keys go to.
+	top   int      // First tree row on screen.
+	play  *tabItem // The tab :play last started here (Q-57).
 }
 
 type app struct {
@@ -40,11 +46,32 @@ type app struct {
 	dirOf    []int // Active directory of each project.
 	dirs     map[string]*dirState
 
+	state     project.State
+	statePath string        // Empty means nothing is saved between runs.
+	showAll   bool          // The tree shows all of the project's directories (Q-41).
+	combined  *tree.Tree    // That tree, when it's showing.
+	watcher   *tree.Watcher // Nil if the OS wouldn't give one, and r still refreshes.
+	watching  []string
+
 	cfg        config.Config
 	keys       *keymap.Map
 	th         theme
-	showSecond bool // The second panel is open (Q-18).
-	filesPanel int  // Which panel holds the Files view: 0 is the first, 1 the second.
+	showSecond bool           // The second panel is open (Q-18).
+	panelOf    map[string]int // Which panel holds each view: 0 is the first, 1 the second.
+	onTop      [2]string      // The view showing in each panel, if it holds several.
+	focusPanel int            // The panel with focus, when a tab hasn't got it.
+	sessions   sessionList
+	input      *inputBar
+	review     *review     // The change being looked over before it's applied.
+	onboard    *onboarding // The first-run screen, while it's open.
+	srch       searchState
+	git        gitState
+	trust      *trust.Store
+	playSaved  *run.Saved
+	live       liveUpdates
+	hl         highlighting
+	lang       language
+	marks      map[*buffer.File]*fileMarks
 
 	tabFocused bool
 	chord      bool // Ctrl+K was pressed, and the next key finishes it.
@@ -56,6 +83,7 @@ type app struct {
 	find       *findBar  // The open find bar.
 	prompts    []*prompt // Questions waiting for an answer. The first one is showing.
 	message    string
+	upd        updates
 	quit       bool
 	hits       []hit // What the mouse can click, from the last frame.
 
@@ -76,23 +104,35 @@ func newApp(screen tcell.Screen, projects []project.Project, dir, startup string
 		project:  p,
 		dirOf:    make([]int, len(all)),
 		dirs:     map[string]*dirState{},
+		panelOf:  map[string]int{},
 		cfg:      config.Default(),
 		keys:     keymap.Default(),
 		message:  startup,
+		upd:      newUpdates(),
 
 		autoSaves:     map[*buffer.File]*time.Timer{},
+		marks:         map[*buffer.File]*fileMarks{},
 		clipboardJobs: make(chan func(), 16),
 		tasks:         make(chan func()),
 		done:          make(chan struct{}),
 	}
 	a.dirOf[p] = d
 	a.th = themeFor(a.cfg.UI.Theme)
+	a.trust = trust.New(a.settingsPath("trust.toml"))
+	a.playSaved = run.NewSaved(a.settingsPath("directories.toml"))
+	a.sessions.send = func(title, body string) { go notify.Send(title, body) } //nolint:errcheck // The green detail still shows.
+	a.sessions.cpuOf = session.TreeCPU
 	return a
 }
 
 // Run shows the UI until the user quits, with dir as the starting folder. startup
 // is shown first if it's set, such as a config error.
-func Run(screen tcell.Screen, projects []project.Project, dir, startup string) error {
+func Run(screen tcell.Screen, projects []project.Project, dir, startup, version string) error {
+	return runApp(screen, projects, dir, startup, func(a *app) { a.upd.version = version })
+}
+
+// runApp is Run, with a chance to change the app before it starts. Tests use it to fake the updater.
+func runApp(screen tcell.Screen, projects []project.Project, dir, startup string, tweak func(*app)) error {
 	if err := screen.Init(); err != nil {
 		return err
 	}
@@ -103,8 +143,18 @@ func Run(screen tcell.Screen, projects []project.Project, dir, startup string) e
 	screen.EnableMouse(tcell.MouseButtonEvents)
 
 	a := newApp(screen, projects, dir, startup)
+	tweak(a)
+	defer a.upd.cancel()
 	defer a.closeAllTabs()
 	a.loadSettings()
+	update.CleanOld()                        // Whether or not this start checks for a new version.
+	go a.checkForUpdate(a.cfg.Updates.Check) // Off the UI goroutine, so it never delays the first frame.
+	a.loadState()
+	a.loadSessions()
+	defer a.saveSessions()
+	a.startLive()
+	defer a.stopLive()
+	defer a.saveState() // Before the tabs close, or there'd be nothing to save.
 
 	// If the folder can't be found, writes fail and report it through this message.
 	recoveryDir, _ := editor.RecoveryDir()
@@ -113,11 +163,19 @@ func Run(screen tcell.Screen, projects []project.Project, dir, startup string) e
 	})
 	defer a.recovery.Wait() // Lets waiting recovery files finish when stopped by a signal.
 	a.offerRecovery()
+	a.firstQuestions()
 
 	// SIGHUP arrives when the terminal window is closed.
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer signal.Stop(stop)
+
+	if w, err := tree.Watch(func() { a.post(func() { a.tree().Refresh() }) }); err != nil {
+		a.message = "Folders won't update by themselves, and r refreshes them: " + err.Error()
+	} else {
+		a.watcher = w
+		defer w.Close() //nolint:errcheck // The app is stopping.
+	}
 
 	events := make(chan tcell.Event)
 	defer close(a.done)
@@ -133,14 +191,21 @@ func Run(screen tcell.Screen, projects []project.Project, dir, startup string) e
 		}
 	}()
 
+	a.syncWatcher()
 	a.draw()
 	var tick <-chan time.Time
+	second := time.NewTicker(time.Second) // Activity, attention and sleeping change with time.
+	defer second.Stop()
 	for !a.quit {
 		select {
 		case ev := <-events:
 			a.handle(ev)
 		case task := <-a.tasks:
 			task()
+		case now := <-second.C:
+			a.housekeeping(now)
+			a.gitTick(now)
+			a.showUpdateNote()
 		case <-a.redraw:
 			if tick == nil {
 				tick = time.After(frame)
@@ -152,6 +217,10 @@ func Run(screen tcell.Screen, projects []project.Project, dir, startup string) e
 			return nil
 		}
 		a.leaveFinishedTab()
+		a.syncWatcher()
+		a.syncLive()
+		a.syncHighlight()
+		a.syncServers()
 		a.draw()
 	}
 	return nil
@@ -197,8 +266,7 @@ func (a *app) dir() *dirState {
 	path := a.dirPath()
 	st := a.dirs[path]
 	if st == nil {
-		first := &pane{}
-		st = &dirState{tree: tree.New(path), root: &split{pane: first}, focus: first}
+		st = a.newDirState(path)
 		a.dirs[path] = st
 	}
 	return st
@@ -222,6 +290,8 @@ func (a *app) closeAllTabs() {
 		}
 	}
 	wg.Wait()
+	a.stopHighlight()
+	a.stopAllServers()
 }
 
 // Settings.
@@ -290,8 +360,13 @@ func (a *app) handle(ev tcell.Event) {
 
 func (a *app) finishPaste(text string) {
 	switch it := a.tab(); {
+	case a.onboard != nil:
 	case a.find != nil:
 		a.find.paste(a, text)
+	case a.input != nil:
+		a.input.paste(text)
+	case a.review == nil && len(a.prompts) == 0 && a.command == nil && a.switcher == nil && !a.tabFocused && a.focusedView() == viewSearch:
+		a.searchPaste(text)
 	case !a.tabFocused || it == nil || a.command != nil || a.switcher != nil || len(a.prompts) > 0:
 	case it.term != nil:
 		it.term.Paste(text)
@@ -319,6 +394,10 @@ func (a *app) handleKey(ev *tcell.EventKey) {
 		a.handlePromptKey(ev)
 		return
 	}
+	if a.onboard != nil {
+		a.handleOnboardKey(ev)
+		return
+	}
 	if term.IsLeaveKey(ev) { // Q-74: the one key a terminal tab never receives.
 		a.tabFocused, a.chord, a.escaped, a.command, a.switcher = false, false, false, nil, nil
 		a.closeFind()
@@ -333,6 +412,15 @@ func (a *app) handleKey(ev *tcell.EventKey) {
 		return
 	case a.find != nil:
 		a.handleFindKey(ev)
+		return
+	case a.input != nil:
+		a.handleInputKey(ev)
+		return
+	case a.review != nil:
+		a.handleReviewKey(ev)
+		return
+	}
+	if !a.tabFocused && !a.chord && a.handlePanelKey(ev) { // A chord's second key is the keymap's.
 		return
 	}
 	it := a.tab()
@@ -420,7 +508,17 @@ func (a *app) run(line string) {
 	it := a.tab()
 	switch fields[0] {
 	case "q", "quit":
-		a.askQuit(map[*buffer.File]bool{})
+		a.quitCommand()
+	case "play", "p":
+		a.playCommand(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), fields[0])))
+	case "session":
+		a.sessionCommand(fields[1:])
+	case "update":
+		a.updateCommand()
+	case "trust":
+		a.setTrust(true)
+	case "untrust":
+		a.setTrust(false)
 	case "w", "save":
 		if it != nil && it.ed != nil {
 			a.save(it, func() {})
@@ -428,9 +526,11 @@ func (a *app) run(line string) {
 			a.message = "There's no file to save here."
 		}
 	case "project":
-		a.openProjectSwitcher()
+		a.projectCommand(fields[1:])
 	case "dir":
-		a.openDirSwitcher()
+		a.dirCommand(fields[1:])
+	case "tree":
+		a.toggleCombinedTree()
 	case "close":
 		a.closeTab()
 	case "term":
@@ -445,20 +545,41 @@ func (a *app) run(line string) {
 		} else {
 			a.message = "There's no file to select in here."
 		}
+	case "definition":
+		a.do("lsp.definition")
+	case "rename":
+		a.do("lsp.rename")
+	case "format":
+		a.do("lsp.format")
 	case "find":
 		a.do("find.open")
 	case "replace":
 		a.do("find.replace")
 	case "view":
 		a.moveFilesView()
+	case "push":
+		a.gitPush()
+	case "pull":
+		a.gitPull()
+	case "fetch":
+		a.gitFetch()
+	case "git":
+		a.do("view.git")
+	case "search":
+		a.do("view.search")
+	case "repo":
+		a.repoCommand(fields[1:])
 	case "config":
 		name, content := "config.toml", config.Template
 		if len(fields) > 1 && fields[1] == "keys" {
 			name, content = "keys.toml", keymap.Template
 		}
+		if len(fields) > 1 && fields[1] == "projects" {
+			name, content = "projects.toml", project.Template
+		}
 		a.openSettings(name, content)
 	default:
-		a.message = "Unknown command: " + fields[0] + ". Try save, term, split, find, config, project, dir, close, or q."
+		a.message = "Unknown command: " + fields[0] + ". Try save, term, split, find, definition, rename, format, search, git, push, pull, fetch, repo, config, project, dir, tree, close, update, or q."
 	}
 }
 
@@ -485,18 +606,11 @@ func (a *app) startTab(args []string) {
 	if len(args) == 0 {
 		args = defaultShell()
 	}
-	st := a.dir()
-	a.layout(st)
-	size := st.focus.content()
-	t, err := term.Start(a.dirPath(), args, size.w, size.h, a.requestRedraw)
-	if err != nil {
+	if it, err := a.openTerminal(a.dirPath(), args); err != nil {
 		a.message = err.Error()
-		return
+	} else {
+		a.addShellEntry(it)
 	}
-	t.SetScrollback(a.cfg.Terminal.Scrollback)
-	st.focus.tabs = append(st.focus.tabs, &tabItem{term: t, w: size.w, h: size.h})
-	st.focus.cur = len(st.focus.tabs) - 1
-	a.tabFocused = true
 }
 
 // Switcher, the same for projects and directories.
@@ -546,7 +660,11 @@ func (a *app) openDirSwitcher() {
 func (a *app) afterSwitch() {
 	a.tabFocused = false
 	a.closeFind()
-	a.dir().tree.Refresh()
+	a.tree().Refresh()
+	a.searchDirChanged()
+	a.saveState() // So that a crash later only loses what changed since switching.
+	a.askAboutMissingDir()
+	a.askToTrust()
 }
 
 func (a *app) handleSwitcherKey(ev *tcell.EventKey) {

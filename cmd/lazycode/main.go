@@ -11,7 +11,14 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
+// version is "dev" unless a release sets it: -ldflags "-X main.version=v0.1.0".
+var version = "dev"
+
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--version" {
+		fmt.Println(version)
+		return
+	}
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, "lazycode:", err)
 		os.Exit(1)
@@ -45,5 +52,5 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	return app.Run(screen, projects, dir, startup)
+	return app.Run(screen, projects, dir, startup, version)
 }

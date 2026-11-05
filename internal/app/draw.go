@@ -3,11 +3,14 @@ package app
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/Juan17la/lazycode/internal/editor"
+	"github.com/Juan17la/lazycode/internal/session"
+	"github.com/Juan17la/lazycode/internal/syntax"
 	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-runewidth"
 )
@@ -53,6 +56,12 @@ func (a *app) draw() {
 	for _, d := range dividers {
 		a.fillLine(d)
 	}
+	if a.review != nil {
+		a.drawReview(w, h)
+	}
+	if a.onboard != nil {
+		a.drawOnboard(w, h)
+	}
 	a.drawStatus(w, h)
 	if a.switcher != nil {
 		a.drawSwitcher(w, h)
@@ -84,36 +93,38 @@ func (a *app) drawPanel(st *dirState, index int, r rect) {
 	} else if r.x > 0 && r.x+r.w <= w {
 		a.fillLine(rect{r.x - 1, r.y, 1, r.h})
 	}
-	if a.filesPanel == index {
+	switch a.viewIn(index) {
+	case viewFiles:
 		a.drawTree(st, r)
-		return
+	case viewAI:
+		a.drawSessions(r)
+	case viewGit:
+		a.drawGit(r)
+	case viewSearch:
+		a.drawSearch(r)
+	default:
+		a.put(r.x+1, r.y, r.x+r.w, "No views here", a.th.muted)
+		a.put(r.x+1, r.y+1, r.x+r.w, ":view moves one", a.th.muted)
 	}
-	a.put(r.x+1, r.y, r.x+r.w, "No views here", a.th.muted)
-	a.put(r.x+1, r.y+1, r.x+r.w, ":view moves one", a.th.muted)
+	a.drawViewTitles(index, r)
 }
 
 func (a *app) drawTree(st *dirState, r rect) {
-	title := a.th.muted
-	if !a.tabFocused {
-		title = a.th.accent
-	}
 	maxX := r.x + r.w
-	a.put(r.x+1, r.y, maxX, "Files", title)
-	a.hits = append(a.hits, hit{area: rect{r.x, r.y, r.w, 1}, click: func(int, int, tcell.ModMask) { a.tabFocused = false }})
-
+	t := a.tree()
 	y0, rows := r.y+1, r.h-1
-	if st.tree.Err != nil {
+	if t.Err != nil {
 		a.put(r.x+1, y0, maxX, "Can't read this directory", a.th.primary)
 		return
 	}
-	if len(st.tree.Rows) == 0 {
+	if len(t.Rows) == 0 {
 		a.put(r.x+1, y0, maxX, "Empty directory", a.th.muted)
 		return
 	}
 	// Keep the selection on screen.
-	st.top = max(0, min(st.top, st.tree.Sel))
-	if st.tree.Sel >= st.top+rows {
-		st.top = st.tree.Sel - rows + 1
+	st.top = max(0, min(st.top, t.Sel))
+	if t.Sel >= st.top+rows {
+		st.top = t.Sel - rows + 1
 	}
 	top := st.top
 	a.hits = append(a.hits, hit{
@@ -121,15 +132,18 @@ func (a *app) drawTree(st *dirState, r rect) {
 		click: func(_, y int, _ tcell.ModMask) {
 			i := top + y - y0
 			a.tabFocused = false
-			if i >= 0 && i < len(st.tree.Rows) {
-				st.tree.Move(i - st.tree.Sel)
-				a.openSelected(st)
+			if i >= 0 && i < len(t.Rows) {
+				t.Move(i - t.Sel)
+				a.openSelected()
 			}
 		},
-		wheel: func(delta int) { st.tree.Move(delta) },
+		wheel: func(delta int) { t.Move(delta) },
 	})
-	for i := st.top; i < len(st.tree.Rows) && i < st.top+rows; i++ {
-		row := st.tree.Rows[i]
+	for i := st.top; i < len(t.Rows) && i < st.top+rows; i++ {
+		row := t.Rows[i]
+		if row.Missing {
+			row.Name += " (missing)" // Q-66: marked, never removed silently.
+		}
 		marker := "  "
 		if row.IsDir {
 			marker = "▸ "
@@ -138,7 +152,7 @@ func (a *app) drawTree(st *dirState, r rect) {
 			}
 		}
 		style := a.th.primary
-		if i == st.tree.Sel {
+		if i == t.Sel {
 			style = a.th.primary.Underline(true)
 			if !a.tabFocused {
 				style = a.th.active
@@ -174,7 +188,7 @@ func (a *app) drawPane(st *dirState, p *pane) {
 
 // overlayFree reports whether nothing else is taking the keys and showing a cursor.
 func (a *app) overlayFree() bool {
-	return a.switcher == nil && a.command == nil && a.find == nil && len(a.prompts) == 0
+	return a.switcher == nil && a.command == nil && a.find == nil && a.input == nil && a.review == nil && len(a.prompts) == 0
 }
 
 func (a *app) drawTabBar(st *dirState, p *pane, focused bool) {
@@ -187,9 +201,9 @@ func (a *app) drawTabBar(st *dirState, p *pane, focused bool) {
 				label = " " + it.name() + "* "
 			}
 		default:
-			label = " ▶ " + it.name() + " "
+			label = " " + it.marker() + " " + it.name() + " "
 			if done, code := it.term.Exited(); done {
-				label = fmt.Sprintf(" ▶ %s [exit %d] ", it.name(), code)
+				label = fmt.Sprintf(" %s %s [exit %d] ", it.marker(), it.name(), code)
 			}
 		}
 		style := a.th.muted
@@ -198,6 +212,10 @@ func (a *app) drawTabBar(st *dirState, p *pane, focused bool) {
 			if focused && a.tabFocused {
 				style = a.th.active
 			}
+		}
+		if it.sess != nil && it.sess.status == session.Attention {
+			style = a.th.success // The green detail (Q-36). The label's ● says it without colour.
+			label = " ● " + it.name() + " "
 		}
 		start := x
 		x = a.put(x, y, maxX, label, style)
@@ -216,6 +234,7 @@ func (a *app) drawTabBar(st *dirState, p *pane, focused bool) {
 func (a *app) drawEditor(st *dirState, p *pane, it *tabItem, r rect, focused bool) {
 	e := it.ed
 	e.Sync()
+	marked := a.marksFor(e.File)
 	gutter := e.GutterWidth()
 	if r.w <= gutter+1 {
 		gutter = 0 // Too narrow for line numbers.
@@ -223,6 +242,7 @@ func (a *app) drawEditor(st *dirState, p *pane, it *tabItem, r rect, focused boo
 	textWidth := max(1, r.w-gutter)
 	e.Scroll(textWidth, r.h)
 	current, _ := e.Position()
+	colours := syntax.NewCursor(a.highlightSpans(e.File)) // Only what's on screen is looked up.
 	for row := range r.h {
 		line := e.ScrollLine + row
 		if line >= e.File.LineCount() {
@@ -234,9 +254,12 @@ func (a *app) drawEditor(st *dirState, p *pane, it *tabItem, r rect, focused boo
 				style = a.th.primary
 			}
 			a.put(r.x, r.y+row, r.x+gutter, fmt.Sprintf(" %*d", gutter-2, line+1), style)
+			if marked[line] {
+				a.screen.SetContent(r.x, r.y+row, '▌', nil, a.th.accent)
+			}
 		}
 		for _, c := range e.Row(line, textWidth) {
-			a.screen.Put(r.x+gutter+c.X, r.y+row, c.Text, a.cellStyle(c))
+			a.screen.Put(r.x+gutter+c.X, r.y+row, c.Text, a.cellStyle(c, colours.At(c.Offset)))
 		}
 	}
 	if focused && a.tabFocused && a.overlayFree() {
@@ -258,7 +281,8 @@ func (a *app) drawEditor(st *dirState, p *pane, it *tabItem, r rect, focused boo
 	})
 }
 
-func (a *app) cellStyle(c editor.Cell) tcell.Style {
+// cellStyle gives selections, cursors and matches priority over syntax colour.
+func (a *app) cellStyle(c editor.Cell, class syntax.Class) tcell.Style {
 	switch {
 	case c.Cursor && c.Selected:
 		return a.th.otherCursor.Underline(true)
@@ -270,6 +294,16 @@ func (a *app) cellStyle(c editor.Cell) tcell.Style {
 		return a.th.match
 	case c.Special:
 		return a.th.muted
+	}
+	switch class {
+	case syntax.Keyword:
+		return a.th.keyword
+	case syntax.Literal:
+		return a.th.literal
+	case syntax.Name:
+		return a.th.name
+	case syntax.Comment:
+		return a.th.comment
 	}
 	return a.th.primary
 }
@@ -284,8 +318,13 @@ func (a *app) drawStatus(w, h int) {
 		a.screen.ShowCursor(min(x, w-1), y)
 	case a.find != nil:
 		a.drawFind(w, y)
+	case a.input != nil:
+		a.drawInput(w, y)
 	case a.message != "":
 		a.put(1, y, w, a.message, a.th.primary)
+	case a.onboard != nil: // Its keys are on its own screen.
+	case a.git.busy != "":
+		a.put(1, y, w, a.git.busy, a.th.accent)
 	case a.tabFocused && it != nil && it.ed != nil:
 		line, col := it.ed.Position()
 		where := fmt.Sprintf("Ln %d, Col %d", line+1, col+1)
@@ -295,8 +334,13 @@ func (a *app) drawStatus(w, h int) {
 		if it.ed.File.ReadOnly() {
 			where = "Read-only  " + where
 		}
+		if lang := syntax.ForPath(it.ed.File.Path); lang != nil {
+			where = lang.Name + "  " + where
+		}
 		a.put(max(1, w-utf8.RuneCountInString(where)-1), y, w, where, a.th.primary)
 		a.put(1, y, max(1, w-utf8.RuneCountInString(where)-2), `Ctrl+S save   Ctrl+F find   Ctrl+\ files   Esc : commands`, a.th.muted)
+	case a.tabFocused && it != nil && it.term != nil && it.term.ScrolledBack() > 0:
+		a.put(1, y, w, fmt.Sprintf("Looking back %d lines. Scroll down or type to return.", it.term.ScrolledBack()), a.th.muted)
 	case a.tabFocused:
 		a.put(1, y, w, `Ctrl+\ leaves the terminal`, a.th.muted)
 	default:
@@ -304,13 +348,27 @@ func (a *app) drawStatus(w, h int) {
 	}
 }
 
+// drawPrompt asks on the status line. A question too long for it wraps upward, because a trust
+// question must show the whole of what would run.
 func (a *app) drawPrompt(w, y int) {
 	p := a.prompts[0]
 	var options strings.Builder
 	for _, c := range p.choices {
 		fmt.Fprintf(&options, "  [%c] %s", c.key, c.label)
 	}
-	x := a.put(1, y, max(1, w-utf8.RuneCountInString(options.String())), p.text, a.th.accent)
+	x := 1
+	if room := w - utf8.RuneCountInString(options.String()) - 1; runewidth.StringWidth(p.text) <= room {
+		x = a.put(1, y, w, p.text, a.th.accent)
+	} else {
+		lines := wrapText(p.text, max(1, w-2))
+		for i, line := range lines {
+			row := y - len(lines) + i
+			for col := range w {
+				a.screen.SetContent(col, row, ' ', nil, a.th.primary)
+			}
+			a.put(1, row, w, line, a.th.accent)
+		}
+	}
 	a.hits = a.hits[:0] // A question takes everything until it's answered.
 	for _, c := range p.choices {
 		start := x + 2
@@ -321,6 +379,31 @@ func (a *app) drawPrompt(w, y int) {
 			click: func(int, int, tcell.ModMask) { a.answer(choice) },
 		})
 	}
+}
+
+// wrapText cuts text into lines at most width columns wide, between words when it can.
+func wrapText(text string, width int) []string {
+	var lines []string
+	line := []rune{}
+	used, space := 0, -1 // The last space in line, if any.
+	for _, r := range text {
+		w := runewidth.RuneWidth(r)
+		if used+w > width {
+			rest := []rune{}
+			if space >= 0 {
+				rest = slices.Clone(line[space+1:])
+				line = line[:space]
+			}
+			lines = append(lines, string(line))
+			line, used, space = rest, runewidth.StringWidth(string(rest)), -1
+		}
+		if r == ' ' {
+			space = len(line)
+		}
+		line = append(line, r)
+		used += w
+	}
+	return append(lines, string(line))
 }
 
 func (a *app) drawSwitcher(w, h int) {

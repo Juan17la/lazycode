@@ -22,6 +22,13 @@ import (
 // The test binary also plays a tool that exits as soon as it starts, and a LazyCode
 // that dies with unsaved work.
 func TestMain(m *testing.M) {
+	askFirstQuestions = false
+	if mode := os.Getenv("LAZYCODE_TEST_TOOL"); mode != "" {
+		runFakeTool(mode)
+	}
+	if cfg := os.Getenv("LAZYCODE_TEST_LSP"); cfg != "" {
+		runFakeLSP(cfg)
+	}
 	if path := os.Getenv("LAZYCODE_TEST_CRASH_PATH"); path != "" {
 		r := editor.NewRecovery(os.Getenv("LAZYCODE_TEST_CRASH_DIR"), nil)
 		r.Schedule(path, buffer.New([]byte(os.Getenv("LAZYCODE_TEST_CRASH_TEXT"))).Snapshot)
@@ -86,7 +93,14 @@ type ui struct {
 	exited chan error
 }
 
+// launchShows is what launch waits for. Onboarding tests change it.
+var launchShows = "Files"
+
 func start(t *testing.T, files map[string]string) *ui {
+	return startTweaked(t, files, func(*app) {})
+}
+
+func startTweaked(t *testing.T, files map[string]string, tweak func(*app)) *ui {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -97,6 +111,8 @@ func start(t *testing.T, files map[string]string) *ui {
 	t.Setenv("USERPROFILE", root)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
 	t.Setenv("AppData", filepath.Join(root, "config"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
+	t.Setenv("LocalAppData", filepath.Join(root, "cache"))
 	// No clipboard tool, so tests can't touch the real one.
 	t.Setenv("WAYLAND_DISPLAY", "")
 	t.Setenv("DISPLAY", "")
@@ -110,31 +126,40 @@ func start(t *testing.T, files map[string]string) *ui {
 			t.Fatal(err)
 		}
 	}
-	return launch(t, dir)
+	return launchTweaked(t, dir, tweak)
 }
 
 func launch(t *testing.T, dir string) *ui {
+	return launchTweaked(t, dir, func(*app) {})
+}
+
+// launchTweaked starts the app after tweak has changed it, such as to fake the updater.
+func launchTweaked(t *testing.T, dir string, tweak func(*app)) *ui {
 	t.Helper()
 	u := &ui{t: t, screen: &recordingScreen{SimulationScreen: tcell.NewSimulationScreen("UTF-8")}, dir: dir, exited: make(chan error, 1)}
 	projects := []project.Project{{Name: "test", Dirs: []string{dir}}}
-	go func() { u.exited <- Run(u.screen, projects, dir, "") }()
-	u.wait("Files")
+	go func() { u.exited <- runApp(u.screen, projects, dir, "", tweak) }()
+	u.wait(launchShows)
 	t.Cleanup(func() {
 		select {
 		case <-u.exited:
 		default:
-			// Stop it, answering any question by not saving.
+			// Stop it, answering any question by not saving. Onboarding can have a question behind it.
+			u.post(tcell.NewEventKey(tcell.KeyEsc, 0, 0))
 			u.post(tcell.NewEventKey(tcell.KeyEsc, 0, 0))
 			u.post(tcell.NewEventKey(tcell.KeyCtrlBackslash, 0, 0))
+			u.post(tcell.NewEventKey(tcell.KeyRune, 'e', tcell.ModAlt)) // Search and Git would take : as text.
 			u.run("q")
-			for range 20 {
+			for range 200 {
 				select {
 				case <-u.exited:
 					return
 				case <-time.After(50 * time.Millisecond):
-					u.press("d")
+					u.press("qd") // Quit despite busy sessions, and don't save.
 				}
 			}
+			// Still running, it would write into the folders being deleted next.
+			t.Errorf("didn't stop:\n%s", u.text())
 		}
 	})
 	return u
@@ -952,18 +977,20 @@ func TestSecondPanel(t *testing.T) {
 	u.key(tcell.KeyCtrlB)
 	u.waitGone("No views here")
 
-	// :view moves Files over, and opens the panel for it. The first panel is then empty.
+	// :view moves Files over, and opens the panel for it. The AI view stays in the first.
 	u.run("view")
-	u.wait("No views here")
+	u.wait("No sessions yet")
 	u.wait("a.txt")
+	u.waitGone("No views here")
 	u.run("view")
 	u.wait("a.txt")
+	u.waitGone("No sessions yet")
 
 	// Closing the panel holding Files brings the view back.
 	u.run("view")
-	u.wait("No views here")
+	u.wait("No sessions yet")
 	u.key(tcell.KeyCtrlB)
-	u.waitGone("No views here")
+	u.waitGone("No sessions yet")
 	u.wait("Files")
 	u.wait("a.txt")
 }
@@ -1116,11 +1143,13 @@ func TestMouseInASwitcher(t *testing.T) {
 	}
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
 	t.Setenv("AppData", filepath.Join(root, "config"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
+	t.Setenv("LocalAppData", filepath.Join(root, "cache"))
 	t.Setenv("HOME", root)
 	screen := &recordingScreen{SimulationScreen: tcell.NewSimulationScreen("UTF-8")}
 	u := &ui{t: t, screen: screen, dir: one, exited: make(chan error, 1)}
 	go func() {
-		u.exited <- Run(screen, []project.Project{{Name: "p", Dirs: []string{one, two}}}, one, "")
+		u.exited <- Run(screen, []project.Project{{Name: "p", Dirs: []string{one, two}}}, one, "", "dev")
 	}()
 	t.Cleanup(func() {
 		u.key(tcell.KeyCtrlBackslash)
@@ -1195,6 +1224,8 @@ func prepared(t *testing.T, dir string, settings map[string]string) *ui {
 	t.Setenv("USERPROFILE", root)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
 	t.Setenv("AppData", filepath.Join(root, "config"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
+	t.Setenv("LocalAppData", filepath.Join(root, "cache"))
 	t.Setenv("WAYLAND_DISPLAY", "")
 	t.Setenv("DISPLAY", "")
 	for name, content := range settings {

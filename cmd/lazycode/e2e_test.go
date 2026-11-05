@@ -17,6 +17,9 @@ import (
 
 // The test binary also plays the AI tool that runs inside LazyCode's terminal tab.
 func TestMain(m *testing.M) {
+	if file := os.Getenv("LAZYCODE_E2E_PIDFILE"); file != "" && os.Getenv("LAZYCODE_E2E_TOOL") != "" {
+		os.WriteFile(file, fmt.Appendf(nil, "%d", os.Getpid()), 0o644) //nolint:errcheck // The test notices.
+	}
 	if os.Getenv("LAZYCODE_E2E_TOOL") == "stream" {
 		streamLines()
 	}
@@ -81,6 +84,27 @@ func (d *driver) typeText(text string) {
 
 func (d *driver) enter() { d.key(tcell.KeyEnter, 0) }
 
+// answerFirstQuestions saves what onboarding and the trust question would, for tests about other
+// things. The folders count as answered no, so anything that runs in them still asks.
+func answerFirstQuestions(t *testing.T, dirs ...string) {
+	t.Helper()
+	config, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mkdirs(t, filepath.Join(config, "lazycode"))
+	declined := "declined = [\n"
+	for _, dir := range dirs {
+		declined += fmt.Sprintf("%q,\n", dir)
+	}
+	declined += "]\n"
+	for name, content := range map[string]string{"config.toml": "version = 1\n", "trust.toml": declined} {
+		if err := os.WriteFile(filepath.Join(config, "lazycode", name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func mkdirs(t *testing.T, paths ...string) {
 	t.Helper()
 	for _, p := range paths {
@@ -108,9 +132,12 @@ func TestPrototypeEndToEnd(t *testing.T) {
 	t.Setenv("USERPROFILE", root)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
 	t.Setenv("AppData", filepath.Join(root, "config"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
+	t.Setenv("LocalAppData", filepath.Join(root, "cache"))
 
 	one, two, three := filepath.Join(root, "one"), filepath.Join(root, "two"), filepath.Join(root, "three")
 	mkdirs(t, filepath.Join(one, "sub"), two, three)
+	answerFirstQuestions(t, one, two, three)
 	if err := os.WriteFile(filepath.Join(one, "a.txt"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}

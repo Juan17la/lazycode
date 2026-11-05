@@ -1,0 +1,4 @@
+go test fuzz v1
+[]byte("x\x1b[200\x1b[2000000000Z\x1b[200000000X")
+int(161)
+int(24)

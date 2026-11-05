@@ -208,3 +208,24 @@ func TestEveryDefaultKeyIsWrittenCanonically(t *testing.T) {
 		}
 	}
 }
+
+func TestLanguageServerKeys(t *testing.T) {
+	m := Default()
+	for key, want := range map[string]string{"f12": "lsp.definition", "f2": "lsp.rename", "alt+shift+f": "lsp.format"} {
+		if got := m.Lookup(Editor, key); got != want {
+			t.Errorf("%s is %q, want %q", key, got, want)
+		}
+	}
+	// The second form of Shift+Alt+F: Ctrl+K, then a capital F.
+	if got := m.LookupChord(Editor, "F"); got != "lsp.format" {
+		t.Errorf("Ctrl+K then F is %q", got)
+	}
+	if got := m.LookupChord(Editor, "G"); got != "" {
+		t.Errorf("an unbound capital is %q", got)
+	}
+	// Alt+Shift+F arrives as a capital with Alt held, and has to name the same key.
+	ev := tcell.NewEventKey(tcell.KeyRune, 'F', tcell.ModAlt)
+	if got := Name(ev); got != "alt+shift+f" {
+		t.Errorf("named %q", got)
+	}
+}

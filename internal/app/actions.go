@@ -11,7 +11,29 @@ import (
 // do runs an action from the keymap. Every name here is listed in keymap's defaults, and
 // a test checks that each one is handled.
 func (a *app) do(action string) bool {
+	if !a.tabFocused && a.focusedView() == viewAI && a.doInSessionsView(action) {
+		return true
+	}
 	switch action {
+	case "run.play":
+		a.playCommand("")
+	case "view.sessions":
+		a.showView(viewAI)
+	case "view.files":
+		a.showView(viewFiles)
+	case "view.git":
+		a.showView(viewGit)
+		if !a.git.loading {
+			a.refreshGit(false, nil)
+		}
+	case "view.search":
+		a.showView(viewSearch)
+	case "file.open_by_name":
+		a.openFilePicker()
+	case "session.new":
+		a.openSessionPicker()
+	case "session.hide":
+		a.message = "Alt+I shows the sessions, where this removes one from the list."
 	case "project.switch":
 		a.openProjectSwitcher()
 	case "directory.switch":
@@ -39,17 +61,17 @@ func (a *app) do(action string) bool {
 	case "command.open":
 		a.openCommand()
 	case "tree.up":
-		a.dir().tree.Move(-1)
+		a.tree().Move(-1)
 	case "tree.down":
-		a.dir().tree.Move(1)
+		a.tree().Move(1)
 	case "tree.close":
-		a.dir().tree.SetOpen(false)
+		a.tree().SetOpen(false)
 	case "tree.open":
-		a.dir().tree.SetOpen(true)
+		a.tree().SetOpen(true)
 	case "tree.select":
-		a.openSelected(a.dir())
+		a.openSelected()
 	case "tree.refresh":
-		a.dir().tree.Refresh()
+		a.tree().Refresh()
 	default:
 		return a.doInEditor(action)
 	}
@@ -119,6 +141,12 @@ func (a *app) doInEditor(action string) bool {
 		a.openFind(it, false)
 	case "find.replace":
 		a.openFind(it, true)
+	case "lsp.definition":
+		a.definition()
+	case "lsp.rename":
+		a.renameCommand()
+	case "lsp.format":
+		a.format()
 	default:
 		return false
 	}

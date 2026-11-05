@@ -7,10 +7,10 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/Juan17la/lazycode/internal/session"
 )
 
 // Config holds the settings the editor uses so far.
@@ -27,6 +27,13 @@ type Config struct {
 	Terminal struct {
 		Scrollback int `toml:"scrollback"`
 	} `toml:"terminal"`
+	Sessions struct {
+		SleepAfterMinutes int `toml:"sleep_after_minutes"`
+	} `toml:"sessions"`
+	Updates struct {
+		Check bool `toml:"check"` // Q-79.
+	} `toml:"updates"`
+	Harness []session.Harness `toml:"harness"`
 }
 
 // Limits. A scrollback of 0 means the emulator's large default, not none (doc 04), so
@@ -44,6 +51,8 @@ func Default() Config {
 	c.UI.Theme = "dark"
 	c.UI.Sidebar = "left"
 	c.Terminal.Scrollback = 1000
+	c.Sessions.SleepAfterMinutes = 30 // Q-77.
+	c.Updates.Check = true
 	return c
 }
 
@@ -61,7 +70,31 @@ sidebar = "left"    # left or right
 
 [terminal]
 scrollback = 1000   # Lines kept per terminal tab. Each 1,000 lines cost about 36 MB.
+
+[sessions]
+sleep_after_minutes = 30   # An idle AI session stops to free its memory. 0 turns this off.
+
+[updates]
+check = true   # Look on GitHub for a new version, at most once a day.
+
+# Add an AI tool, or change a default one by using its name. The resume fields are
+# optional. Without them, selecting a stopped session starts a new one. {id} is a session
+# ID, and {id_hex} is the same without dashes.
+#
+# [[harness]]
+# name = "Claude Code"
+# command = "claude"
+# start_args = ["--session-id", "{id}"]
+# resume_args = ["--resume", "{id}"]
 `
+
+// FirstConfig is the Template with the choices made in onboarding.
+func FirstConfig(theme string, autoSave bool) string {
+	return strings.NewReplacer(
+		`theme = "dark"`, fmt.Sprintf("theme = %q", theme),
+		"auto_save = false", fmt.Sprintf("auto_save = %t", autoSave),
+	).Replace(Template)
+}
 
 // Dir returns the folder holding LazyCode's config files.
 func Dir() (string, error) {
@@ -90,10 +123,7 @@ func Load(path string) (Config, error) {
 	}
 	var problems []string
 	for _, key := range meta.Undecoded() {
-		// These sections are documented, and read by features that aren't built yet.
-		if !slices.Contains([]string{"sessions", "updates", "harness"}, key[0]) {
-			problems = append(problems, "unknown setting "+key.String())
-		}
+		problems = append(problems, "unknown setting "+key.String())
 	}
 	if c.Version != 1 {
 		problems = append(problems, fmt.Sprintf("version %d isn't supported", c.Version))
@@ -109,6 +139,14 @@ func Load(path string) (Config, error) {
 	}
 	if c.Terminal.Scrollback < 1 || c.Terminal.Scrollback > maxScrollback {
 		problems = append(problems, fmt.Sprintf("scrollback must be from 1 to %d", maxScrollback))
+	}
+	if c.Sessions.SleepAfterMinutes < 0 {
+		problems = append(problems, "sleep_after_minutes can't be negative")
+	}
+	for i, h := range c.Harness {
+		if h.Name == "" || h.Command == "" {
+			problems = append(problems, fmt.Sprintf("harness %d needs a name and a command", i+1))
+		}
 	}
 	if len(problems) > 0 {
 		return Default(), fmt.Errorf("%s: %s", name, strings.Join(problems, "; "))

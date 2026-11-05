@@ -50,6 +50,8 @@ var defaults = map[Context]map[string]string{
 		"alt+,": "tab.previous", "alt+.": "tab.next",
 		"alt+s": "split.right", "alt+w": "split.next",
 		"ctrl+b": "panel.toggle_second", "ctrl+w": "tab.close",
+		"alt+p": "run.play", "alt+i": "view.sessions", "alt+e": "view.files",
+		"alt+g": "view.git", "alt+f": "view.search", "ctrl+p": "file.open_by_name",
 	},
 	Editor: {
 		"left": "move.left", "right": "move.right", "up": "move.up", "down": "move.down",
@@ -66,11 +68,12 @@ var defaults = map[Context]map[string]string{
 		"ctrl+c": "edit.copy", "ctrl+x": "edit.cut", "ctrl+v": "edit.paste",
 		"ctrl+z": "edit.undo", "ctrl+y": "edit.redo", "ctrl+shift+z": "edit.redo",
 		"ctrl+s": "file.save", "ctrl+f": "find.open", "alt+h": "find.replace",
+		"f12": "lsp.definition", "f2": "lsp.rename", "alt+shift+f": "lsp.format",
 	},
 	Panel: {
 		"up": "tree.up", "down": "tree.down", "left": "tree.close", "right": "tree.open",
 		"enter": "tree.select", "tab": "tab.enter", "r": "tree.refresh", ":": "command.open",
-		"alt+v": "view.move",
+		"alt+v": "view.move", "n": "session.new", "delete": "session.hide",
 	},
 }
 
@@ -129,6 +132,12 @@ func (m *Map) Lookup(context Context, key string) string {
 func (m *Map) LookupChord(context Context, key string) string {
 	if action := m.Lookup(context, "alt+"+key); action != "" {
 		return action
+	}
+	// Shift+Alt+F is the chord's capital F: a capital letter has no shift of its own in a name.
+	if r := []rune(key); len(r) == 1 && unicode.IsUpper(r[0]) {
+		if action := m.Lookup(context, "alt+shift+"+strings.ToLower(key)); action != "" {
+			return action
+		}
 	}
 	return extraChords[key]
 }

@@ -22,6 +22,11 @@ func (a *app) handleMouse(ev *tcell.EventMouse) {
 	x, y := ev.Position()
 	buttons := ev.Buttons()
 	a.message = ""
+	if first, second, _ := a.regions(); first.contains(x, y) {
+		a.focusPanel = 0
+	} else if second.contains(x, y) {
+		a.focusPanel = 1
+	}
 	// Later entries were drawn on top.
 	for _, h := range slices.Backward(a.hits) {
 		if !h.area.contains(x, y) {

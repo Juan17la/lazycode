@@ -23,6 +23,8 @@ func press(tab *term.Tab, label string) {
 		"F12":     tcell.NewEventKey(tcell.KeyF12, 0, 0),
 		"Esc":     tcell.NewEventKey(tcell.KeyEsc, 0, 0),
 		"Ctrl+F2": tcell.NewEventKey(tcell.KeyF2, 0, tcell.ModCtrl),
+		// A capital letter with Alt held, which is how a terminal sends Shift+Alt+F.
+		"Shift+Alt+F": tcell.NewEventKey(tcell.KeyRune, 'F', tcell.ModAlt),
 	}
 	if ev, ok := keys[label]; ok {
 		tab.Key(ev)

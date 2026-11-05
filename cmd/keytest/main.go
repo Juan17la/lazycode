@@ -36,6 +36,13 @@ func alt(r rune, label string) check {
 	}}
 }
 
+// shiftAlt is a capital letter with Alt held, which is how Shift+Alt+letter arrives.
+func shiftAlt(r rune, label string) check {
+	return check{label: label, match: func(e *tcell.EventKey) bool {
+		return e.Key() == tcell.KeyRune && e.Modifiers()&tcell.ModAlt != 0 && e.Rune() == r
+	}}
+}
+
 func checks(goos string) []check {
 	list := []check{
 		{label: `Ctrl+\`, match: term.IsLeaveKey},
@@ -50,8 +57,8 @@ func checks(goos string) []check {
 		return append(list, ctrl(tcell.KeyCtrlK, "Ctrl+K"))
 	}
 	return append(list,
-		alt('d', "Alt+D"), alt('o', "Alt+O"), alt('p', "Alt+P"), alt('f', "Alt+F"),
-		alt('h', "Alt+H"), alt('s', "Alt+S"), alt('w', "Alt+W"), alt('v', "Alt+V"), alt(',', "Alt+,"), alt('.', "Alt+."),
+		alt('d', "Alt+D"), alt('o', "Alt+O"), alt('p', "Alt+P"), alt('f', "Alt+F"), alt('g', "Alt+G"),
+		alt('h', "Alt+H"), alt('s', "Alt+S"), alt('w', "Alt+W"), alt('v', "Alt+V"), alt('i', "Alt+I"), alt('e', "Alt+E"), alt(',', "Alt+,"), alt('.', "Alt+."), shiftAlt('F', "Shift+Alt+F"),
 		check{label: "Ctrl+F2", match: func(e *tcell.EventKey) bool {
 			return e.Key() == tcell.KeyF2 && e.Modifiers()&tcell.ModCtrl != 0
 		}},

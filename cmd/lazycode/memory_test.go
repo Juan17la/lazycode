@@ -73,8 +73,11 @@ func TestMemoryStaysUnderLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("XDG_CONFIG_HOME", root) // No projects file.
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config")) // No projects file.
+	t.Setenv("XDG_CACHE_HOME", root)                           // No saved state.
+	t.Setenv("LocalAppData", root)
 	t.Setenv("LAZYCODE_E2E_TOOL", "stream")
+	answerFirstQuestions(t, root)
 
 	// 153 columns leaves the terminal area 120 wide, beside the 32-column tree.
 	tab, err := term.Start(root, []string{bin}, 153, 43, func() {})

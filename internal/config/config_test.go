@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -18,7 +19,7 @@ func write(t *testing.T, content string) string {
 
 func TestMissingFileGivesDefaults(t *testing.T) {
 	c, err := Load(filepath.Join(t.TempDir(), "none.toml"))
-	if err != nil || c != Default() {
+	if err != nil || !reflect.DeepEqual(c, Default()) {
 		t.Fatalf("%+v, %v", c, err)
 	}
 }
@@ -28,7 +29,7 @@ func TestTemplateIsValidAndMatchesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c != Default() {
+	if !reflect.DeepEqual(c, Default()) {
 		t.Fatalf("template gives %+v, defaults are %+v", c, Default())
 	}
 }
@@ -62,18 +63,40 @@ func TestPartialFileKeepsOtherDefaults(t *testing.T) {
 	}
 }
 
-func TestSettingsForLaterFeaturesAreAccepted(t *testing.T) {
-	_, err := Load(write(t, `
+func TestUpdateCheckSetting(t *testing.T) {
+	if !Default().Updates.Check {
+		t.Error("the check should be on by default")
+	}
+	c, err := Load(write(t, "[updates]\ncheck = false\n"))
+	if err != nil || c.Updates.Check {
+		t.Errorf("check = %v, %v", c.Updates.Check, err)
+	}
+	if _, err := Load(write(t, "[updates]\ncheck = true\nother = 1\n")); err == nil {
+		t.Error("an unknown key under [updates] should be reported now that the section is read")
+	}
+}
+
+func TestSessionSettings(t *testing.T) {
+	c, err := Load(write(t, `
 [sessions]
-sleep_after_minutes = 30
-[updates]
-check = true
+sleep_after_minutes = 0
 [[harness]]
-name = "Claude Code"
-command = "claude"
+name = "Aider"
+command = "aider"
+start_args = ["--yes"]
+resume_args = ["--restore-chat-history"]
 `))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if c.Sessions.SleepAfterMinutes != 0 || len(c.Harness) != 1 || c.Harness[0].Command != "aider" || !c.Harness[0].CanResume() {
+		t.Fatalf("%+v", c)
+	}
+	if _, err := Load(write(t, "[[harness]]\nname = \"no command\"\n")); err == nil {
+		t.Fatal("a tool with no command was accepted")
+	}
+	if _, err := Load(write(t, "[sessions]\nsleep_after_minutes = -1\n")); err == nil {
+		t.Fatal("a negative time was accepted")
 	}
 }
 
@@ -115,5 +138,18 @@ func TestEnsureFileNeverReplaces(t *testing.T) {
 	got, err := os.ReadFile(path)
 	if err != nil || string(got) != "first" {
 		t.Fatalf("%q, %v", got, err)
+	}
+}
+
+func TestFirstConfigHoldsTheChoices(t *testing.T) {
+	c, err := Load(write(t, FirstConfig("light", true)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.UI.Theme != "light" || !c.Editor.AutoSave {
+		t.Fatalf("theme %q, auto-save %v", c.UI.Theme, c.Editor.AutoSave)
+	}
+	if FirstConfig("dark", false) != Template {
+		t.Fatal("the defaults should be the template")
 	}
 }

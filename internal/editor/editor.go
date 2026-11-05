@@ -58,6 +58,7 @@ type Editor struct {
 	primary      int      // The one scrolling follows, and the one most recently added.
 	height       int      // Lines on screen, for page up and down.
 	seen         buffer.Snapshot
+	seenReloads  int
 	last         editKind
 	lastWasSpace bool
 	position     cachedPosition
@@ -70,7 +71,7 @@ type Editor struct {
 
 // New returns an editor at the start of f.
 func New(f *buffer.File, tabSize int) *Editor {
-	return &Editor{File: f, TabSize: tabSize, height: 1, cursors: []cursor{{goal: -1}}, seen: f.Snapshot}
+	return &Editor{File: f, TabSize: tabSize, height: 1, cursors: []cursor{{goal: -1}}, seen: f.Snapshot, seenReloads: f.Reloads()}
 }
 
 func (e *Editor) cur() cursor { return e.cursors[e.primary] }
@@ -682,10 +683,21 @@ func (e *Editor) restore(changed bool) bool {
 // Reload replaces the text with the file on disk, keeping the cursor on the same line
 // and column where those still exist.
 func (e *Editor) Reload() error {
+	// Worked out first, because the old text may not be readable afterwards.
+	places := make([][4]int, len(e.cursors))
+	for i, c := range e.cursors {
+		places[i] = [4]int{e.File.LineOf(c.pos), e.columnOf(e.File.LineStart(e.File.LineOf(c.pos)), c.pos),
+			e.File.LineOf(c.anchor), e.columnOf(e.File.LineStart(e.File.LineOf(c.anchor)), c.anchor)}
+	}
 	if err := e.File.Reload(); err != nil {
 		return err
 	}
-	e.Sync()
+	for i, p := range places {
+		e.cursors[i] = cursor{pos: e.offsetAtColumn(p[0], p[1]), anchor: e.offsetAtColumn(p[2], p[3]), goal: -1}
+	}
+	e.tidy()
+	e.seen, e.seenReloads = e.File.Snapshot, e.File.Reloads()
+	e.last = editOther
 	return nil
 }
 
@@ -698,7 +710,13 @@ func (e *Editor) Sync() {
 	if e.seen.Same(e.File.Snapshot) {
 		return
 	}
+	reloaded := e.seenReloads != e.File.Reloads()
 	place := func(offset int) int {
+		if reloaded {
+			// Another view reloaded the file. The old text may be an unmapped file, so
+			// reading it would crash. The start of the same offset's line is close enough.
+			return e.File.LineStart(e.File.LineOf(offset))
+		}
 		line := e.seen.LineOf(offset)
 		col := 0
 		walk(e.seen.Slice(e.seen.LineStart(line), offset), 0, e.TabSize, func(g glyph) bool {
@@ -711,7 +729,7 @@ func (e *Editor) Sync() {
 		e.cursors[i] = cursor{pos: place(c.pos), anchor: place(c.anchor), goal: -1}
 	}
 	e.tidy()
-	e.seen = e.File.Snapshot
+	e.seen, e.seenReloads = e.File.Snapshot, e.File.Reloads()
 	e.last = editOther
 }
 
