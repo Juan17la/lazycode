@@ -42,6 +42,9 @@ jobs:
       - name: Fuzz the text buffer
         if: runner.os == 'Linux'
         run: go test -run=NONE -fuzz=FuzzEdits -fuzztime=30s ./internal/buffer
+      - name: Fuzz the terminal emulator
+        if: runner.os == 'Linux'
+        run: go test -run=NONE -fuzz=FuzzEmulatorOutput -fuzztime=30s ./internal/term
       - name: Build
         shell: bash
         run: go build -o "dist/lazycode${{ runner.os == 'Windows' && '.exe' || '' }}" ./cmd/lazycode
@@ -73,6 +76,13 @@ jobs:
           $dir = New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\la zy"
           Copy-Item dist\lazycode.exe $dir
           .\scripts\test-icon.ps1 -Bin "$dir\lazycode.exe"
+      # REL-2: the install scripts, against a fake release served from the runner.
+      - name: Installer, Linux and macOS
+        if: runner.os != 'Windows'
+        run: sh scripts/test-install.sh
+      - name: Installer, Windows
+        if: runner.os == 'Windows'
+        run: .\scripts\test-install.ps1
 
   # M0-07: real terminals with simulated key presses. Kitty runs on a virtual display,
   # and must pass. The other two depend on what the runners allow, so they only report:
