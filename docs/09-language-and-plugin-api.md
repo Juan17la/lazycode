@@ -81,6 +81,10 @@ buf:replace(start_pos, end_pos, "new text")
 buf:path()
 ```
 
+Positions work like Lua's `string.sub`: bytes from 1, with the end included. `buf:text()` is the whole file, `buf:len()` its size, and `buf:replace(5, 4, "x")` inserts before byte 5.
+
+The time limit is checked between Lua instructions, so a blocking call such as `os.execute("sleep 9")` still holds up the editor.
+
 Panels, custom UI and access to running sessions: later, on demand.
 
 ## Consent

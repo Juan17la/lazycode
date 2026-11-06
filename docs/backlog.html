@@ -274,7 +274,7 @@ const ITEMS = [
   {id:'REL-2',g:'release',n:'Curl and PowerShell install, GitHub releases, update check',note:'All written. install.sh passes on Linux against a fake release, and the update check and :update pass against a local server. Still to do: run release.yml with a first tag, install.ps1 and the macOS paths, the real GitHub addresses, and an install by someone not involved.',d:'doing',lo:1,hi:2,deps:['REL-1','A1','A3','B1','C3','D2','D4','D5','E1','F1'],rel:'first'},
   {id:'REL-3',g:'release',n:'Performance and privacy checks on the i3 reference machine',note:'Effort counted in testing. scripts/reference-check.sh and scripts/privacy-check.sh are ready to run on the i3. Both scripts run here, and they now measure startup and project-switch time, but on this machine, not the i3. Still to do: run on the i3 and record the numbers.',deps:['REL-2'],rel:'first'},
 
-  {id:'P1',g:'plugins',n:'Lua runtime and first API',lo:4,hi:8,deps:['REL-3','E2'],rel:'later'},
+  {id:'P1',g:'plugins',n:'Lua runtime and first API',note:'internal/plugin is written and tested on its own: commands, events, keys, buffers, time limits and failures. Not connected to the editor yet: loading waits for the consent prompt in P2, so that no folder can run code unasked.',d:'doing',lo:4,hi:8,deps:['REL-3','E2'],rel:'later'},
   {id:'P2',g:'plugins',n:'Local plugins, consent prompt, author guide',lo:2,hi:4,deps:['P1'],rel:'later'},
   {id:'S1',g:'store',n:'Store repository and review process',lo:1,hi:2,deps:['P2'],rel:'later'},
   {id:'S2',g:'store',n:'Browse and install from inside the editor',lo:2,hi:3,deps:['S1'],rel:'later'}
