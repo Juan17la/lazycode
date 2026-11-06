@@ -20,7 +20,15 @@ require (
 	github.com/tree-sitter/tree-sitter-typescript v0.23.2
 )
 
-require github.com/yuin/gopher-lua v1.1.1
+require (
+	github.com/tree-sitter/tree-sitter-bash v0.25.1
+	github.com/tree-sitter/tree-sitter-c v0.24.2
+	github.com/tree-sitter/tree-sitter-css v0.25.0
+	github.com/tree-sitter/tree-sitter-html v0.23.2
+	github.com/tree-sitter/tree-sitter-json v0.24.8
+	github.com/tree-sitter/tree-sitter-rust v0.24.2
+	github.com/yuin/gopher-lua v1.1.1
+)
 
 require (
 	github.com/charmbracelet/colorprofile v0.4.2 // indirect

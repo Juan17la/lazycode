@@ -14,7 +14,7 @@
 
 These are configured by default, but they aren't bundled. **The user installs them** from onboarding or the store (Q-29). Onboarding shows the exact command, and runs it after confirmation (Q-68). If the tool it needs, such as Node or Go, is missing, LazyCode says so.
 
-**Highlighting (Q-69):** The official tree-sitter C binding, with grammars for these four languages built in. Files over about 1 MB aren't highlighted.
+**Highlighting (Q-69):** The official tree-sitter C binding, with grammars for these four languages and for Rust, C, JSON, shell, HTML and CSS built in. Files over about 1 MB aren't highlighted.
 
 ## Adding a language
 
@@ -28,9 +28,13 @@ extensions = ["rs"]
 command = "rust-analyzer"
 args = []
 markers = ["Cargo.toml"]
+
+[[highlight]]               # Optional, as many as 64. The leftmost match wins.
+class = "keyword"
+pattern = '\b(fn|let|match)\b'
 ```
 
-**Open technical point:** Packs add a language server, but not syntax colours. Tree-sitter grammars are compiled C, so a pack can't simply add one as text. Options are shared libraries built per OS, or building more grammars into LazyCode. The store works without this decision.
+**Decided (2026-11-05):** Built-in grammars for common languages, and regular expression rules for packs. A pack stays text that a reviewer can read, whereas compiled grammars couldn't be reviewed and would have the user's full power. Rules are less exact than a parser, because they don't understand nesting. Go's `regexp` runs in linear time, and files over 1 MB aren't coloured, so a poor pattern can't hang the editor, and matching runs off the UI goroutine.
 
 ## Plugin model
 

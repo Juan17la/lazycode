@@ -16,13 +16,35 @@ var version = "dev"
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "--version" {
-		fmt.Println(version)
+		fmt.Println(versionText())
 		return
 	}
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, "lazycode:", err)
 		os.Exit(1)
 	}
+}
+
+// versionText adds the commit to a development build, so that two builds can be told apart. The
+// version itself stays "dev", which is what turns off the update check.
+func versionText() string {
+	info, ok := debug.ReadBuildInfo()
+	if version != "dev" || !ok {
+		return version
+	}
+	commit, changed := "", ""
+	for _, s := range info.Settings {
+		switch {
+		case s.Key == "vcs.revision" && len(s.Value) >= 7:
+			commit = s.Value[:7]
+		case s.Key == "vcs.modified" && s.Value == "true":
+			changed = ", with uncommitted changes"
+		}
+	}
+	if commit == "" {
+		return version
+	}
+	return version + " (" + commit + changed + ")"
 }
 
 // memoryLimit keeps Go's heap well under the 300 MB limit (D-36), leaving room for

@@ -55,7 +55,7 @@ Lua's `os` and `io` libraries are there as usual.
 
 ## Language packs
 
-Add a `language.toml` beside `plugin.toml` to give a language its server, for go to definition, rename and format. `main.lua` can be empty.
+Add a `language.toml` beside `plugin.toml` to give a language colours, a server for go to definition, rename and format, or both. `main.lua` can be empty. `examples/plugins/sql-colours` is a working one.
 
 ```toml
 name = "rust"              # Also the language ID sent to the server.
@@ -65,9 +65,23 @@ extensions = ["rs"]
 command = "rust-analyzer"  # Run directly, never through a shell.
 args = []
 markers = ["Cargo.toml"]   # Files that mark a project's root.
+
+[[highlight]]              # Up to 64 rules, in Go's regular expression syntax.
+class = "comment"          # keyword, string, number, constant, function, type, variable,
+pattern = '//.*$'          # property, operator, tag or comment.
+
+[[highlight]]
+class = "string"
+pattern = '"(\\.|[^"\\])*"'
+
+[[highlight]]
+class = "keyword"
+pattern = '\b(fn|let|match|if|else)\b'
 ```
 
-A pack can't add syntax colours or replace a built-in language.
+The leftmost match wins, so `//` inside a string stays part of the string. At the same place, the first rule listed wins. `^` and `$` match at each line, and `(?s)` lets `.` cross lines, as in `(?s)/\*.*?\*/`. `(?i)` ignores case. Rules don't understand nesting, so nested block comments colour wrongly.
+
+A pack can't replace a language that's built in.
 
 ## Publishing
 

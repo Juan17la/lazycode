@@ -1,6 +1,7 @@
 package syntax
 
 import (
+	"github.com/Juan17la/lazycode/internal/textrules"
 	"math/rand"
 	"slices"
 	"strings"
@@ -298,4 +299,48 @@ func TestClassesAreTellableApart(t *testing.T) {
 	if got["T"] != Type || got["F"] != Function || got["\"s\""] != String || got["1"] != Number {
 		t.Errorf("all: %v", got)
 	}
+}
+
+func TestNewLanguagesAreColoured(t *testing.T) {
+	for _, tc := range []struct {
+		path, src, word string
+		want            Class
+	}{
+		{"a.rs", "fn main() { let x = 1; }\n", "let", Keyword},
+		{"a.c", "int main(void) { return 0; } // c\n", "return", Keyword},
+		{"a.json", "{\"a\": 1}\n", "1", Number},
+		{"a.sh", "if true; then echo hi; fi # c\n", "if", Keyword},
+		{"a.html", "<!-- c --><p id=\"x\">hi</p>\n", "<!-- c -->", Comment},
+		{"a.css", "/* c */ a { color: red; }\n", "/* c */", Comment},
+	} {
+		if got := classesOf(t, tc.path, tc.src); got[tc.word] != tc.want {
+			t.Errorf("%s: %q is %d, want %d (all: %v)", tc.path, tc.word, got[tc.word], tc.want, got)
+		}
+	}
+}
+
+func TestPackRulesColourItsFilesAndNotBuiltIns(t *testing.T) {
+	set, err := textrules.Compile([]textrules.Rule{{Class: "keyword", Pattern: `\bwhen\b`}, {Class: "comment", Pattern: `#.*$`}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	SetPacks([]Pack{{Name: "Toy", Extensions: []string{"toy", ".GO"}, Rules: set}})
+	defer SetPacks(nil)
+	if ForPath("a.go").Name != "Go" {
+		t.Error("a pack replaced a built-in grammar")
+	}
+	l := ForPath("a.TOY")
+	if l == nil || l.Name != "Toy" {
+		t.Fatalf("got %+v", l)
+	}
+	h, err := NewHighlighter(l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+	spans, err := h.Update([]byte("when x # c\n"))
+	if err != nil || len(spans) != 2 || spans[0].Class != Keyword || spans[1].Class != Comment {
+		t.Fatalf("%v, %v", spans, err)
+	}
+	h.Drop() // Must be safe without a tree.
 }

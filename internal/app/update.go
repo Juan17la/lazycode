@@ -90,7 +90,7 @@ func (a *app) showUpdateNote() {
 func (a *app) updateCommand() {
 	switch {
 	case a.upd.version == "dev":
-		a.message = "This is a development build, so it can't update itself."
+		a.message = "This is a development build, so :update can't replace it. Run scripts/install-dev.sh from the source folder."
 	case a.upd.running:
 		a.message = "An update is already running."
 	default:

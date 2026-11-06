@@ -13,10 +13,17 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Juan17la/lazycode/internal/textrules"
 	ts "github.com/tree-sitter/go-tree-sitter"
+	bash "github.com/tree-sitter/tree-sitter-bash/bindings/go"
+	clang "github.com/tree-sitter/tree-sitter-c/bindings/go"
+	css "github.com/tree-sitter/tree-sitter-css/bindings/go"
 	golang "github.com/tree-sitter/tree-sitter-go/bindings/go"
+	html "github.com/tree-sitter/tree-sitter-html/bindings/go"
 	javascript "github.com/tree-sitter/tree-sitter-javascript/bindings/go"
+	json "github.com/tree-sitter/tree-sitter-json/bindings/go"
 	python "github.com/tree-sitter/tree-sitter-python/bindings/go"
+	rust "github.com/tree-sitter/tree-sitter-rust/bindings/go"
 	typescript "github.com/tree-sitter/tree-sitter-typescript/bindings/go"
 )
 
@@ -31,21 +38,50 @@ type Lang struct {
 	Name    string // Shown in the status bar.
 	key     string
 	grammar func() *ts.Language
-	queries []string // Files in queries/. TypeScript's extend JavaScript's, so it lists both.
+	queries []string       // Files in queries/. TypeScript's extend JavaScript's, so it lists both.
+	rules   *textrules.Set // A language pack's, in place of a grammar.
 }
 
 var langs = []*Lang{
-	{"Go", "go", func() *ts.Language { return ts.NewLanguage(golang.Language()) }, []string{"go"}},
-	{"Python", "python", func() *ts.Language { return ts.NewLanguage(python.Language()) }, []string{"python"}},
-	{"JavaScript", "javascript", func() *ts.Language { return ts.NewLanguage(javascript.Language()) }, []string{"javascript"}},
-	{"JSX", "jsx", func() *ts.Language { return ts.NewLanguage(javascript.Language()) }, []string{"javascript", "javascript-jsx"}},
-	{"TypeScript", "typescript", func() *ts.Language { return ts.NewLanguage(typescript.LanguageTypescript()) }, []string{"javascript", "typescript"}},
-	{"TSX", "tsx", func() *ts.Language { return ts.NewLanguage(typescript.LanguageTSX()) }, []string{"javascript", "typescript", "javascript-jsx"}},
+	{"Go", "go", func() *ts.Language { return ts.NewLanguage(golang.Language()) }, []string{"go"}, nil},
+	{"Python", "python", func() *ts.Language { return ts.NewLanguage(python.Language()) }, []string{"python"}, nil},
+	{"JavaScript", "javascript", func() *ts.Language { return ts.NewLanguage(javascript.Language()) }, []string{"javascript"}, nil},
+	{"JSX", "jsx", func() *ts.Language { return ts.NewLanguage(javascript.Language()) }, []string{"javascript", "javascript-jsx"}, nil},
+	{"TypeScript", "typescript", func() *ts.Language { return ts.NewLanguage(typescript.LanguageTypescript()) }, []string{"javascript", "typescript"}, nil},
+	{"TSX", "tsx", func() *ts.Language { return ts.NewLanguage(typescript.LanguageTSX()) }, []string{"javascript", "typescript", "javascript-jsx"}, nil},
+	{"Rust", "rust", func() *ts.Language { return ts.NewLanguage(rust.Language()) }, []string{"rust"}, nil},
+	{"C", "c", func() *ts.Language { return ts.NewLanguage(clang.Language()) }, []string{"c"}, nil},
+	{"JSON", "json", func() *ts.Language { return ts.NewLanguage(json.Language()) }, []string{"json"}, nil},
+	{"Shell", "bash", func() *ts.Language { return ts.NewLanguage(bash.Language()) }, []string{"bash"}, nil},
+	{"HTML", "html", func() *ts.Language { return ts.NewLanguage(html.Language()) }, []string{"html"}, nil},
+	{"CSS", "css", func() *ts.Language { return ts.NewLanguage(css.Language()) }, []string{"css"}, nil},
 }
 
 var extensions = map[string]string{
 	".go": "go", ".py": "python", ".js": "javascript", ".mjs": "javascript", ".cjs": "javascript",
-	".jsx": "jsx", ".ts": "typescript", ".tsx": "tsx",
+	".jsx": "jsx", ".ts": "typescript", ".tsx": "tsx", ".rs": "rust", ".c": "c", ".h": "c", ".json": "json",
+	".sh": "bash", ".bash": "bash", ".html": "html", ".htm": "html", ".css": "css",
+}
+
+// packs holds language packs' rules, by extension. Only the UI goroutine uses it.
+var packs = map[string]*Lang{}
+
+// Pack is a language pack's colours.
+type Pack struct {
+	Name       string
+	Extensions []string
+	Rules      *textrules.Set
+}
+
+// SetPacks replaces the language packs. A built-in grammar wins over a pack, being more exact.
+func SetPacks(list []Pack) {
+	packs = map[string]*Lang{}
+	for _, p := range list {
+		l := &Lang{Name: p.Name, rules: p.Rules}
+		for _, ext := range p.Extensions {
+			packs["."+strings.ToLower(strings.TrimPrefix(ext, "."))] = l
+		}
+	}
 }
 
 // All returns every language, for tests.
@@ -62,7 +98,11 @@ func byKey(key string) *Lang {
 
 // ForPath returns the language of a file by its extension, or nil: other files just aren't coloured.
 func ForPath(path string) *Lang {
-	return byKey(extensions[strings.ToLower(filepath.Ext(path))])
+	ext := strings.ToLower(filepath.Ext(path))
+	if l := byKey(extensions[ext]); l != nil {
+		return l
+	}
+	return packs[ext]
 }
 
 // Check parses src and reports whether the parser found syntax errors.
@@ -146,12 +186,16 @@ type Highlighter struct {
 	tree    *ts.Tree
 	query   *ts.Query
 	cursor  *ts.QueryCursor
-	classes []Class // Of each capture in the query.
-	src     []byte  // What tree describes, for working out the next edit.
+	classes []Class        // Of each capture in the query.
+	src     []byte         // What tree describes, for working out the next edit.
+	rules   *textrules.Set // Set instead of all of the above for a language pack.
 }
 
 // NewHighlighter makes one for a language. It parses nothing yet.
 func NewHighlighter(l *Lang) (*Highlighter, error) {
+	if l.rules != nil {
+		return &Highlighter{rules: l.rules}, nil
+	}
 	var source strings.Builder
 	for _, name := range l.queries {
 		data, err := queryFiles.ReadFile("queries/" + name + ".scm")
@@ -210,6 +254,13 @@ func (h *Highlighter) Drop() {
 
 // Update parses src, reusing the last tree where the text still matches, and returns the spans.
 func (h *Highlighter) Update(src []byte) ([]Span, error) {
+	if h.rules != nil {
+		var spans []Span
+		h.rules.Find(src, func(start, end int, class string) {
+			spans = append(spans, Span{uint32(start), uint32(end), classOf(class)})
+		})
+		return spans, nil
+	}
 	if h.parser == nil {
 		return nil, fmt.Errorf("highlighter is closed")
 	}
