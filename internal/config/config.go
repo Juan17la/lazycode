@@ -29,10 +29,8 @@ type Config struct {
 		Icons   string            `toml:"icons"`
 		Colors  map[string]string `toml:"colors"`
 		Sidebar string            `toml:"sidebar"`
-		// Resolution is how much room the panels and dock take, since a terminal app can't change its
-		// font size or pixels. TextStyle is the one part of the font it controls.
-		Resolution string `toml:"resolution"`
-		TextStyle  string `toml:"text_style"`
+		// TextStyle is the one part of the font a terminal app controls.
+		TextStyle string `toml:"text_style"`
 	} `toml:"ui"`
 	Terminal struct {
 		Scrollback int `toml:"scrollback"`
@@ -61,7 +59,6 @@ func Default() Config {
 	c.UI.Theme = DefaultTheme
 	c.UI.Icons = "basic"
 	c.UI.Sidebar = "left"
-	c.UI.Resolution = "auto"
 	c.UI.TextStyle = "rich"
 	c.Terminal.Scrollback = 1000
 	c.Sessions.SleepAfterMinutes = 30 // Q-77.
@@ -83,7 +80,6 @@ theme = "dark"      # Or use :theme. dark, light, gruvbox-dark, gruvbox-light, d
                     # nord, tokyo-night, catppuccin-mocha, solarized-dark, solarized-light, monokai
 icons = "basic"     # basic works in any font. nerd needs a Nerd Font: nerdfonts.com
 sidebar = "left"    # left or right
-resolution = "auto" # Room for panels and the dock: auto, compact, normal or spacious.
 text_style = "rich" # rich uses bold and italics. plain doesn't, for fonts that draw them badly.
 
 # Change any colour of the theme: bg, panel, bar, selection, fg, muted, comment, accent,
@@ -116,9 +112,6 @@ const DefaultTheme = "dark"
 
 // Themes lists the built-in themes, in the order :theme shows them.
 var Themes = []string{"dark", "light", "gruvbox-dark", "gruvbox-light", "dracula", "one-dark", "nord", "tokyo-night", "catppuccin-mocha", "solarized-dark", "solarized-light", "monokai"}
-
-// Resolutions are the choices for ui.resolution.
-var Resolutions = []string{"auto", "compact", "normal", "spacious"}
 
 // ColorKeys are what [ui.colors] can change.
 var ColorKeys = []string{"bg", "panel", "bar", "selection", "fg", "muted", "comment", "accent", "red", "green", "yellow", "blue", "purple", "cyan", "orange"}
@@ -236,9 +229,6 @@ func Load(path string) (Config, error) {
 	}
 	if c.UI.Sidebar != "left" && c.UI.Sidebar != "right" {
 		problems = append(problems, `sidebar must be "left" or "right"`)
-	}
-	if !slices.Contains(Resolutions, c.UI.Resolution) {
-		problems = append(problems, "resolution must be one of "+strings.Join(Resolutions, ", "))
 	}
 	if c.UI.TextStyle != "rich" && c.UI.TextStyle != "plain" {
 		problems = append(problems, `text_style must be "rich" or "plain"`)

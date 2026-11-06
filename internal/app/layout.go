@@ -128,31 +128,10 @@ func (s *split) place(r rect, add func(divider)) {
 	s.second.place(rect{r.x, r.y + top + 1, r.w, r.h - top - 1}, add)
 }
 
-// resolution is what ui.resolution means for this window. A terminal app can't change pixels or font
-// size, so this is how much room the panels and the dock take. auto follows the window's width.
-func (a *app) resolution() string {
-	if r := a.cfg.UI.Resolution; r != "auto" && r != "" {
-		return r
-	}
-	switch w, _ := a.screen.Size(); {
-	case w < 80:
-		return "compact"
-	case w >= 180:
-		return "spacious"
-	}
-	return "normal"
-}
-
-// panelWidth is a panel's width: the one dragged to, or else the resolution's.
+// panelWidth is a panel's width: the one dragged to, or else the default.
 func (a *app) panelWidth(w int) int {
 	if a.panelW > 0 {
 		return max(10, min(a.panelW, w/2))
-	}
-	switch a.resolution() {
-	case "compact":
-		return min(24, w/3)
-	case "spacious":
-		return min(48, w/4)
 	}
 	return min(maxPanelWidth, w/3)
 }
@@ -193,8 +172,6 @@ func (a *app) dockArea(st *dirState, tabs rect) (code, line, dock rect) {
 	switch {
 	case a.dockH > 0:
 		height = a.dockH
-	case a.resolution() == "compact":
-		height = tabs.h / 3
 	case !slices.ContainsFunc(st.root.panes(), func(p *pane) bool { return len(p.tabs) > 0 }):
 		height = tabs.h - 4
 	}

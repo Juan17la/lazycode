@@ -80,8 +80,8 @@ type app struct {
 	menu       *openMenu // The open menu.
 	mouse      mouseState
 	termSel    termSelection
-	panelW     int    // A panel's width, once dragged. 0 follows the resolution.
-	dockH      int    // The dock's height, once dragged. 0 follows the resolution.
+	panelW     int    // A panel's width, once dragged. 0 is the default.
+	dockH      int    // The dock's height, once dragged. 0 is the default.
 	dockHidden bool   // The dock is put away, and its tools keep running.
 	floating   []rect // Boxes drawn over everything this frame, with their own background.
 	plugins    pluginState

@@ -396,12 +396,10 @@ func (a *app) openAppearance() {
 		}
 		return []modalRow{
 			{label: "Themes…", value: ui.Theme, run: func() { a.do("app.themes") }},
-			choose("Resolution", "resolution", ui.Resolution, config.Resolutions),
 			choose("Icons", "icons", ui.Icons, []string{"basic", "nerd"}),
 			choose("Text style", "text_style", ui.TextStyle, []string{"rich", "plain"}),
 			choose("Sidebar", "sidebar", ui.Sidebar, []string{"left", "right"}),
-			{label: "Resolution sets the room panels and the dock take."},
-			{label: "The font and its size belong to your terminal's settings."},
+			{label: "The font and its size belong to your terminal: zoom it for more text."},
 			{label: "nerd icons need a Nerd Font: nerdfonts.com"},
 		}
 	}})

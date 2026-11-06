@@ -3,11 +3,13 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Juan17la/lazycode/internal/config"
+	"github.com/Juan17la/lazycode/internal/keymap"
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -148,14 +150,14 @@ func TestSettingsAreSavedFromTheirMenus(t *testing.T) {
 	u.press(":appearance")
 	u.key(tcell.KeyEnter)
 	u.wait("Appearance")
-	u.key(tcell.KeyDown) // Past Themes, to Resolution.
+	u.key(tcell.KeyDown) // Past Themes, to Icons.
 	u.key(tcell.KeyRight)
-	u.wait("‹ compact ›")
+	u.wait("‹ nerd ›")
 	u.key(tcell.KeyEsc)
 	u.waitGone("Appearance")
 	cfg, err := config.Load(settingsFile(t, "config.toml"))
-	if err != nil || cfg.UI.Resolution != "compact" {
-		t.Errorf("saved %q, %v", cfg.UI.Resolution, err)
+	if err != nil || cfg.UI.Icons != "nerd" {
+		t.Errorf("saved %q, %v", cfg.UI.Icons, err)
 	}
 }
 
@@ -275,4 +277,54 @@ func TestTreeMenuRenamesAndDeletes(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(u.dir, "a.txtx")); err == nil {
 		t.Error("still there")
 	}
+}
+
+func TestEveryMenuItemDoesSomethingKnown(t *testing.T) {
+	known := keymap.Actions()
+	known = append(known, "app.appearance", "app.themes", "app.plugins", "app.store", "app.onboarding")
+	for _, group := range menuBar {
+		for _, item := range group.items {
+			if item.label == "" {
+				continue
+			}
+			if item.action == "" && item.command == "" && item.do == nil {
+				t.Errorf("%s has nothing to do", item.label)
+			}
+			if item.action != "" && !slices.Contains(known, item.action) {
+				t.Errorf("%s runs %q", item.label, item.action)
+			}
+		}
+	}
+}
+
+func TestMenusOpenAndScrollInASmallWindow(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "one\n"})
+	u.screen.SetSize(80, 10)
+	u.post(tcell.NewEventResize(80, 10))
+	u.wait("a.txt")
+	x, y := u.find("View")
+	u.click(x, y)
+	u.wait("Command Bar")
+	u.key(tcell.KeyUp) // Round to the last item, which starts off screen.
+	u.wait("Themes")
+	u.key(tcell.KeyEnter)
+	u.wait("◉ Themes") // The window is too short for the list, so the first ones show.
+}
+
+func TestGoToLineAndAbout(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "one\ntwo\nthree\n"})
+	u.open("a.txt")
+	x, y := u.find("Go ")
+	u.click(x, y)
+	mx, my := u.find("Go to Line")
+	u.click(mx, my)
+	u.wait("1 to 4")
+	u.press("3")
+	u.key(tcell.KeyEnter)
+	u.wait("Ln 3, Col 1")
+	x, y = u.find("Help")
+	u.click(x, y)
+	mx, my = u.find("About LazyCode")
+	u.click(mx, my)
+	u.wait("Version")
 }

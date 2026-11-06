@@ -198,7 +198,7 @@ func TestSetValueStaysInItsTable(t *testing.T) {
 	if err := os.WriteFile(path, []byte(Template), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	for _, set := range [][3]string{{"editor", "word_wrap", "true"}, {"ui", "resolution", `"compact"`}, {"updates", "check", "false"}} {
+	for _, set := range [][3]string{{"editor", "word_wrap", "true"}, {"ui", "text_style", `"plain"`}, {"updates", "check", "false"}} {
 		if err := SetValue(path, set[0], set[1], set[2]); err != nil {
 			t.Fatal(err)
 		}
@@ -207,7 +207,7 @@ func TestSetValueStaysInItsTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !c.Editor.WordWrap || c.UI.Resolution != "compact" || c.Updates.Check {
+	if !c.Editor.WordWrap || c.UI.TextStyle != "plain" || c.Updates.Check {
 		t.Errorf("got %+v", c)
 	}
 	data, _ := os.ReadFile(path)

@@ -18,7 +18,7 @@ type State struct {
 	ShowSecond  bool                `json:"show_second,omitempty"`
 	FilesPanel  int                 `json:"files_panel,omitempty"`
 	ShowAll     bool                `json:"show_all,omitempty"`
-	PanelWidth  int                 `json:"panel_width,omitempty"` // Dragged sizes. 0 follows the resolution.
+	PanelWidth  int                 `json:"panel_width,omitempty"` // Dragged sizes. 0 is the default.
 	DockHeight  int                 `json:"dock_height,omitempty"`
 	DockHidden  bool                `json:"dock_hidden,omitempty"`
 }

@@ -8,11 +8,11 @@ The first release, v0.1.0, will contain:
 
 ### Added
 
-- GUI-style windows in the terminal: a menu bar, right-click menus, close buttons on tabs, buttons on tab bars, and a clickable status line.
+- GUI-style windows in the terminal: a menu bar (File, Edit, Selection, View, Go, Terminal, Git, Tools, Help), right-click menus, close buttons on tabs, buttons on tab bars, and a clickable status line.
 - A dock under the code holds terminal and AI tabs, which look different from file tabs. It can be hidden while its tools keep running.
 - Menus for settings, appearance, themes (with live preview), plugins and shortcuts, and forms for a new project, a new directory and a new file. Each has a command as well.
 - Mouse dragging: select text, move tabs, resize panels, the dock and splits, and drag a scroll bar. Double and triple clicks select a word and a line. Dragging in a terminal tab copies what's selected.
-- Word wrap (Alt+Z or `:wrap`), `ui.resolution` for how much room panels and the dock take, and `ui.text_style`.
+- Word wrap (Alt+Z or `:wrap`), and `ui.text_style`.
 - A right-click menu in the file tree: new file, new folder, rename and delete.
 - Dragged sizes are remembered after quitting, and tabs can be dragged between splits.
 - More colour throughout: coloured borders that show focus, a colour per view, and a status line with a mode label.
