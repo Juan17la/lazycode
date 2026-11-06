@@ -89,7 +89,7 @@ func TestSpansPerLanguage(t *testing.T) {
 	} {
 		got := classesOf(t, tc.path, tc.src)
 		for word, class := range tc.want {
-			if got[word] != class {
+			if family(got[word]) != class {
 				t.Errorf("%s: %q is class %d, want %d (all: %v)", tc.path, word, got[word], class, got)
 			}
 		}
@@ -99,7 +99,7 @@ func TestSpansPerLanguage(t *testing.T) {
 func TestNarrowerAndLaterCapturesWin(t *testing.T) {
 	// "len" is a call (function) and a builtin, which is a later pattern.
 	got := classesOf(t, "a.go", "package a\nvar n = len(\"x\")\n")
-	if got["len"] != Name {
+	if got["len"] != Function {
 		t.Errorf("len is %d", got["len"])
 	}
 }
@@ -275,4 +275,27 @@ func BenchmarkUpdateOneMiB(b *testing.B) {
 			}
 		}
 	})
+}
+
+// Literal and Name stand for groups of classes in the highlighting table.
+const (
+	Literal Class = 200 + iota
+	Name
+)
+
+func family(c Class) Class {
+	switch c {
+	case String, Number, Constant:
+		return Literal
+	case Function, Type:
+		return Name
+	}
+	return c
+}
+
+func TestClassesAreTellableApart(t *testing.T) {
+	got := classesOf(t, "a.go", "package a\ntype T int\nfunc F() { _ = \"s\"; _ = 1 }\n")
+	if got["T"] != Type || got["F"] != Function || got["\"s\""] != String || got["1"] != Number {
+		t.Errorf("all: %v", got)
+	}
 }

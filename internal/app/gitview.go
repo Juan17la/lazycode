@@ -181,11 +181,16 @@ func (a *app) gitVisible() bool {
 	return a.viewIn(0) == viewGit || (a.showSecond && a.viewIn(1) == viewGit)
 }
 
+// filesVisible reports whether the tree is showing, since it colours files by their Git state.
+func (a *app) filesVisible() bool {
+	return a.viewIn(0) == viewFiles || (a.showSecond && a.viewIn(1) == viewFiles)
+}
+
 // gitTick runs once a second. While the view is showing, it looks at the repository again now and then,
 // which is how commits and edits made elsewhere appear (doc 06).
 func (a *app) gitTick(now time.Time) {
 	g := &a.git
-	if !a.gitVisible() || g.loading || g.busy != "" {
+	if !a.gitVisible() && !a.filesVisible() || g.loading || g.busy != "" {
 		return
 	}
 	if g.dir != a.dirPath() {

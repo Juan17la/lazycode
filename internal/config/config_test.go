@@ -153,3 +153,42 @@ func TestFirstConfigHoldsTheChoices(t *testing.T) {
 		t.Fatal("the defaults should be the template")
 	}
 }
+
+func TestSetThemeKeepsTheRestOfTheFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := SetTheme(path, "nord"); err != nil { // No file yet: starts from the template.
+		t.Fatal(err)
+	}
+	c, err := Load(path)
+	if err != nil || c.UI.Theme != "nord" {
+		t.Fatalf("%q, %v", c.UI.Theme, err)
+	}
+	custom := "version = 1\n\n[ui]\nsidebar = \"right\"\n"
+	if err := os.WriteFile(path, []byte(custom), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetTheme(path, "dracula"); err != nil {
+		t.Fatal(err)
+	}
+	if c, err = Load(path); err != nil || c.UI.Theme != "dracula" || c.UI.Sidebar != "right" {
+		t.Fatalf("%+v, %v", c.UI, err)
+	}
+	if err := SetTheme(path, "monokai"); err != nil { // Now it replaces the line, keeping its comment.
+		t.Fatal(err)
+	}
+	if c, err = Load(path); err != nil || c.UI.Theme != "monokai" {
+		t.Fatalf("%+v, %v", c.UI, err)
+	}
+}
+
+func TestColourAndIconSettingsAreChecked(t *testing.T) {
+	for _, text := range []string{"[ui]\nicons = \"x\"\n", "[ui.colors]\nnope = \"#000000\"\n", "[ui.colors]\naccent = \"red\"\n"} {
+		path := filepath.Join(t.TempDir(), "config.toml")
+		if err := os.WriteFile(path, []byte("version = 1\n"+text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Load(path); err == nil {
+			t.Errorf("accepted %q", text)
+		}
+	}
+}

@@ -352,12 +352,16 @@ func TestRenameOfAnEditedFileAsksToSaveFirst(t *testing.T) {
 }
 
 func TestAnswerToAChangedBufferIsRefused(t *testing.T) {
-	u, _ := lspUI(t, fakeLSPConfig{DelayMS: 500}, map[string]string{"main.go": lspMain, "other.go": "package main\n\nvar X = 1\n"})
+	u, log := lspUI(t, fakeLSPConfig{DelayMS: 500}, map[string]string{"main.go": lspMain, "other.go": "package main\n\nvar X = 1\n"})
 	withFakeGoplsResult(t, u, "definition", lspLocation(filepath.Join(u.dir, "other.go"), 2, 4))
 	u.trustFolder()
 	u.open("main.go")
 	u.post(tcell.NewEventKey(tcell.KeyF12, 0, 0))
-	time.Sleep(100 * time.Millisecond)
+	for start := time.Now(); !strings.Contains(readLog(log), "textDocument/definition"); time.Sleep(5 * time.Millisecond) {
+		if time.Since(start) > 10*time.Second {
+			t.Fatalf("the server wasn't asked: %s", readLog(log))
+		}
+	}
 	u.press("z") // Typing while the server thinks.
 	u.wait("changed while the language server was answering")
 	u.press("y")          // Clears the message.

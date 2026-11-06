@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -73,6 +74,8 @@ type app struct {
 	hl         highlighting
 	lang       language
 	marks      map[*buffer.File]*fileMarks
+	gitMarks   gitBadges
+	floating   []rect // Boxes drawn over everything this frame, with their own background.
 	plugins    pluginState
 	storeApp   storeState
 
@@ -121,7 +124,7 @@ func newApp(screen tcell.Screen, projects []project.Project, dir, startup string
 		done:          make(chan struct{}),
 	}
 	a.dirOf[p] = d
-	a.th = themeFor(a.cfg.UI.Theme)
+	a.setTheme(a.cfg.UI.Theme)
 	a.trust = trust.New(a.settingsPath("trust.toml"))
 	a.playSaved = run.NewSaved(a.settingsPath("directories.toml"))
 	a.sessions.send = func(title, body string) { go notify.Send(title, body) } //nolint:errcheck // The green detail still shows.
@@ -325,7 +328,7 @@ func (a *app) loadSettings() {
 		problems = append(problems, err.Error())
 	}
 	a.keys = keys
-	a.th = themeFor(a.cfg.UI.Theme)
+	a.setTheme(a.cfg.UI.Theme)
 	for _, st := range a.dirs {
 		for _, p := range st.root.panes() {
 			for _, it := range p.tabs {
@@ -583,6 +586,8 @@ func (a *app) run(line string) {
 		a.pluginCommand(fields[1:])
 	case "store":
 		a.storeCommand()
+	case "theme":
+		a.themeCommand(fields[1:])
 	case "config":
 		name, content := "config.toml", config.Template
 		if len(fields) > 1 && fields[1] == "keys" {
@@ -596,7 +601,7 @@ func (a *app) run(line string) {
 		if a.runPlugin(fields[0]) {
 			return
 		}
-		a.message = "Unknown command: " + fields[0] + ". Try save, term, split, find, definition, rename, format, search, git, push, pull, fetch, repo, config, plugin, store, project, dir, tree, close, update, or q."
+		a.message = "Unknown command: " + fields[0] + ". Try save, term, split, find, definition, rename, format, search, git, push, pull, fetch, repo, config, theme, plugin, store, project, dir, tree, close, update, or q."
 	}
 }
 
@@ -638,6 +643,8 @@ type switcher struct {
 	filter string
 	sel    int
 	pick   func(index int)
+	moved  func(index int) // Optional: shows the highlighted choice while choosing.
+	cancel func()          // Optional: undoes moved.
 }
 
 func (s *switcher) matches() []int {
@@ -689,7 +696,7 @@ func (a *app) handleSwitcherKey(ev *tcell.EventKey) {
 	matches := s.matches()
 	switch ev.Key() {
 	case tcell.KeyEsc:
-		a.switcher = nil
+		a.cancelSwitcher()
 	case tcell.KeyEnter:
 		a.switcher = nil
 		if s.sel < len(matches) {
@@ -707,4 +714,43 @@ func (a *app) handleSwitcherKey(ev *tcell.EventKey) {
 		s.filter += string(ev.Rune())
 		s.sel = 0
 	}
+	if now := s.matches(); s.moved != nil && a.switcher == s && s.sel < len(now) {
+		s.moved(now[s.sel])
+	}
+}
+
+func (a *app) cancelSwitcher() {
+	if a.switcher != nil && a.switcher.cancel != nil {
+		a.switcher.cancel()
+	}
+	a.switcher = nil
+}
+
+// themeCommand is :theme, which shows each theme as it's highlighted, and :theme NAME. The choice is
+// written to config.toml, keeping the rest of the file as it is.
+func (a *app) themeCommand(args []string) {
+	if len(args) > 0 {
+		if !slices.Contains(config.Themes, args[0]) {
+			a.message = "No theme " + args[0] + ". :theme lists them."
+			return
+		}
+		a.chooseTheme(args[0])
+		return
+	}
+	s := &switcher{title: "Choose a theme", labels: config.Themes}
+	s.sel = max(0, slices.Index(config.Themes, a.cfg.UI.Theme))
+	s.moved = func(i int) { a.setTheme(config.Themes[i]) }
+	s.cancel = func() { a.setTheme(a.cfg.UI.Theme) }
+	s.pick = func(i int) { a.chooseTheme(config.Themes[i]) }
+	a.switcher = s
+}
+
+func (a *app) chooseTheme(name string) {
+	a.cfg.UI.Theme = name
+	a.setTheme(name)
+	if err := config.SetTheme(a.settingsPath("config.toml"), name); err != nil {
+		a.message = "Using " + name + " for now, but couldn't save it: " + err.Error()
+		return
+	}
+	a.message = "Theme: " + name
 }
