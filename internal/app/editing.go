@@ -95,7 +95,8 @@ func (a *app) openFile(st *dirState, path string) {
 		a.message = openError(path, err)
 		return
 	}
-	a.addEditor(st, f)
+	it := a.addEditor(st, f)
+	a.emitPlugins("buffer_open", it)
 	if f.ReadOnly() {
 		a.message = filepath.Base(path) + " is over 100 MB, so it's read-only, and has no syntax colours."
 	}
@@ -171,6 +172,7 @@ func (a *app) autoSave(f *buffer.File) {
 	if !f.Modified() || !a.isOpen(f) {
 		return
 	}
+	a.emitPlugins("buffer_save", a.tabOf(f))
 	if err := f.Save(); err != nil {
 		a.message = "Not auto-saved: " + err.Error()
 		return
@@ -215,6 +217,7 @@ func (a *app) pasteInto(it *tabItem, text string) {
 
 // save writes the file, then runs then. If it can't, then doesn't run.
 func (a *app) save(it *tabItem, then func()) {
+	a.emitPlugins("buffer_save", it) // Before writing, so that what a plugin changes is saved too.
 	err := it.ed.File.Save()
 	switch {
 	case err == nil:

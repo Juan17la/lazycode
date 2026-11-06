@@ -83,6 +83,8 @@ buf:path()
 
 Positions work like Lua's `string.sub`: bytes from 1, with the end included. `buf:text()` is the whole file, `buf:len()` its size, and `buf:replace(5, 4, "x")` inserts before byte 5.
 
+`buffer_save` runs just before the file is written, so what a plugin changes is saved too. `buffer_open` runs when a file is opened from the tree, not for tabs restored at start. A plugin's command never replaces a built-in one, and the user's key bindings come before a plugin's.
+
 The time limit is checked between Lua instructions, so a blocking call such as `os.execute("sleep 9")` still holds up the editor.
 
 Panels, custom UI and access to running sessions: later, on demand.
@@ -106,7 +108,7 @@ Panels, custom UI and access to running sessions: later, on demand.
 
 **The description is written by the plugin's author, and LazyCode can't check it.** That's why the warning line is always shown. There's no sandbox, so plugins get Lua's normal `os` and `io` libraries.
 
-**Proposed:** Store plugins go through the same prompt, and acceptance is remembered per plugin and version. An update asks again, because the code changed.
+Store plugins go through the same prompt, and the answer is remembered per plugin and version in `plugins.toml`. A new version asks again, because the code changed. Plugins only load from `plugins/` in the config folder, so opening a project can never run a plugin of its own.
 
 ## Distribution
 
@@ -141,4 +143,4 @@ Pinning matters: without it, a plugin could change after being reviewed. Each up
 
 ## Plugin author guide
 
-TBD, written once the API is implemented. It will cover a tutorial, API reference, testing and submitting to the store.
+See [guide/plugins.md](guide/plugins.md), with working examples in [examples/plugins](../examples/plugins).

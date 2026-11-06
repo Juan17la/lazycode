@@ -1,0 +1,5 @@
+name = "todo-count"
+version = "1.0.0"
+api_version = 1
+description = "Counts TODOs"
+does = "Adds :todos, which shows how many TODO and FIXME notes the current file has. Ctrl+Alt+T runs it."

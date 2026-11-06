@@ -2,6 +2,7 @@ package editor
 
 import (
 	"bytes"
+	"fmt"
 	"slices"
 	"strings"
 	"unicode"
@@ -417,6 +418,32 @@ func (e *Editor) edit(join bool, change func(i int, c cursor) buffer.Edit) error
 	for i := range e.cursors {
 		pos := ends[owner[i]]
 		e.cursors[i] = cursor{pos: pos, anchor: pos, goal: -1}
+	}
+	e.edited()
+	return nil
+}
+
+// ReplaceRange changes bytes start to end as one undo step, for changes that don't come
+// from a cursor. Cursors after it move with their text, and those inside go to its end.
+func (e *Editor) ReplaceRange(start, end int, text string) error {
+	if start < 0 || end < start || end > e.File.Len() {
+		return fmt.Errorf("%d to %d is outside the file, which has %d bytes", start, end, e.File.Len())
+	}
+	e.saveMark()
+	if err := e.File.Apply(buffer.Edit{Start: start, End: end, Text: text}); err != nil {
+		return err
+	}
+	shift := func(pos int) int {
+		switch {
+		case pos >= end && pos > start:
+			return pos + len(text) - (end - start)
+		case pos > start:
+			return start + len(text)
+		}
+		return pos
+	}
+	for i, c := range e.cursors {
+		e.cursors[i] = cursor{pos: shift(c.pos), anchor: shift(c.anchor), goal: -1}
 	}
 	e.edited()
 	return nil

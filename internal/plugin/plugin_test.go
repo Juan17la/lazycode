@@ -189,3 +189,83 @@ func TestReadManifestRunsNothing(t *testing.T) {
 		t.Error("ReadManifest ran main.lua")
 	}
 }
+
+// The examples are the proof that useful plugins need no editor changes (M5).
+func TestExamples(t *testing.T) {
+	run := func(name, command, text string) (*fakeBuffer, string) {
+		t.Helper()
+		buf, said := &fakeBuffer{text: text}, ""
+		p, err := Load(filepath.Join("..", "..", "examples", "plugins", name), Host{
+			Message: func(s string) { said = s },
+			Buffer:  func() Buffer { return buf },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer p.Close()
+		if command == "" {
+			p.Emit("buffer_save", buf)
+		} else if !p.Run(command) {
+			t.Fatalf("%s has no command %s", name, command)
+		}
+		if p.Err != nil {
+			t.Fatal(p.Err)
+		}
+		return buf, said
+	}
+	if buf, _ := run("trim-on-save", "", "a  \r\nb\t\nc  "); buf.text != "a\r\nb\nc" {
+		t.Errorf("trimmed to %q", buf.text)
+	}
+	if _, said := run("word-count", "wc", "one two\nthree\n"); said != "2 lines, 3 words, 14 bytes" {
+		t.Errorf("wc said %q", said)
+	}
+	if _, said := run("todo-count", "todos", "TODO a TODO FIXME"); said != "2 TODO, 1 FIXME" {
+		t.Errorf("todos said %q", said)
+	}
+}
+
+func TestManifestChecks(t *testing.T) {
+	for _, bad := range []string{
+		`name = ".."` + "\nversion=\"1\"\napi_version=1\ndoes=\"x\"",
+		`name = "a/b"` + "\nversion=\"1\"\napi_version=1\ndoes=\"x\"",
+		`name = "a"` + "\nversion=\"1\"\napi_version=1\ndoes=\"\"",
+		`name = "a"` + "\napi_version=1\ndoes=\"x\"",
+	} {
+		dir := t.TempDir()
+		os.WriteFile(filepath.Join(dir, "plugin.toml"), []byte(bad), 0o644) //nolint:errcheck // Read just below.
+		if _, err := ReadManifest(dir); err == nil {
+			t.Errorf("accepted %q", bad)
+		}
+	}
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "plugin.toml"), []byte("name=\"a\"\nversion=\"1\"\napi_version=1\ndoes=\"x\\u001b[2Jy\"\n"), 0o644) //nolint:errcheck // Read just below.
+	if m, err := ReadManifest(dir); err != nil || strings.ContainsRune(m.Does, 0x1b) {
+		t.Errorf("escape kept: %q, %v", m.Does, err)
+	}
+}
+
+func TestConsentsAreByVersion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "plugins.toml")
+	c, err := OpenConsents(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := Manifest{Name: "a", Version: "1"}
+	if c.Accepted(m) || c.Declined(m) {
+		t.Fatal("answered before being asked")
+	}
+	if err := c.Set(m, true); err != nil {
+		t.Fatal(err)
+	}
+	c, _ = OpenConsents(path)
+	if !c.Accepted(m) || c.Accepted(Manifest{Name: "a", Version: "2"}) {
+		t.Fatal("acceptance must be for this version only")
+	}
+	os.WriteFile(path, []byte("broken ="), 0o644) //nolint:errcheck // Read just below.
+	if c, err = OpenConsents(path); err == nil || c.Accepted(m) {
+		t.Fatal("a broken file must accept nothing")
+	}
+	if c.Set(m, true) == nil {
+		t.Fatal("a broken file must not be replaced")
+	}
+}

@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/BurntSushi/toml"
 	lua "github.com/yuin/gopher-lua"
@@ -63,6 +65,17 @@ type Plugin struct {
 	keys     map[string]string
 }
 
+var namePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+
+// maxText keeps a description short enough that the warning after it stays on screen.
+const maxText = 300
+
+// clean removes control characters, which could redraw the screen, and limits the length.
+func clean(text string, limit int) string {
+	r := []rune(strings.Join(strings.FieldsFunc(text, unicode.IsControl), " "))
+	return strings.TrimSpace(string(r[:min(len(r), limit)]))
+}
+
 // ReadManifest reads and checks plugin.toml without running anything, so that the consent
 // prompt can show it.
 func ReadManifest(dir string) (Manifest, error) {
@@ -70,9 +83,15 @@ func ReadManifest(dir string) (Manifest, error) {
 	if _, err := toml.DecodeFile(filepath.Join(dir, "plugin.toml"), &m); err != nil {
 		return m, fmt.Errorf("plugin.toml: %w", err)
 	}
+	// All of this is the author's text, and ends up on screen in the consent prompt.
+	m.Version, m.Description, m.Does = clean(m.Version, 40), clean(m.Description, maxText), clean(m.Does, maxText)
 	switch {
-	case m.Name == "" || strings.ContainsAny(m.Name, " \t\r\n/\\"):
-		return m, fmt.Errorf("plugin.toml: name %q isn't one word", m.Name)
+	case !namePattern.MatchString(m.Name): // It becomes a folder name when installed.
+		return m, fmt.Errorf("plugin.toml: name %q isn't one word of letters, digits, dots, dashes or underscores", m.Name)
+	case m.Version == "":
+		return m, fmt.Errorf("plugin.toml: %s has no version", m.Name)
+	case m.Does == "":
+		return m, fmt.Errorf("plugin.toml: %s doesn't say what it does", m.Name)
 	case m.APIVersion != APIVersion:
 		return m, fmt.Errorf("%s needs plugin API %d, and this LazyCode has %d", m.Name, m.APIVersion, APIVersion)
 	}
