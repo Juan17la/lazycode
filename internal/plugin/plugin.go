@@ -15,6 +15,7 @@ import (
 	"unicode"
 
 	"github.com/BurntSushi/toml"
+	"github.com/Juan17la/lazycode/internal/textrules"
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -106,10 +107,13 @@ func ReadManifest(dir string) (Manifest, error) {
 	return m, nil
 }
 
-// Language is a language pack's language.toml (doc 09): a language server, and no code.
+// Language is a language pack's language.toml (doc 09): a language server, colour rules or both,
+// and no code.
 type Language struct {
-	Name       string   `toml:"name"`
-	Extensions []string `toml:"extensions"`
+	Highlight  []textrules.Rule `toml:"highlight"`
+	Colours    *textrules.Set   `toml:"-"` // Highlight, compiled. Nil if it has none.
+	Name       string           `toml:"name"`
+	Extensions []string         `toml:"extensions"`
 	Server     struct {
 		Command string   `toml:"command"`
 		Args    []string `toml:"args"`
@@ -124,8 +128,15 @@ func readLanguage(dir string) (*Language, error) {
 	} else if err != nil {
 		return nil, fmt.Errorf("language.toml: %w", err)
 	}
-	if l.Name == "" || len(l.Extensions) == 0 || l.Server.Command == "" {
-		return nil, errors.New("language.toml: it needs a name, extensions and a server command")
+	if l.Name == "" || len(l.Extensions) == 0 || (l.Server.Command == "" && len(l.Highlight) == 0) {
+		return nil, errors.New("language.toml: it needs a name, extensions, and a server command or highlight rules")
+	}
+	if len(l.Highlight) > 0 {
+		set, err := textrules.Compile(l.Highlight)
+		if err != nil {
+			return nil, fmt.Errorf("language.toml: %w", err)
+		}
+		l.Colours = set
 	}
 	return &l, nil
 }

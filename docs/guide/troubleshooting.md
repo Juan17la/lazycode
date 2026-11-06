@@ -60,7 +60,7 @@ On Linux it's a desktop entry (`~/.local/share/applications/lazycode.desktop`) t
 
 ## Updates
 
-`:update` says "development build" if you built from source. Otherwise it needs a connection to GitHub. If you don't want the daily check, set `check = false` under `[updates]` in `:config`.
+`:update` says "development build" if you built from source: run `scripts/install-dev.sh` from the source folder instead, then restart LazyCode. Otherwise it needs a connection to GitHub. If you don't want the daily check, set `check = false` under `[updates]` in `:config`.
 
 ## Still stuck
 

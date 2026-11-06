@@ -11,6 +11,7 @@ import (
 	"github.com/Juan17la/lazycode/internal/lsp"
 	"github.com/Juan17la/lazycode/internal/plugin"
 	"github.com/Juan17la/lazycode/internal/store"
+	"github.com/Juan17la/lazycode/internal/syntax"
 )
 
 // pluginState holds the running plugins. They only ever come from plugins/ in the config
@@ -85,15 +86,24 @@ func (a *app) startPlugin(dir string) error {
 }
 
 func (a *app) syncLanguagePacks() {
-	var packs []lsp.Pack
+	var servers []lsp.Pack
+	var colours []syntax.Pack
 	for _, p := range a.plugins.loaded {
-		if l := p.Lang; l != nil {
-			packs = append(packs, lsp.Pack{Extensions: l.Extensions, Server: lsp.Server{
+		l := p.Lang
+		if l == nil {
+			continue
+		}
+		if l.Server.Command != "" {
+			servers = append(servers, lsp.Pack{Extensions: l.Extensions, Server: lsp.Server{
 				Name: l.Name, Command: l.Server.Command, Args: l.Server.Args, Markers: l.Server.Markers,
 			}})
 		}
+		if l.Colours != nil {
+			colours = append(colours, syntax.Pack{Name: l.Name, Extensions: l.Extensions, Rules: l.Colours})
+		}
 	}
-	lsp.SetPacks(packs)
+	lsp.SetPacks(servers)
+	syntax.SetPacks(colours)
 }
 
 // askPlugin is the consent prompt (Q-67). The description is the author's and can't be checked,

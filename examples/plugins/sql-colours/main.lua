@@ -1,0 +1,1 @@
+-- A language pack needs no code. See language.toml.

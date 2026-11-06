@@ -15,6 +15,7 @@ import (
 
 	"github.com/Juan17la/lazycode/internal/lsp"
 	"github.com/Juan17la/lazycode/internal/store"
+	"github.com/Juan17la/lazycode/internal/syntax"
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -254,4 +255,29 @@ func TestStoreUnreachableSaysSo(t *testing.T) {
 	})
 	u.run("store")
 	u.wait("Couldn't open the store")
+}
+
+func TestColourPackColoursItsFiles(t *testing.T) {
+	u, _ := launchStyled(t, map[string]string{"q.sql": "select 1\n"})
+	u.quitNow()
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(dir, "lazycode", "plugins")
+	writePlugin(t, root, "sql", "1", "")
+	lang := "name = \"SQL\"\nextensions = [\"sql\"]\n[[highlight]]\nclass = \"keyword\"\npattern = 'select'\n"
+	if err := os.WriteFile(filepath.Join(root, "sql", "language.toml"), []byte(lang), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	v := launch(t, u.dir)
+	v.wait("Add plugin sql")
+	v.press("a")
+	v.wait("Added sql")
+	v.open("q.sql")
+	v.wait("SQL  Ln 1") // The status line names what's colouring it.
+	if syntax.ForPath("q.sql") == nil {
+		t.Fatal("the pack isn't registered")
+	}
+	v.run("q")
 }

@@ -25,7 +25,7 @@ The list of plugins LazyCode shows in `:store`. Only what's in [index.toml](inde
 
 An update is a new pull request changing `version`, `commit` and `checksum`. People who installed it are asked again before the new version runs.
 
-A language pack is a plugin with a `language.toml`, and it adds a language server. It can't add syntax colours yet.
+A language pack is a plugin with a `language.toml`, and it adds a language server, colours, or both.
 
 ## Review
 

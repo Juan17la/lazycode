@@ -119,6 +119,7 @@ These were proposed on the basis that they'd become decisions when M0 started, u
 | P-60 | A tag makes a draft release, and the owner publishes it by hand | Doc 15's manual checks come first, and a draft isn't "latest", so nothing reaches users early | Publishing automatically |
 | P-61 | Backgrounds are painted in one pass at the end of each frame, by region, over cells still on default colours | Drawing code stays unaware of regions, and terminal tabs match the theme | An explicit background in every style |
 | P-62 | The default icon set uses plain Unicode symbols, and Nerd Font icons are a setting | A terminal app can't bring a font, and missing glyphs show as boxes | Nerd Font icons by default |
+| P-63 | Language packs colour with regular expression rules, and more grammars are built in | Packs stay readable for review, and linear-time matching can't hang | Compiled grammars per OS, or WASM |
 
 ## Replaced decisions
 

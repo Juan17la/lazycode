@@ -269,3 +269,29 @@ func TestConsentsAreByVersion(t *testing.T) {
 		t.Fatal("a broken file must not be replaced")
 	}
 }
+
+func TestExampleColourPackLoads(t *testing.T) {
+	p, err := Load(filepath.Join("..", "..", "examples", "plugins", "sql-colours"), Host{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	if p.Lang == nil || p.Lang.Colours == nil {
+		t.Fatalf("no colours: %+v", p.Lang)
+	}
+	var classes []string
+	p.Lang.Colours.Find([]byte("select 'a' -- c"), func(_, _ int, class string) { classes = append(classes, class) })
+	if strings.Join(classes, " ") != "keyword string comment" {
+		t.Fatal(classes)
+	}
+}
+
+func TestBadColourRuleRefusesThePack(t *testing.T) {
+	dir := write(t, "", APIVersion)
+	if err := os.WriteFile(filepath.Join(dir, "language.toml"), []byte("name=\"x\"\nextensions=[\"x\"]\n[[highlight]]\nclass=\"keyword\"\npattern=\"(\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(dir, Host{}); err == nil {
+		t.Fatal("accepted")
+	}
+}
