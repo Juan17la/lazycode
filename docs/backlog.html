@@ -276,8 +276,8 @@ const ITEMS = [
 
   {id:'P1',g:'plugins',n:'Lua runtime and first API',note:'Commands, events, keys, buffers, time limits and failures, connected to the editor through P2.',d:'done',lo:4,hi:8,deps:['REL-3','E2'],rel:'later'},
   {id:'P2',g:'plugins',n:'Local plugins, consent prompt, author guide',note:'Plugins load from plugins/ after the prompt, with answers per version, :plugin on and off, docs/guide/plugins.md and three examples. No outside author has used it yet.',d:'done',lo:2,hi:4,deps:['P1'],rel:'later'},
-  {id:'S1',g:'store',n:'Store repository and review process',lo:1,hi:2,deps:['P2'],rel:'later'},
-  {id:'S2',g:'store',n:'Browse and install from inside the editor',lo:2,hi:3,deps:['S1'],rel:'later'}
+  {id:'S1',g:'store',n:'Store repository and review process',note:'store-template/ holds the README, review checklist, empty index, PR template and CI, and cmd/storecheck does the checks. Still to do: create the public lazycode-store repository from it, which is the owner\'s step.',d:'doing',lo:1,hi:2,deps:['P2'],rel:'later'},
+  {id:'S2',g:'store',n:'Browse and install from inside the editor',note:':store browses, downloads, checks the pin and asks first, tested against a local server. Language packs add servers only. Still to do: try it against the real store once S1 exists, and a plugin published by someone outside the project.',d:'doing',lo:2,hi:3,deps:['S1'],rel:'later'}
 ];
 const REQS = [
   ['FR-1.1','F1','Directory tree panel, selected directory by default, option to show all',['A1']],

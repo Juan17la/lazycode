@@ -53,9 +53,29 @@ Lua's `os` and `io` libraries are there as usual.
 - Files over 100 MB are read-only, and don't send events.
 - A `buffer_save` handler should change nothing when the file is already right, or the file never settles.
 
+## Language packs
+
+Add a `language.toml` beside `plugin.toml` to give a language its server, for go to definition, rename and format. `main.lua` can be empty.
+
+```toml
+name = "rust"              # Also the language ID sent to the server.
+extensions = ["rs"]
+
+[server]
+command = "rust-analyzer"  # Run directly, never through a shell.
+args = []
+markers = ["Cargo.toml"]   # Files that mark a project's root.
+```
+
+A pack can't add syntax colours or replace a built-in language.
+
+## Publishing
+
+See the store's README: you add an entry to its `index.toml` by pull request, pinning a commit and a checksum. `:store` then lists your plugin.
+
 ## Commands
 
-`:plugin` lists what's running. `:plugin off NAME` stops a plugin and remembers that. `:plugin on NAME` asks again.
+`:store` browses the store and installs a plugin, asking first. `:plugin` lists what's running. `:plugin off NAME` stops a plugin and remembers that. `:plugin on NAME` asks again.
 
 ## Testing
 

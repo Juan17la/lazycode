@@ -24,3 +24,4 @@ The first release, v0.1.0, will contain:
 - Binaries for Linux (amd64, arm64), macOS (amd64, arm64) and Windows (amd64). They are not signed.
 - User guides in `docs/guide/`.
 - Lua plugins from the config folder, added only after you accept what each one says it does, with `:plugin` to list, turn on and turn off. See `docs/guide/plugins.md`.
+- A plugin store: `:store` browses reviewed plugins, verifies what it downloads against a pinned commit and checksum, and asks before adding it. Language packs add a language server.
