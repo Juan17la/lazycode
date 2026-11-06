@@ -3,7 +3,7 @@ package lsp
 import (
 	"fmt"
 	"net/url"
-	"path/filepath"
+	pathpkg "path"
 	"runtime"
 	"strings"
 )
@@ -44,5 +44,5 @@ func pathOf(uri string, windows bool) (string, error) {
 		}
 		return strings.ReplaceAll(path, "/", `\`), nil
 	}
-	return filepath.Clean(path), nil
+	return pathpkg.Clean(path), nil // Not filepath: windows is an argument, not this machine.
 }

@@ -165,10 +165,10 @@ func Run(ctx context.Context, dir, query string) (Result, error) {
 // nameMatches returns paths holding query, ignoring case. Those where the file's own name holds it
 // come first, then shorter paths.
 func nameMatches(files []string, query string) []string {
-	q := strings.ToLower(query)
+	q := strings.ToLower(filepath.ToSlash(query)) // So deep/conf finds deep\config on Windows.
 	var hits []string
 	for _, f := range files {
-		if strings.Contains(strings.ToLower(f), q) {
+		if strings.Contains(strings.ToLower(filepath.ToSlash(f)), q) {
 			hits = append(hits, f)
 		}
 	}

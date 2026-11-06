@@ -186,7 +186,7 @@ func TestCtrlPOpensAFileByName(t *testing.T) {
 	u.write("sub/gamma.txt", "GGG\n")
 	u.key(tcell.KeyCtrlP)
 	u.wait("Open file")
-	u.wait("sub/gamma.txt")
+	u.wait(filepath.Join("sub", "gamma.txt"))
 	u.press("gam")
 	u.key(tcell.KeyEnter)
 	u.wait("GGG")

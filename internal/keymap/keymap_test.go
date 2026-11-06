@@ -22,6 +22,7 @@ func TestNames(t *testing.T) {
 		{tcell.KeyRune, 's', tcell.ModCtrl | tcell.ModShift, "ctrl+shift+s"},
 		{tcell.KeyRune, 'd', tcell.ModAlt, "alt+d"},
 		{tcell.KeyRune, 'F', tcell.ModAlt, "alt+shift+f"},
+		{tcell.KeyRune, 'f', tcell.ModAlt | tcell.ModShift, "alt+shift+f"}, // Kitty's protocol.
 		{tcell.KeyRune, ',', tcell.ModAlt, "alt+,"},
 		{tcell.KeyRune, 'x', 0, "x"},
 		{tcell.KeyRune, 'X', tcell.ModShift, "X"},
