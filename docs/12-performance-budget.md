@@ -132,6 +132,18 @@ Undo history has no limit yet. At the upper limit of 5.9 KB per step, 10,000 ste
 
 The high end is over the limit, although the memory limit should hold total use down while there's memory to reclaim. The editor's real size decides this, so measure again after `CORE-02`. If it's too high: automatic sleep, a lower scrollback, or a more compact store.
 
+### Startup and switching (2026-11-05)
+
+Measured on the owner's machine (Core Ultra 5 125H), **not the i3**. `scripts/reference-check.sh` runs both, so the i3 result is still needed for `REL-3`.
+
+| Measure | Result | Target |
+|---|---|---|
+| Startup to first screen, real binary, 1,000-file folder (`TestStartupTime`) | About 15 ms median, 19 ms worst | 100 ms |
+| Project switch and next frame, 1,000 files (`BenchmarkSwitchProject`) | About 4 ms over 3 runs, once 24 ms in a short run | 50 ms |
+| Linux amd64 binary, built as a release | 17.6 MB | 50 MB |
+
+Pinning to 2 cores gave similar results, but that doesn't match the i3's slower cores. To check on the i3: one key press in a 1 MiB file took about 290 ms to re-highlight here, and typing with 10,000 cursors took about 100 ms a key.
+
 ## Benchmark scenarios
 
 **Proposed:** Each one runs on a fixed test project.

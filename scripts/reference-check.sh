@@ -57,7 +57,10 @@ run "Search 50,000 files (internal/search)" ./internal/search 'Search50000Files'
 # Editor RAM under 300 MB with ten terminal tabs. CI fails above the limit; the log has the numbers. Linux only.
 run "Memory with terminal tabs (cmd/lazycode)" ./cmd/lazycode 'TestMemoryStaysUnderLimit' test
 
+# Startup to usable: 100 ms. Directory or project switch: 50 ms.
+run "Startup, real binary (cmd/lazycode)" ./cmd/lazycode 'TestStartupTime' test
+run "Project switch (internal/app)" ./internal/app 'SwitchProject' bench
+
 echo "### Not covered here"
-echo "- Startup to usable (target 100 ms), and directory or project switch (50 ms): no benchmark exists yet. Time them by hand."
 echo "- Download size and installed size: check the built binary with ls -l."
 echo "- Key press to screen over 16 ms on the real terminal: only a person can judge that."
