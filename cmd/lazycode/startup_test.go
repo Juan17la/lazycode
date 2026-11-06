@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -25,6 +26,9 @@ func TestStartupTime(t *testing.T) {
 		t.Fatal(err)
 	}
 	bin := filepath.Join(root, "lazycode")
+	if runtime.GOOS == "windows" {
+		bin += ".exe" // Starting it fails without this.
+	}
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}
