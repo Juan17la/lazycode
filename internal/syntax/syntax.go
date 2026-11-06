@@ -84,15 +84,22 @@ func Check(language string, src []byte) (hasErrors bool, err error) {
 	return tree.RootNode().HasError(), nil
 }
 
-// Class is how a span is coloured. There are few on purpose (Q-48): the theme has two colours.
+// Class is how a span is coloured. The theme picks a colour for each.
 type Class uint8
 
 const (
-	None    Class = iota
-	Keyword       // Accent.
-	Literal       // Strings, numbers and constants: accent, without bold.
-	Name          // Functions and types: primary, bold.
-	Comment       // Muted, italic.
+	None Class = iota
+	Keyword
+	String // Including escapes.
+	Number
+	Constant // Named constants and booleans.
+	Function
+	Type
+	Variable // Built-in names such as self and this, and parameters. Plain variables stay None.
+	Property
+	Operator
+	Tag // HTML-like tags in JSX.
+	Comment
 )
 
 // classOf maps a capture name from the queries, such as function.method, to a class.
@@ -101,10 +108,26 @@ func classOf(capture string) Class {
 	switch base {
 	case "keyword":
 		return Keyword
-	case "string", "number", "constant", "escape", "boolean":
-		return Literal
-	case "function", "type", "constructor":
-		return Name
+	case "string", "escape":
+		return String
+	case "number":
+		return Number
+	case "constant", "boolean":
+		return Constant
+	case "function":
+		return Function
+	case "type", "constructor":
+		return Type
+	case "variable":
+		if capture != "variable" {
+			return Variable
+		}
+	case "property", "attribute":
+		return Property
+	case "operator":
+		return Operator
+	case "tag":
+		return Tag
 	case "comment":
 		return Comment
 	}

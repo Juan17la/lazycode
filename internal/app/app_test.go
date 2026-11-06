@@ -1182,8 +1182,8 @@ func TestThemeColoursApply(t *testing.T) {
 		if fg, _, attrs := th.accent.Decompose(); fg == tcell.ColorDefault || attrs&tcell.AttrBold == 0 {
 			t.Errorf("%s: accent should be coloured and bold", name)
 		}
-		if _, _, attrs := th.active.Decompose(); attrs&tcell.AttrReverse == 0 {
-			t.Errorf("%s: selections should be reversed", name)
+		if _, bg, _ := th.active.Decompose(); bg == tcell.ColorDefault {
+			t.Errorf("%s: selections should have a background", name)
 		}
 		if _, _, attrs := th.match.Decompose(); attrs&tcell.AttrUnderline == 0 {
 			t.Errorf("%s: matches should be underlined", name)

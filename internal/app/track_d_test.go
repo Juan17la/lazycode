@@ -300,7 +300,7 @@ func TestViewsInPanels(t *testing.T) {
 	u.alt('i')
 	u.wait("No sessions yet")
 	u.waitGone("a.txt")
-	u.clickOn("Files") // A click on a title brings the view forward.
+	u.clickOn("▤") // A click on an icon brings the view forward.
 	u.wait("a.txt")
 	u.alt('i')
 	u.wait("No sessions yet")

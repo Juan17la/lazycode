@@ -117,6 +117,8 @@ These were proposed on the basis that they'd become decisions when M0 started, u
 | P-58 | The tag must be exactly `vX.Y.Z` before it's used in a link, redirects must stay on HTTPS, and downloads are size-capped. A Windows update moves the old file to `.old`, removed at the next start | The tag is remote input, and a running Windows program can be renamed but not overwritten | Trusting the API's answer |
 | P-59 | Linux releases build on the oldest Ubuntu runner, `ubuntu-22.04` | It sets the oldest glibc the binary can run on | Static linking, not tried with the C parser |
 | P-60 | A tag makes a draft release, and the owner publishes it by hand | Doc 15's manual checks come first, and a draft isn't "latest", so nothing reaches users early | Publishing automatically |
+| P-61 | Backgrounds are painted in one pass at the end of each frame, by region, over cells still on default colours | Drawing code stays unaware of regions, and terminal tabs match the theme | An explicit background in every style |
+| P-62 | The default icon set uses plain Unicode symbols, and Nerd Font icons are a setting | A terminal app can't bring a font, and missing glyphs show as boxes | Nerd Font icons by default |
 
 ## Replaced decisions
 

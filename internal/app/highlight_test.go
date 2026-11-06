@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Juan17la/lazycode/internal/config"
 	"github.com/Juan17la/lazycode/internal/editor"
 	"github.com/Juan17la/lazycode/internal/project"
 	"github.com/Juan17la/lazycode/internal/syntax"
@@ -99,14 +100,14 @@ func attrs(st tcell.Style) tcell.AttrMask { _, _, a := st.Decompose(); return a 
 
 func isKeyword(st tcell.Style) bool {
 	fg, _, a := st.Decompose()
-	return fg == tcell.PaletteColor(208) && a&tcell.AttrBold != 0 && a&tcell.AttrReverse == 0
+	return fg == tcell.GetColor(palettes[config.DefaultTheme]["purple"]) && a&tcell.AttrBold != 0 && a&tcell.AttrReverse == 0
 }
 
 func isComment(st tcell.Style) bool { return attrs(st)&tcell.AttrItalic != 0 }
 
 func plain(st tcell.Style) bool {
 	fg, _, a := st.Decompose()
-	return fg == tcell.ColorDefault && a == 0
+	return fg == tcell.GetColor(palettes[config.DefaultTheme]["fg"]) && a == 0
 }
 
 const goFile = "package main\n\n// note\nfunc main() {\n\tprintln(\"hi\", 42)\n}\n"
@@ -118,9 +119,12 @@ func TestGoFileIsColoured(t *testing.T) {
 	screen.waitStyle(u, "// note", isComment, "a comment")
 	screen.waitStyle(u, "42", func(st tcell.Style) bool {
 		fg, _, a := st.Decompose()
-		return fg == tcell.PaletteColor(208) && a&tcell.AttrBold == 0
-	}, "an accent literal without bold")
-	screen.waitStyle(u, "main() {", func(st tcell.Style) bool { return attrs(st)&tcell.AttrBold != 0 }, "a bold name")
+		return fg == tcell.GetColor(palettes[config.DefaultTheme]["orange"]) && a&tcell.AttrBold == 0
+	}, "a number")
+	screen.waitStyle(u, "main() {", func(st tcell.Style) bool {
+		fg, _, _ := st.Decompose()
+		return fg == tcell.GetColor(palettes[config.DefaultTheme]["blue"])
+	}, "a function")
 	u.wait("Go  Ln 1") // The status bar names the language.
 
 	// A language without highlighting gets plain text.
@@ -281,7 +285,7 @@ func TestStaleSpansAndDeletedFilesDontPanic(t *testing.T) {
 	a.openFile(a.dir(), path)
 	a.pump(t, func() bool { return a.coloured(path) })
 	for _, s := range a.hl.files {
-		s.spans = append(s.spans, syntax.Span{Start: 1 << 30, End: 1<<30 + 5, Class: syntax.Keyword}, syntax.Span{Start: 3, End: 1 << 31, Class: syntax.Name})
+		s.spans = append(s.spans, syntax.Span{Start: 1 << 30, End: 1<<30 + 5, Class: syntax.Keyword}, syntax.Span{Start: 3, End: 1 << 31, Class: syntax.Function})
 	}
 	a.draw()
 	if err := os.Remove(path); err != nil {
@@ -297,7 +301,7 @@ func TestStaleSpansAndDeletedFilesDontPanic(t *testing.T) {
 
 func TestSelectionsAndMatchesBeatSyntaxColour(t *testing.T) {
 	a := hlApp(t, nil)
-	for _, class := range []syntax.Class{syntax.None, syntax.Keyword, syntax.Literal, syntax.Name, syntax.Comment} {
+	for _, class := range []syntax.Class{syntax.None, syntax.Keyword, syntax.String, syntax.Function, syntax.Comment} {
 		if a.cellStyle(editor.Cell{Selected: true}, class) != a.th.active ||
 			a.cellStyle(editor.Cell{Match: true}, class) != a.th.match ||
 			a.cellStyle(editor.Cell{Cursor: true}, class) != a.th.otherCursor ||
@@ -307,24 +311,6 @@ func TestSelectionsAndMatchesBeatSyntaxColour(t *testing.T) {
 	}
 	if a.cellStyle(editor.Cell{}, syntax.Keyword) != a.th.keyword || a.cellStyle(editor.Cell{}, syntax.None) != a.th.primary {
 		t.Error("plain cells lost their syntax colour")
-	}
-}
-
-// TestThemesKeepSyntaxReadable checks both themes keep to two colours and carry meaning in weight.
-func TestThemesKeepSyntaxReadable(t *testing.T) {
-	for _, name := range []string{"dark", "light"} {
-		th := themeFor(name)
-		fgK, _, _ := th.keyword.Decompose()
-		fgL, _, _ := th.literal.Decompose()
-		fgC, _, _ := th.comment.Decompose()
-		fgM, _, _ := th.muted.Decompose()
-		if fgK != fgL || fgC != fgM {
-			t.Errorf("%s: syntax uses a third colour", name)
-		}
-		if attrs(th.keyword)&tcell.AttrBold == 0 || attrs(th.literal)&tcell.AttrBold != 0 ||
-			attrs(th.name)&tcell.AttrBold == 0 || attrs(th.comment)&tcell.AttrItalic == 0 {
-			t.Errorf("%s: weights are wrong", name)
-		}
 	}
 }
 

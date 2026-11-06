@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -21,8 +24,10 @@ type Config struct {
 		TabSize  int  `toml:"tab_size"`
 	} `toml:"editor"`
 	UI struct {
-		Theme   string `toml:"theme"`
-		Sidebar string `toml:"sidebar"`
+		Theme   string            `toml:"theme"`
+		Icons   string            `toml:"icons"`
+		Colors  map[string]string `toml:"colors"`
+		Sidebar string            `toml:"sidebar"`
 	} `toml:"ui"`
 	Terminal struct {
 		Scrollback int `toml:"scrollback"`
@@ -48,7 +53,8 @@ func Default() Config {
 	var c Config
 	c.Version = 1
 	c.Editor.TabSize = 4
-	c.UI.Theme = "dark"
+	c.UI.Theme = DefaultTheme
+	c.UI.Icons = "basic"
 	c.UI.Sidebar = "left"
 	c.Terminal.Scrollback = 1000
 	c.Sessions.SleepAfterMinutes = 30 // Q-77.
@@ -65,8 +71,15 @@ auto_save = false   # Save a second after typing stops.
 tab_size = 4
 
 [ui]
-theme = "dark"      # dark or light
+theme = "dark"      # Or use :theme. dark, light, gruvbox-dark, gruvbox-light, dracula, one-dark,
+                    # nord, tokyo-night, catppuccin-mocha, solarized-dark, solarized-light, monokai
+icons = "basic"     # basic works in any font. nerd needs a Nerd Font: nerdfonts.com
 sidebar = "left"    # left or right
+
+# Change any colour of the theme: bg, panel, bar, selection, fg, muted, comment, accent,
+# red, green, yellow, blue, purple, cyan, orange.
+# [ui.colors]
+# accent = "#ff8800"
 
 [terminal]
 scrollback = 1000   # Lines kept per terminal tab. Each 1,000 lines cost about 36 MB.
@@ -87,6 +100,60 @@ check = true   # Look on GitHub for a new version, at most once a day.
 # start_args = ["--session-id", "{id}"]
 # resume_args = ["--resume", "{id}"]
 `
+
+// DefaultTheme is used until the user chooses.
+const DefaultTheme = "dark"
+
+// Themes lists the built-in themes, in the order :theme shows them.
+var Themes = []string{"dark", "light", "gruvbox-dark", "gruvbox-light", "dracula", "one-dark", "nord", "tokyo-night", "catppuccin-mocha", "solarized-dark", "solarized-light", "monokai"}
+
+// ColorKeys are what [ui.colors] can change.
+var ColorKeys = []string{"bg", "panel", "bar", "selection", "fg", "muted", "comment", "accent", "red", "green", "yellow", "blue", "purple", "cyan", "orange"}
+
+var (
+	hexColor  = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+	themeLine = regexp.MustCompile(`(?m)^theme[ \t]*=[^\r\n#]*?([ \t]*(#[^\r\n]*)?)$`)
+	uiTable   = regexp.MustCompile(`(?m)^\[ui\][ \t]*\r?$`)
+)
+
+// SetTheme changes the theme in a config file and leaves the rest of it alone. The file is replaced
+// in one step, so a crash can't leave half of it.
+func SetTheme(path, name string) error {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		data, err = []byte(Template), nil
+	}
+	if err != nil {
+		return err
+	}
+	text := string(data)
+	line := fmt.Sprintf("theme = %q", name)
+	switch loc := themeLine.FindStringSubmatchIndex(text); {
+	case loc != nil:
+		text = text[:loc[0]] + line + text[loc[2]:loc[3]] + text[loc[1]:]
+	case uiTable.MatchString(text):
+		loc := uiTable.FindStringIndex(text)
+		text = text[:loc[1]] + "\n" + line + text[loc[1]:]
+	default:
+		text = strings.TrimRight(text, "\r\n") + "\n\n[ui]\n" + line + "\n"
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	temp, err := os.CreateTemp(filepath.Dir(path), ".config-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(temp.Name()) //nolint:errcheck // Already renamed, unless something failed.
+	if _, err := temp.WriteString(text); err != nil {
+		temp.Close() //nolint:errcheck // The write error is the one to report.
+		return err
+	}
+	if err := temp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(temp.Name(), path)
+}
 
 // FirstConfig is the Template with the choices made in onboarding.
 func FirstConfig(theme string, autoSave bool) string {
@@ -131,8 +198,18 @@ func Load(path string) (Config, error) {
 	if c.Editor.TabSize < 1 || c.Editor.TabSize > maxTabSize {
 		problems = append(problems, fmt.Sprintf("tab_size must be from 1 to %d", maxTabSize))
 	}
-	if c.UI.Theme != "dark" && c.UI.Theme != "light" {
-		problems = append(problems, `theme must be "dark" or "light"`)
+	if !slices.Contains(Themes, c.UI.Theme) {
+		problems = append(problems, "theme must be one of "+strings.Join(Themes, ", "))
+	}
+	if c.UI.Icons != "basic" && c.UI.Icons != "nerd" {
+		problems = append(problems, `icons must be "basic" or "nerd"`)
+	}
+	for _, key := range slices.Sorted(maps.Keys(c.UI.Colors)) {
+		if !slices.Contains(ColorKeys, key) {
+			problems = append(problems, "unknown colour "+key)
+		} else if !hexColor.MatchString(c.UI.Colors[key]) {
+			problems = append(problems, "colour "+key+` must look like "#ff8800"`)
+		}
 	}
 	if c.UI.Sidebar != "left" && c.UI.Sidebar != "right" {
 		problems = append(problems, `sidebar must be "left" or "right"`)

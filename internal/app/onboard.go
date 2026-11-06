@@ -72,7 +72,7 @@ func (a *app) changeOnboardRow() {
 	switch o.row {
 	case rowTheme:
 		o.light = !o.light
-		a.th = themeFor(o.theme()) // So the choice can be seen while making it.
+		a.setTheme(o.theme()) // So the choice can be seen while making it.
 	case rowAutoSave:
 		o.autoSave = !o.autoSave
 	default:
@@ -114,7 +114,7 @@ func (a *app) handleOnboardKey(ev *tcell.EventKey) {
 func (a *app) finishOnboarding(o *onboarding) {
 	a.onboard = nil
 	a.cfg.UI.Theme, a.cfg.Editor.AutoSave = o.theme(), o.autoSave
-	a.th = themeFor(o.theme())
+	a.setTheme(o.theme())
 	if err := config.EnsureFile(a.settingsPath("config.toml"), config.FirstConfig(o.theme(), o.autoSave)); err != nil {
 		a.message = "Your choices weren't saved, so this screen will come back: " + err.Error()
 	}

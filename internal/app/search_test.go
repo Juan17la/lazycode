@@ -12,22 +12,22 @@ import (
 func TestPanelHeaderListsAllViewsAndClicksSwitch(t *testing.T) {
 	u := start(t, map[string]string{"a.txt": "x"})
 	u.screen.SetSize(100, 30)
-	u.wait("[Files] Git  Search  AI")
-	u.clickOn("Git")
-	u.wait("[Git]")
-	u.wait("Files [Git]") // Files is no longer the one in brackets.
+	u.wait("▤ Files  ⎇  ⌕  ✦")
+	u.clickOn("⎇")
+	u.wait("⎇ Git")
+	u.wait("▤  ⎇ Git") // Files is now only its icon.
 	u.alt('f')
-	u.wait("[Search]")
+	u.wait("⌕ Search")
 	u.wait("Find:")
 	u.alt('e')
-	u.wait("[Files]")
+	u.wait("▤ Files")
 	// The second form of each shortcut (Q-80).
 	u.key(tcell.KeyCtrlK)
 	u.press("g")
-	u.wait("[Git]")
+	u.wait("⎇ Git")
 	u.key(tcell.KeyCtrlK)
 	u.press("f")
-	u.wait("[Search]")
+	u.wait("⌕ Search")
 }
 
 func TestSearchFindsNamesAndTextAndOpensAtTheMatch(t *testing.T) {

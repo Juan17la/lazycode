@@ -98,8 +98,16 @@ auto_save = false   # Save a second after typing stops.
 tab_size = 4        # 1 to 16
 
 [ui]
-theme = "dark"      # dark or light
+theme = "dark"      # Or use :theme, which previews them. dark, light, gruvbox-dark, gruvbox-light,
+                    # dracula, one-dark, nord, tokyo-night, catppuccin-mocha, solarized-dark,
+                    # solarized-light, monokai
+icons = "basic"     # basic works in any font. nerd adds file-type icons, and needs a Nerd Font.
 sidebar = "left"    # left or right
+
+# Change any colour of the theme: bg, panel, bar, selection, fg, muted, comment, accent,
+# red, green, yellow, blue, purple, cyan, orange.
+# [ui.colors]
+# accent = "#ff8800"
 
 [terminal]
 scrollback = 1000   # Lines per terminal tab, 1 to 10000. About 36 MB per 1,000 lines.

@@ -339,18 +339,18 @@ func (a *app) moveFilesView() {
 	}
 }
 
-// drawViewTitles draws the header row of a panel: each view's name, the one on top in brackets so
-// that it doesn't rely on colour. A click on a name brings that view forward.
+// drawViewTitles draws the header row of a panel. A click on an icon brings that view forward.
 func (a *app) drawViewTitles(panel int, r rect) {
 	top := a.viewIn(panel)
 	focused := !a.tabFocused && a.focusedView() == top
 	x, maxX := r.x+1, r.x+r.w
 	for _, v := range a.viewsIn(panel) {
-		label, style := " "+v+" ", a.th.muted
+		// The icon alone, except the view on top, which also says its name (the part that isn't colour).
+		label, style := " "+a.viewIcon(v)+" ", a.th.muted
 		if v == top {
-			label, style = "["+v+"]", a.th.primary.Bold(true)
+			label, style = " "+a.viewIcon(v)+" "+v+" ", a.th.primary.Bold(true)
 			if v == viewFiles && a.showAll {
-				label = "[Files, all directories]"
+				label = " " + a.viewIcon(v) + " Files, all directories "
 			}
 			if focused {
 				style = a.th.accent

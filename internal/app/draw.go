@@ -41,8 +41,13 @@ func (a *app) draw() {
 	w, h := s.Size()
 	st := a.dir()
 
-	x := a.put(0, 0, w, " "+a.projects[a.project].Name, a.th.primary.Bold(true))
-	a.put(x, 0, w, " › "+filepath.Base(a.dirPath()), a.th.primary)
+	a.floating = a.floating[:0]
+	x := a.put(0, 0, w, " "+a.projects[a.project].Name, a.th.accent)
+	x = a.put(x, 0, w, " › ", a.th.muted)
+	x = a.put(x, 0, w, filepath.Base(a.dirPath()), a.th.primary)
+	if branch := a.branchLabel(); branch != "" {
+		a.put(max(x+2, w-runewidth.StringWidth(branch)-1), 0, w, branch, a.th.icon["purple"])
+	}
 
 	first, second, _ := a.regions()
 	a.drawPanel(st, 0, first)
@@ -66,7 +71,24 @@ func (a *app) draw() {
 	if a.switcher != nil {
 		a.drawSwitcher(w, h)
 	}
+	a.paintBackground(st, w, h)
 	s.Show()
+}
+
+// branchLabel is the title line's branch, with how far it is from its upstream.
+func (a *app) branchLabel() string {
+	g := a.git.st
+	if g == nil || a.git.err != nil || a.git.dir != a.dirPath() || g.Branch == "" {
+		return ""
+	}
+	label := a.viewIcon(viewGit) + " " + g.Branch
+	if g.Ahead > 0 {
+		label += fmt.Sprintf(" ↑%d", g.Ahead)
+	}
+	if g.Behind > 0 {
+		label += fmt.Sprintf(" ↓%d", g.Behind)
+	}
+	return label
 }
 
 // fillLine draws a divider in r, which is one cell wide or one cell high.
@@ -109,6 +131,11 @@ func (a *app) drawPanel(st *dirState, index int, r rect) {
 	a.drawViewTitles(index, r)
 }
 
+func accentOf(th theme) tcell.Color {
+	fg, _, _ := th.accent.Decompose()
+	return fg
+}
+
 func (a *app) drawTree(st *dirState, r rect) {
 	maxX := r.x + r.w
 	t := a.tree()
@@ -139,8 +166,10 @@ func (a *app) drawTree(st *dirState, r rect) {
 		},
 		wheel: func(delta int) { t.Move(delta) },
 	})
+	badges := a.badges()
 	for i := st.top; i < len(t.Rows) && i < st.top+rows; i++ {
 		row := t.Rows[i]
+		y := y0 + i - st.top
 		if row.Missing {
 			row.Name += " (missing)" // Q-66: marked, never removed silently.
 		}
@@ -151,14 +180,46 @@ func (a *app) drawTree(st *dirState, r rect) {
 				marker = "▾ "
 			}
 		}
-		style := a.th.primary
-		if i == t.Sel {
-			style = a.th.primary.Underline(true)
-			if !a.tabFocused {
-				style = a.th.active
-			}
+		letter := badges.of(row.Path, row.IsDir)
+		name := a.th.primary
+		if row.IsDir {
+			name = a.th.primary.Bold(true)
 		}
-		a.put(r.x+1, y0+i-st.top, maxX, strings.Repeat("  ", row.Depth)+marker+row.Name, style)
+		if letter != 0 {
+			name = a.badgeStyle(letter)
+		}
+		icon, iconStyle := a.iconFor(row.Name, row.IsDir, row.Open)
+		selected := i == t.Sel
+		over := func(st tcell.Style) tcell.Style { return st } // A selection keeps each part's colour.
+		switch {
+		case selected && !a.tabFocused:
+			_, bg, _ := a.th.active.Decompose()
+			over = func(st tcell.Style) tcell.Style { return st.Background(bg) }
+			if a.lowColour() {
+				over = func(tcell.Style) tcell.Style { return a.th.active }
+			}
+			for col := r.x; col < maxX; col++ {
+				a.screen.SetContent(col, y, ' ', nil, a.th.active)
+			}
+		case selected:
+			name = name.Underline(true)
+		}
+		x := a.put(r.x+1, y, maxX, strings.Repeat("  ", row.Depth), over(a.th.muted))
+		x = a.put(x, y, maxX, marker, over(a.th.muted))
+		if icon != "" {
+			x = a.put(x, y, maxX, icon+" ", over(iconStyle))
+		}
+		// The letter is the part that doesn't depend on colour. A folder only gets a dot.
+		end := maxX
+		if letter != 0 {
+			end = maxX - 2
+			mark := string(rune(letter))
+			if row.IsDir {
+				mark = "●"
+			}
+			a.put(maxX-2, y, maxX, mark, over(a.badgeStyle(letter)))
+		}
+		a.put(x, y, end, row.Name, over(name))
 	}
 }
 
@@ -195,8 +256,10 @@ func (a *app) drawTabBar(st *dirState, p *pane, focused bool) {
 	x, y, maxX := p.area.x+1, p.area.y, p.area.x+p.area.w
 	for i, it := range p.tabs {
 		label := " " + it.name() + " "
+		icon, iconStyle := "", a.th.muted
 		switch {
 		case it.ed != nil:
+			icon, iconStyle = a.iconFor(it.name(), false, false)
 			if it.ed.File.Modified() {
 				label = " " + it.name() + "* "
 			}
@@ -209,13 +272,35 @@ func (a *app) drawTabBar(st *dirState, p *pane, focused bool) {
 		style := a.th.muted
 		if i == p.cur {
 			style = a.th.primary.Bold(true)
+			if focused {
+				style = a.th.tabCurrent
+			}
 			if focused && a.tabFocused {
-				style = a.th.active
+				style = a.th.tabCurrent.Foreground(accentOf(a.th))
 			}
 		}
 		if it.sess != nil && it.sess.status == session.Attention {
 			style = a.th.success // The green detail (Q-36). The label's ● says it without colour.
 			label = " ● " + it.name() + " "
+			icon = ""
+		}
+		if icon != "" { // Drawn apart, for its colour. Over the tab's own background if it has one.
+			_, bg, _ := style.Decompose()
+			label = strings.TrimPrefix(label, " ")
+			start := x
+			x = a.put(x, y, maxX, " ", style)
+			x = a.put(x, y, maxX, icon+" ", iconStyle.Background(bg))
+			x = a.put(x, y, maxX, label, style)
+			index := i
+			a.hits = append(a.hits, hit{
+				area: rect{start, y, x - start, 1},
+				click: func(int, int, tcell.ModMask) {
+					st.focus, p.cur = p, index
+					a.focusTab()
+				},
+			})
+			x++
+			continue
 		}
 		start := x
 		x = a.put(x, y, maxX, label, style)
@@ -251,11 +336,11 @@ func (a *app) drawEditor(st *dirState, p *pane, it *tabItem, r rect, focused boo
 		if gutter > 0 {
 			style := a.th.muted
 			if line == current {
-				style = a.th.primary
+				style = a.th.accent
 			}
 			a.put(r.x, r.y+row, r.x+gutter, fmt.Sprintf(" %*d", gutter-2, line+1), style)
 			if marked[line] {
-				a.screen.SetContent(r.x, r.y+row, '▌', nil, a.th.accent)
+				a.screen.SetContent(r.x, r.y+row, '▌', nil, a.th.gitModified)
 			}
 		}
 		for _, c := range e.Row(line, textWidth) {
@@ -298,10 +383,24 @@ func (a *app) cellStyle(c editor.Cell, class syntax.Class) tcell.Style {
 	switch class {
 	case syntax.Keyword:
 		return a.th.keyword
-	case syntax.Literal:
-		return a.th.literal
-	case syntax.Name:
-		return a.th.name
+	case syntax.String:
+		return a.th.str
+	case syntax.Number:
+		return a.th.number
+	case syntax.Constant:
+		return a.th.constant
+	case syntax.Function:
+		return a.th.function
+	case syntax.Type:
+		return a.th.typ
+	case syntax.Variable:
+		return a.th.variable
+	case syntax.Property:
+		return a.th.property
+	case syntax.Operator:
+		return a.th.operator
+	case syntax.Tag:
+		return a.th.tag
 	case syntax.Comment:
 		return a.th.comment
 	}
@@ -412,6 +511,7 @@ func (a *app) drawSwitcher(w, h int) {
 	bw := max(1, min(50, w-4))
 	bh := max(1, min(len(matches), h-6))
 	x0, y0 := (w-bw)/2, max(0, (h-bh)/2-2)
+	a.floating = append(a.floating, rect{x0, y0, bw, bh + 3})
 
 	for y := y0; y < y0+bh+3; y++ {
 		for x := x0; x < x0+bw; x++ {
@@ -428,7 +528,7 @@ func (a *app) drawSwitcher(w, h int) {
 	// The switcher takes the mouse too: a row picks, and elsewhere cancels.
 	a.hits = append(a.hits[:0], hit{
 		area:  rect{0, 0, w, h},
-		click: func(int, int, tcell.ModMask) { a.switcher = nil },
+		click: func(int, int, tcell.ModMask) { a.cancelSwitcher() },
 	})
 	for i := 0; i < bh && i < len(matches); i++ {
 		style := a.th.primary
