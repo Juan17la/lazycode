@@ -72,6 +72,7 @@ type app struct {
 	hl         highlighting
 	lang       language
 	marks      map[*buffer.File]*fileMarks
+	plugins    pluginState
 
 	tabFocused bool
 	chord      bool // Ctrl+K was pressed, and the next key finishes it.
@@ -147,6 +148,8 @@ func runApp(screen tcell.Screen, projects []project.Project, dir, startup string
 	defer a.upd.cancel()
 	defer a.closeAllTabs()
 	a.loadSettings()
+	defer a.closePlugins()
+	a.loadPlugins()
 	update.CleanOld()                        // Whether or not this start checks for a new version.
 	go a.checkForUpdate(a.cfg.Updates.Check) // Off the UI goroutine, so it never delays the first frame.
 	a.loadState()
@@ -461,6 +464,10 @@ func (a *app) handleBoundKey(context keymap.Context, it *tabItem, ev *tcell.Even
 		a.do(action)
 		return
 	}
+	if command := a.pluginKey(name); command != "" {
+		a.runPlugin(command)
+		return
+	}
 	if name == "ctrl+k" {
 		a.chord = true
 		a.message = "Ctrl+K: press d, o, comma, period or a"
@@ -569,6 +576,8 @@ func (a *app) run(line string) {
 		a.do("view.search")
 	case "repo":
 		a.repoCommand(fields[1:])
+	case "plugin":
+		a.pluginCommand(fields[1:])
 	case "config":
 		name, content := "config.toml", config.Template
 		if len(fields) > 1 && fields[1] == "keys" {
@@ -579,7 +588,10 @@ func (a *app) run(line string) {
 		}
 		a.openSettings(name, content)
 	default:
-		a.message = "Unknown command: " + fields[0] + ". Try save, term, split, find, definition, rename, format, search, git, push, pull, fetch, repo, config, project, dir, tree, close, update, or q."
+		if a.runPlugin(fields[0]) {
+			return
+		}
+		a.message = "Unknown command: " + fields[0] + ". Try save, term, split, find, definition, rename, format, search, git, push, pull, fetch, repo, config, plugin, project, dir, tree, close, update, or q."
 	}
 }
 

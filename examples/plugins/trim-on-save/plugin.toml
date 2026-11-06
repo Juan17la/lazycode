@@ -1,0 +1,5 @@
+name = "trim-on-save"
+version = "1.0.0"
+api_version = 1
+description = "Trims trailing spaces on save"
+does = "Removes trailing spaces and tabs from every line when a file is saved."

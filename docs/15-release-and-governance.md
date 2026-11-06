@@ -97,11 +97,11 @@ Repository files, created when the code starts: `README.md`, `LICENSE`, `CONTRIB
 
 ## Documentation for users
 
-In [guide](guide/), except the plugin author guide, which waits for plugins (M5):
+In [guide](guide/):
 
 - Install guide
 - Getting started, for developers at any level (Q-01)
 - Coming from VS Code, and coming from Neovim
 - Keymap and configuration reference
-- Plugin author guide ([09](09-language-and-plugin-api.md))
+- [Plugin author guide](guide/plugins.md)
 - Troubleshooting
