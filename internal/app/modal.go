@@ -35,6 +35,7 @@ type modal struct {
 
 type modalRow struct {
 	label    string
+	danger   bool   // Can't be undone, so it's in the error colour.
 	value    string // Right-aligned.
 	header   bool
 	input    *string // A text field.
@@ -42,6 +43,7 @@ type modalRow struct {
 	run      func()          // Enter or a click.
 	change   func(delta int) // Left and Right, and Space.
 	moved    func()          // The row was highlighted.
+	remove   func()          // Delete, or a click on the row's ×.
 }
 
 func (r modalRow) pickable() bool {
@@ -54,7 +56,9 @@ func (m *modal) rows() []modalRow {
 		return rows
 	}
 	needle := strings.ToLower(m.filter)
-	return slices.DeleteFunc(rows, func(r modalRow) bool { return !strings.Contains(strings.ToLower(r.label), needle) })
+	return slices.DeleteFunc(rows, func(r modalRow) bool {
+		return !strings.Contains(strings.ToLower(r.label), needle) && !strings.Contains(strings.ToLower(r.value), needle) // So a key can be looked up.
+	})
 }
 
 // settle puts the selection on a row that can be picked, looking in the direction given.
@@ -135,6 +139,11 @@ func (a *app) handleModalKey(ev *tcell.EventKey) {
 		case row.change != nil:
 			row.change(1)
 		}
+	case tcell.KeyDelete:
+		if row.remove != nil {
+			row.remove()
+			m.settle(m.rows(), 1)
+		}
 	case tcell.KeyBackspace, tcell.KeyBackspace2:
 		switch {
 		case row.input != nil:
@@ -205,22 +214,73 @@ func (a *app) frame(r rect, style tcell.Style) {
 	}
 }
 
-// drawModals draws the top window. The ones under it wait, and clicks can't reach them.
+// modalRule divides a window across its full width, joined to its border.
+func (a *app) modalRule(x0, y, bw int) {
+	a.fillLine(rect{x0, y, bw, 1}, a.th.borderFocus)
+	a.screen.SetContent(x0, y, '├', nil, a.th.borderFocus)
+	a.screen.SetContent(x0+bw-1, y, '┤', nil, a.th.borderFocus)
+}
+
+// gapBefore is the blank rows above row i. A section gets one above its header and stays tight below
+// it. Lines of plain text stay together as a paragraph. gap is what's left between options.
+func gapBefore(rows []modalRow, i, gap int) int {
+	switch {
+	case rows[i].header:
+		return 1
+	case rows[i-1].header, !rows[i].pickable() && !rows[i-1].pickable():
+		return 0
+	}
+	return gap
+}
+
+// rowsHeight is how many screen rows it takes to draw rows from and to, both included.
+func rowsHeight(rows []modalRow, from, to, gap int) int {
+	n := 0
+	for i := from; i <= to && i < len(rows); i++ {
+		n++
+		if i > from {
+			n += gapBefore(rows, i, gap)
+		}
+	}
+	return n
+}
+
+// drawModals draws the top window. The ones under it wait, and clicks can't reach them. The spacing
+// goes first when the window is short: the gaps between options if the list wouldn't fit with them, and
+// the padding and rules on a very small terminal.
 func (a *app) drawModals(w, h int) {
 	m := a.modals[len(a.modals)-1]
 	rows := m.rows()
 	bw := max(1, min(m.width, w-4))
+	roomy := h >= 14
 	extra := 3 // Border and hint.
+	if roomy {
+		extra += 2 // Padding under the title, and the rule over the hint.
+	}
 	if m.filtered {
 		extra++
+		if roomy {
+			extra++ // The rule under the filter.
+		}
 	}
-	bh := max(3, min(len(rows)+extra, h-2))
+	gap := 1
+	if rowsHeight(rows, 0, len(rows)-1, gap) > h-2-extra {
+		gap = 0
+	}
+	bh := max(3, min(max(1, rowsHeight(rows, 0, len(rows)-1, gap))+extra, h-2))
 	x0, y0 := (w-bw)/2, max(0, (h-bh)/2)
 	a.frame(rect{x0, y0, bw, bh}, a.th.borderFocus)
-	a.hits = append(a.hits[:0], hit{area: rect{0, 0, w, h}, click: func(int, int, tcell.ModMask) { a.closeModal(true) }})
+	a.hits = append(a.hits[:0], hit{area: rect{0, 0, w, h}, click: func(int, int, tcell.ModMask) {
+		if m.submit == nil { // A stray click mustn't lose what was typed in a form.
+			a.closeModal(true)
+		}
+	}})
 	box := rect{x0, y0, bw, bh}
 	a.hits = append(a.hits, hit{area: box, click: func(int, int, tcell.ModMask) {}, wheel: func(delta int) {
-		m.top = max(0, min(m.top+delta, len(rows)-1))
+		if len(rows) > 0 {
+			m.sel = max(0, min(m.sel+delta, len(rows)-1))
+			m.settle(rows, delta)
+		}
 	}})
 
 	maxX := x0 + bw - 2
@@ -229,6 +289,9 @@ func (a *app) drawModals(w, h int) {
 	a.hits = append(a.hits, hit{area: rect{x0 + bw - 4, y0, 3, 1}, click: func(int, int, tcell.ModMask) { a.closeModal(true) }})
 
 	y := y0 + 1
+	if roomy {
+		y++
+	}
 	if m.filtered {
 		end := a.put(x0+2, y, maxX, "❯ ", a.th.icon["cyan"])
 		end = a.put(end, y, maxX, m.filter, a.th.primary)
@@ -237,17 +300,36 @@ func (a *app) drawModals(w, h int) {
 		}
 		a.screen.ShowCursor(min(end, maxX), y)
 		y++
+		if roomy {
+			a.modalRule(x0, y, bw)
+			y++
+		}
 	}
-	shown := max(0, y0+bh-1-y-1)
+	bottom := y0 + bh - 2 // The hint's row: the list stops above it.
+	if roomy {
+		bottom--
+		a.modalRule(x0, bottom, bw)
+	}
+	shown := max(0, bottom-y)
 	if m.sel < m.top {
 		m.top = m.sel
-	} else if m.sel >= m.top+shown {
-		m.top = m.sel - shown + 1
+		if m.top > 0 && rows[m.top-1].header { // Scrolling up brings a section's name with its first row.
+			m.top--
+		}
+	}
+	for m.top < m.sel && rowsHeight(rows, m.top, m.sel, gap) > shown {
+		m.top++
 	}
 	if len(rows) == 0 {
 		a.put(x0+2, y, maxX, "No matches", a.th.muted)
 	}
-	for i := m.top; i < len(rows) && i < m.top+shown; i++ {
+	for i := m.top; i < len(rows); i++ {
+		if i > m.top {
+			y += gapBefore(rows, i, gap)
+		}
+		if y >= bottom {
+			break
+		}
 		a.drawModalRow(m, rows[i], i, rect{x0 + 1, y, bw - 2, 1})
 		y++
 	}
@@ -257,8 +339,11 @@ func (a *app) drawModals(w, h int) {
 func (a *app) drawModalRow(m *modal, row modalRow, i int, r rect) {
 	maxX := r.x + r.w - 1
 	y := r.y
-	if row.header {
-		a.put(r.x+1, y, maxX, row.label, a.th.icon["cyan"].Bold(true))
+	if row.header { // A section's name, with a rule running to the far side.
+		end := a.put(r.x+1, y, maxX, row.label, a.th.icon["cyan"].Bold(true))
+		if end+1 < maxX {
+			a.fillLine(rect{end + 1, y, maxX - end - 1, 1}, a.th.muted)
+		}
 		return
 	}
 	selected := i == m.sel
@@ -266,14 +351,17 @@ func (a *app) drawModalRow(m *modal, row modalRow, i int, r rect) {
 	if !row.pickable() {
 		style = a.th.muted
 	}
+	if row.danger {
+		style = a.th.err
+	}
 	if selected {
 		style, valueStyle = a.th.active, a.th.active
 		for x := r.x; x < r.x+r.w; x++ {
 			a.screen.SetContent(x, y, ' ', nil, a.th.active)
 		}
-		a.put(r.x, y, maxX, "❯", a.th.active)
+		a.put(r.x+1, y, maxX, "❯", a.th.active)
 	}
-	x := r.x + 2
+	x := r.x + 3 // Under its section's name.
 	if row.input != nil {
 		x = a.put(x, y, maxX, row.label+" ", a.th.icon["cyan"])
 		boxStyle := a.th.muted
@@ -292,6 +380,10 @@ func (a *app) drawModalRow(m *modal, row modalRow, i int, r rect) {
 			a.screen.ShowCursor(min(end, maxX), y)
 		}
 		return
+	}
+	if row.remove != nil {
+		maxX -= 3
+		a.put(maxX, y, maxX+3, " × ", a.th.err)
 	}
 	x = a.put(x, y, maxX, row.label, style)
 	if len(row.swatches) > 0 {
@@ -318,6 +410,12 @@ func (a *app) drawModalRow(m *modal, row modalRow, i int, r rect) {
 			row.change(1)
 		}
 	}})
+	if row.remove != nil {
+		a.hits = append(a.hits, hit{area: rect{maxX, y, 3, 1}, click: func(int, int, tcell.ModMask) {
+			row.remove()
+			m.settle(m.rows(), 1)
+		}})
+	}
 }
 
 // Settings. The file is what's true: a change is written, then read back through the checks.
@@ -399,7 +497,7 @@ func (a *app) openAppearance() {
 			choose("Icons", "icons", ui.Icons, []string{"basic", "nerd"}),
 			choose("Text style", "text_style", ui.TextStyle, []string{"rich", "plain"}),
 			choose("Sidebar", "sidebar", ui.Sidebar, []string{"left", "right"}),
-			{label: "The font and its size belong to your terminal: zoom it for more text."},
+			{label: "Font and size belong to your terminal: zoom it for more text."},
 			{label: "nerd icons need a Nerd Font: nerdfonts.com"},
 		}
 	}})
@@ -560,45 +658,32 @@ func (a *app) openNewProject() {
 		}
 		dir := a.resolvePath(folder)
 		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-			a.message = filepath.Base(dir) + " isn't a directory."
+			a.message = filepath.Base(dir) + " isn't a folder."
 			return
 		}
 		a.closeModal(false)
 		a.newProjectAt(strings.TrimSpace(name), dir)
 	}
 	a.openModal(&modal{title: "✚ New project", hint: "Enter create   Tab next field   Esc cancel", submit: submit, build: func() []modalRow {
-		rows := []modalRow{
+		return []modalRow{
 			{label: "Name  ", input: &name},
 			{label: "Folder", input: &folder},
-			{label: "Create project", run: submit},
+			{label: "▸ Browse for a folder…", run: func() {
+				a.openFolderBrowser("Folder for the new project", "Use this folder", a.resolvePath(folder), func(path string) { folder = path })
+			}},
+			{label: "✓ Create project", run: submit},
 		}
-		return append(rows, a.folderRows(&folder)...)
 	}})
 }
 
-// openAddDir asks for a folder. :dir add PATH does the same without asking.
+// openAddDir picks a folder to add. :dir add PATH does the same without asking.
 func (a *app) openAddDir() {
-	if a.projects[a.project].Unsaved {
-		a.message = "This folder isn't in a project yet, so make one first."
-		a.openNewProject()
-		return
-	}
-	folder := filepath.Dir(a.dirPath()) + string(filepath.Separator)
-	submit := func() {
-		path := strings.TrimSpace(folder)
-		if path == "" {
-			return
-		}
-		a.closeModal(false)
-		a.addDir(path)
-	}
-	a.openModal(&modal{title: "✚ Add a directory to " + a.projects[a.project].Name, hint: "Enter add   ↓ pick a folder   Esc cancel", submit: submit, build: func() []modalRow {
-		rows := []modalRow{
-			{label: "Folder", input: &folder},
-			{label: "Add this directory", run: submit},
-		}
-		return append(rows, a.folderRows(&folder)...)
-	}})
+	a.openFolderBrowser("Add a folder to "+a.projects[a.project].Name, "Add this folder", a.dirPath(), a.addDir)
+}
+
+// openFolder picks any folder on the device and goes to it.
+func (a *app) openFolder() {
+	a.openFolderBrowser("Open a folder", "Open this folder", a.dirPath(), a.goToFolder)
 }
 
 // treeMenu is what the right button offers in the file tree. New things go in the folder under the
@@ -707,14 +792,20 @@ func (a *app) askDelete(path string, isDir bool) {
 	if isDir {
 		text = "Delete the folder " + filepath.Base(path) + " and everything in it, for good?"
 	}
-	a.ask(text,
-		choice{'d', "Delete", func() {
-			if err := os.RemoveAll(path); err != nil {
-				a.message = "Can't delete: " + err.Error()
-			}
-			a.tree().Refresh()
-		}},
-		choice{'c', "Cancel", func() {}})
+	// Cancel comes first, so that a stray Enter loses nothing.
+	a.openModal(&modal{title: "Delete", hint: "↑↓ move   Enter choose   Esc cancel", build: func() []modalRow {
+		return []modalRow{
+			{label: text},
+			{label: "Cancel", run: func() { a.closeModal(true) }},
+			{label: "Delete", danger: true, run: func() {
+				a.closeModal(false)
+				if err := os.RemoveAll(path); err != nil {
+					a.message = "Can't delete: " + err.Error()
+				}
+				a.tree().Refresh()
+			}},
+		}
+	}})
 }
 
 // openNewFile asks for a name, makes the file, and opens it. Folders on the way are made too.
@@ -756,32 +847,88 @@ func (a *app) resolvePath(path string) string {
 	return path
 }
 
-// maxFolderRows keeps a huge folder's listing from being read and drawn in full.
-const maxFolderRows = 50
-
-// folderRows lists the subfolders of what's typed. Picking one fills it in, so a folder can be found
-// without knowing its path.
-func (a *app) folderRows(folder *string) []modalRow {
-	typed := *folder
-	base := a.resolvePath(typed)
-	prefix := ""
-	if !strings.HasSuffix(typed, string(filepath.Separator)) {
-		if info, err := os.Stat(base); err != nil || !info.IsDir() {
-			base, prefix = filepath.Dir(base), filepath.Base(base)
+// openFolderBrowser walks the disk from start, listing only folders. done gets the folder chosen.
+func (a *app) openFolderBrowser(title, confirm, start string, done func(path string)) {
+	var m *modal
+	var dir string
+	var folders []string
+	showHidden := false
+	load := func(path string) bool {
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			a.message = "Can't open " + filepath.Base(path) + ": " + err.Error()
+			return false
+		}
+		dir, folders = path, nil
+		for _, entry := range entries {
+			isDir := entry.IsDir()
+			if entry.Type()&os.ModeSymlink != 0 {
+				info, err := os.Stat(filepath.Join(path, entry.Name()))
+				isDir = err == nil && info.IsDir()
+			}
+			if isDir {
+				folders = append(folders, entry.Name())
+			}
+		}
+		if m != nil {
+			m.filter, m.sel, m.top = "", 0, 0
+			m.settle(m.rows(), 1)
+		}
+		return true
+	}
+	// The folder to start from may have gone, as a missing project directory does.
+	for path := filepath.Clean(start); !load(path); path = filepath.Dir(path) {
+		if filepath.Dir(path) == path {
+			return
 		}
 	}
-	entries, err := os.ReadDir(base)
-	if err != nil {
-		return nil
-	}
-	rows := []modalRow{{label: "Folders in " + base, header: true}}
-	for _, entry := range entries {
-		name := entry.Name()
-		if !entry.IsDir() || strings.HasPrefix(name, ".") || !strings.HasPrefix(name, prefix) || len(rows) > maxFolderRows {
-			continue
+	a.message = ""
+	up := func() {
+		if parent := filepath.Dir(dir); parent != dir {
+			load(parent)
 		}
-		full := filepath.Join(base, name) + string(filepath.Separator)
-		rows = append(rows, modalRow{label: "▸ " + name, run: func() { *folder = full }})
 	}
-	return rows
+	arrows := func(enter func()) func(int) {
+		return func(delta int) {
+			if delta < 0 {
+				up()
+			} else if enter != nil {
+				enter()
+			}
+		}
+	}
+	typePath := func() {
+		text := dir + string(filepath.Separator)
+		a.openModal(&modal{title: "Go to a folder", hint: "Enter go   Esc back", width: 72, submit: func() {
+			if load(filepath.Clean(a.resolvePath(text))) {
+				a.closeModal(false)
+			}
+		}, build: func() []modalRow { return []modalRow{{label: "Path", input: &text}} }})
+	}
+	m = &modal{title: title, hint: "Enter open   ← up   Type to filter   Esc cancel", filtered: true, width: 72, build: func() []modalRow {
+		var rows []modalRow
+		if m.filter == "" { // Typing is looking for a folder, so the path and actions step aside.
+			chosen := dir
+			toggle := func() { showHidden = !showHidden }
+			rows = append(rows, modalRow{label: dir, header: true}, modalRow{label: "✓ " + confirm, run: func() {
+				a.closeModal(false)
+				done(chosen)
+			}, change: arrows(nil)})
+			if filepath.Dir(dir) != dir {
+				rows = append(rows, modalRow{label: "↑ Parent folder", run: up, change: arrows(up)})
+			}
+			rows = append(rows,
+				modalRow{label: "✎ Type a path…", run: typePath, change: arrows(typePath)},
+				modalRow{label: "◌ Hidden folders", value: map[bool]string{true: "shown", false: "hidden"}[showHidden], run: toggle, change: arrows(toggle)})
+		}
+		for _, name := range folders {
+			if !showHidden && strings.HasPrefix(name, ".") {
+				continue
+			}
+			open := func() { load(filepath.Join(dir, name)) }
+			rows = append(rows, modalRow{label: "▸ " + name, run: open, change: arrows(open)})
+		}
+		return rows
+	}}
+	a.openModal(m)
 }

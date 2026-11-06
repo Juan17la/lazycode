@@ -185,9 +185,12 @@ func (a *app) addTerminalHit(st *dirState, p *pane, it *tabItem, r rect) {
 				a.closeFind()
 				st.focus = p
 				a.focusTab()
-				if !it.term.WantsMouse() {
-					clampX := func(v int) int { return max(r.x, min(v, r.x+r.w-1)) }
-					clampY := func(v int) int { return max(r.y, min(v, r.y+r.h-1)) }
+				clampX := func(v int) int { return max(r.x, min(v, r.x+r.w-1)) }
+				clampY := func(v int) int { return max(r.y, min(v, r.y+r.h-1)) }
+				if it.term.WantsMouse() { // Its own selection needs the whole drag, wherever the mouse goes.
+					a.mouse.dragging = func(x, y int) { it.term.MouseDrag(clampX(x)-r.x, clampY(y)-r.y) }
+					a.mouse.released = func(x, y int) { it.term.Mouse(clampX(x)-r.x, clampY(y)-r.y, false, false, false) }
+				} else {
 					a.termSel = termSelection{it: it, area: r, x0: x, y0: y, x1: x, y1: y}
 					a.mouse.dragging = func(x, y int) { a.termSel.x1, a.termSel.y1 = clampX(x), clampY(y) }
 					a.mouse.released = func(int, int) { a.copyTermSelection() }

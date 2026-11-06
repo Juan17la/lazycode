@@ -97,6 +97,8 @@ type app struct {
 	find       *findBar  // The open find bar.
 	prompts    []*prompt // Questions waiting for an answer. The first one is showing.
 	message    string
+	shownMsg   string
+	messages   []string // What was said, for :messages.
 	upd        updates
 	quit       bool
 	hits       []hit // What the mouse can click, from the last frame.
@@ -210,13 +212,25 @@ func runApp(screen tcell.Screen, projects []project.Project, dir, startup string
 
 	a.syncWatcher()
 	a.draw()
+	drawn := time.Now()
 	var tick <-chan time.Time
 	second := time.NewTicker(time.Second) // Activity, attention and sleeping change with time.
 	defer second.Stop()
 	for !a.quit {
 		select {
 		case ev := <-events:
+			// A click goes by what's on screen, so a frame still waiting has to come first.
+			if _, mouse := ev.(*tcell.EventMouse); mouse && tick != nil {
+				a.draw()
+			}
 			a.handle(ev)
+			// A paste is one key event per character. A key after a pause still draws at once.
+			if _, key := ev.(*tcell.EventKey); key && time.Since(drawn) < frame {
+				if tick == nil {
+					tick = time.After(frame)
+				}
+				continue
+			}
 		case task := <-a.tasks:
 			task()
 		case now := <-second.C:
@@ -239,6 +253,7 @@ func runApp(screen tcell.Screen, projects []project.Project, dir, startup string
 		a.syncHighlight()
 		a.syncServers()
 		a.draw()
+		drawn = time.Now()
 	}
 	return nil
 }
@@ -386,7 +401,9 @@ func (a *app) finishPaste(text string) {
 		a.input.paste(text)
 	case a.review == nil && len(a.prompts) == 0 && a.command == nil && a.switcher == nil && !a.tabFocused && a.focusedView() == viewSearch:
 		a.searchPaste(text)
-	case !a.tabFocused || it == nil || a.command != nil || a.switcher != nil || len(a.prompts) > 0:
+	case a.command != nil || a.switcher != nil || len(a.prompts) > 0:
+	case !a.tabFocused || it == nil:
+		a.message = "Not pasted: click a file or a terminal first."
 	case it.term != nil:
 		it.term.Paste(text)
 	default:
@@ -400,7 +417,7 @@ func (a *app) addPaste(ev *tcell.EventKey) {
 	switch ev.Key() {
 	case tcell.KeyRune:
 		a.paste.WriteString(string(ev.Rune()))
-	case tcell.KeyEnter:
+	case tcell.KeyEnter, tcell.KeyCtrlJ: // A bare line feed arrives as Ctrl+J.
 		a.paste.WriteByte('\r')
 	case tcell.KeyTab:
 		a.paste.WriteByte('\t')
@@ -456,6 +473,11 @@ func (a *app) handleKey(ev *tcell.EventKey) {
 		a.tabFocused = false
 	}
 	if a.tabFocused && it.term != nil {
+		// Alt+ only, because the shell needs Ctrl+W for itself.
+		if name := keymap.Name(ev); strings.HasPrefix(name, "alt+") && a.keys.Lookup(keymap.Global, name) == "tab.close" {
+			a.closeTab()
+			return
+		}
 		it.term.Key(ev)
 		return
 	}
@@ -621,6 +643,8 @@ func (a *app) run(line string) {
 		a.openOnboarding()
 	case "wrap":
 		a.toggleWrap()
+	case "messages":
+		a.openMessages()
 	case "menu":
 		a.openMenuBar(0)
 	case "new":
@@ -701,12 +725,21 @@ func (a *app) openProjectSwitcher() {
 	for _, p := range a.projects {
 		s.labels = append(s.labels, fmt.Sprintf("%s  (%d)", p.Name, len(p.Dirs)))
 	}
-	s.pick = func(i int) { a.project = i; a.afterSwitch() }
+	s.labels = append(s.labels, "✚ New project…")
+	s.sel = a.project
+	s.pick = func(i int) {
+		if i == len(a.projects) {
+			a.openNewProject()
+			return
+		}
+		a.project = i
+		a.afterSwitch()
+	}
 	a.switcher = s
 }
 
 func (a *app) openDirSwitcher() {
-	s := &switcher{title: "Switch directory"}
+	s := &switcher{title: "Switch folder"}
 	dirs := a.projects[a.project].Dirs
 	for _, d := range dirs {
 		label := filepath.Base(d)
@@ -715,7 +748,16 @@ func (a *app) openDirSwitcher() {
 		}
 		s.labels = append(s.labels, label)
 	}
-	s.pick = func(i int) { a.dirOf[a.project] = i; a.afterSwitch() }
+	s.labels = append(s.labels, "▸ Open another folder…")
+	s.sel = a.dirOf[a.project]
+	s.pick = func(i int) {
+		if i == len(dirs) {
+			a.openFolder()
+			return
+		}
+		a.dirOf[a.project] = i
+		a.afterSwitch()
+	}
 	a.switcher = s
 }
 

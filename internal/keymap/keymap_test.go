@@ -103,8 +103,8 @@ func TestChordsMirrorAltKeys(t *testing.T) {
 	if got := m.LookupChord(Editor, "o"); got != "select.all_occurrences" {
 		t.Errorf("o is the macOS Ctrl+F2 (Q-80): %q", got)
 	}
-	if got := m.LookupChord(Editor, "q"); got != "" {
-		t.Errorf("q: %q", got)
+	if got := m.LookupChord(Editor, "y"); got != "" {
+		t.Errorf("y: %q", got)
 	}
 }
 

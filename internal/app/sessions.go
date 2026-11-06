@@ -220,7 +220,7 @@ func (a *app) launch(e *sessionEntry, h session.Harness, resume bool) bool {
 		return false
 	}
 	if _, err := os.Stat(e.Dir); err != nil {
-		a.message = e.Name + "'s directory is missing: " + e.Dir // Q-66: the entry stays.
+		a.message = e.Name + "'s folder is missing: " + e.Dir // Q-66: the entry stays.
 		return false
 	}
 	it, err := a.openTerminal(e.Dir, h.Args(e.ID, resume))

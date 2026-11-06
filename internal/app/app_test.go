@@ -1158,11 +1158,11 @@ func TestMouseInASwitcher(t *testing.T) {
 	})
 	u.wait("p › one")
 	u.post(tcell.NewEventKey(tcell.KeyRune, 'd', tcell.ModAlt))
-	u.wait("Switch directory")
+	u.wait("Switch folder")
 	u.click(0, 0) // Outside cancels.
-	u.waitGone("Switch directory")
+	u.waitGone("Switch folder")
 	u.post(tcell.NewEventKey(tcell.KeyRune, 'd', tcell.ModAlt))
-	u.wait("Switch directory")
+	u.wait("Switch folder")
 	for y, line := range strings.Split(u.text(), "\n") {
 		if strings.Contains(line, "  two") {
 			u.click(len([]rune(line[:strings.Index(line, "two")])), y)

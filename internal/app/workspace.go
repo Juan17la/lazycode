@@ -71,6 +71,8 @@ func (a *app) dirCommand(args []string) {
 	switch {
 	case len(args) == 0:
 		a.openDirSwitcher()
+	case args[0] == "open" && len(args) == 1:
+		a.openFolder()
 	case args[0] == "add" && len(args) == 1:
 		a.openAddDir()
 	case args[0] == "add":
@@ -78,7 +80,7 @@ func (a *app) dirCommand(args []string) {
 	case args[0] == "remove" && len(args) == 1:
 		a.removeDir(a.projects[a.project].Name, a.dirPath())
 	default:
-		a.message = "Try :dir, :dir add PATH, or :dir remove."
+		a.message = "Try :dir, :dir open, :dir add PATH, or :dir remove."
 	}
 }
 
@@ -234,7 +236,7 @@ func (a *app) newProjectAt(name, dir string) {
 		return append(all, project.Project{Name: name, Dirs: []string{dir}}), ""
 	}) {
 		a.goTo(name, dir)
-		a.message = "Created project " + name + ". :dir add PATH adds another directory."
+		a.message = "Created project " + name + ". :dir add PATH adds another folder."
 	}
 }
 
@@ -242,16 +244,21 @@ func (a *app) newProjectAt(name, dir string) {
 // and can be in other projects too (Q-66). A relative path starts from the current directory.
 func (a *app) addDir(path string) {
 	current := a.projects[a.project]
-	if current.Unsaved {
-		a.message = "This folder isn't in a project yet. :project new NAME makes one."
-		return
-	}
 	path = project.Expand(path)
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(a.dirPath(), path)
 	}
 	if info, err := os.Stat(path); err != nil || !info.IsDir() {
-		a.message = filepath.Base(path) + " isn't a directory." // Short, so that it fits the line.
+		a.message = filepath.Base(path) + " isn't a folder." // Short, so that it fits the line.
+		return
+	}
+	if current.Unsaved {
+		// ponytail: kept for this run only, and reloading projects.toml forgets all but the active one.
+		// :project new makes it last.
+		if !slices.Contains(current.Dirs, path) {
+			a.projects[a.project].Dirs = append(a.projects[a.project].Dirs, path)
+		}
+		a.goTo(current.Name, path)
 		return
 	}
 	if a.editProjects(func(all []project.Project) ([]project.Project, string) {
@@ -267,6 +274,22 @@ func (a *app) addDir(path string) {
 		a.goTo(current.Name, path)
 		a.message = "Added " + filepath.Base(path) + " to " + current.Name + "."
 	}
+}
+
+// goToFolder goes to a folder wherever it's listed, starting with this project, and otherwise adds it
+// to this project.
+func (a *app) goToFolder(path string) {
+	if slices.Contains(a.projects[a.project].Dirs, path) {
+		a.goTo(a.projects[a.project].Name, path)
+		return
+	}
+	for _, p := range a.projects {
+		if slices.Contains(p.Dirs, path) {
+			a.goTo(p.Name, path)
+			return
+		}
+	}
+	a.addDir(path)
 }
 
 // removeDir takes a directory out of a project, which never touches the folder. Open tabs
@@ -291,7 +314,7 @@ func (a *app) removeDir(name, dir string) {
 			return nil, filepath.Base(dir) + " isn't in " + name + "."
 		}
 		if len(all[i].Dirs) == 1 {
-			return nil, filepath.Base(dir) + " is the only directory in " + name + ", so it stays."
+			return nil, filepath.Base(dir) + " is the only folder in " + name + ", so it stays."
 		}
 		all[i].Dirs = slices.DeleteFunc(all[i].Dirs, func(d string) bool { return d == dir })
 		if wasCurrent { // Move away first, or setProjects would follow it out of the project.

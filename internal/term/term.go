@@ -412,6 +412,14 @@ func (t *Tab) Mouse(x, y int, wheelUp, wheelDown, pressed bool) {
 	}
 }
 
+// MouseDrag tells a command that asked for the mouse that the left button moved while held.
+func (t *Tab) MouseDrag(x, y int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	defer survive()
+	t.emu.SendMouse(vt.MouseMotion{X: x, Y: y, Button: vt.MouseLeft})
+}
+
 // scroll moves the view. A full-screen program's alternate screen has nothing to scroll to.
 func (t *Tab) scroll(lines int) {
 	if t.emu.IsAltScreen() {

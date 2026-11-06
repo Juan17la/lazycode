@@ -3,6 +3,7 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -134,13 +135,64 @@ func TestNewProjectAndAddDirectoryForms(t *testing.T) {
 	u.wait("Created project demo")
 
 	u.post(tcell.NewEventKey(tcell.KeyRune, 'F', tcell.ModAlt))
-	u.wait("Add a directory")
+	u.wait("Add a folder")
+	u.clickOn("Type a path")
+	u.wait("Go to a folder")
 	for range 200 {
 		u.key(tcell.KeyBackspace2)
 	}
 	u.press(other)
 	u.key(tcell.KeyEnter)
+	u.wait("Add this folder")
+	u.key(tcell.KeyEnter)
 	u.wait("Added " + filepath.Base(other))
+}
+
+func TestOpenAnyFolderFromOutsideAProject(t *testing.T) {
+	first := start(t, nil)
+	for _, name := range []string{"sub/inner", "sub/.secret"} {
+		if err := os.MkdirAll(filepath.Join(first.dir, name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first.quitNow()
+	u := launchWith(t, first.dir, nil)
+	u.wait("Current folder")
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'd', tcell.ModAlt))
+	u.wait("Open another folder")
+	u.clickOn("Open another folder")
+	u.wait("Open this folder")
+	u.press("sub")
+	u.wait("▸ sub")
+	u.key(tcell.KeyEnter) // Enter goes in, and lands on the row that chooses it.
+	u.wait("▸ inner")
+	if strings.Contains(u.text(), ".secret") {
+		t.Fatal("hidden folders should stay out of the list until asked for")
+	}
+	u.clickOn("Hidden folders")
+	u.wait(".secret")
+	u.key(tcell.KeyLeft) // Up, and back in again.
+	u.waitGone(".secret")
+	u.press("sub")
+	u.key(tcell.KeyEnter)
+	u.wait("▸ inner")
+	u.key(tcell.KeyEnter)
+	u.waitGone("Open this folder")
+	u.wait("› sub")
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'd', tcell.ModAlt))
+	u.wait(filepath.Base(u.dir)) // The folder it started in is still on the list.
+	u.wait("Open another folder")
+	u.key(tcell.KeyEsc)
+}
+
+func TestTopBarNamesOpenTheSwitchers(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "one\n"})
+	u.wait("a.txt")
+	x, y := u.find(" › ")
+	u.click(x-1, y) // The last letter of the project's name.
+	u.wait("New project")
+	u.clickOn("New project")
+	u.wait("Browse for a folder")
 }
 
 func TestSettingsAreSavedFromTheirMenus(t *testing.T) {
@@ -186,11 +238,11 @@ func TestShortcutsMenuChangesAKey(t *testing.T) {
 	u.wait("a.txt")
 	u.key(tcell.KeyF1)
 	u.wait("Shortcuts")
-	u.press("Explorer")
+	u.press("Files")
 	u.key(tcell.KeyEnter)
 	u.wait("Press the new key")
 	u.alt('j')
-	u.wait("Explorer is now Alt+J")
+	u.wait("Files is now Alt+J")
 	if _, err := os.Stat(settingsFile(t, "keys.toml")); err != nil {
 		t.Error(err)
 	}
@@ -263,7 +315,7 @@ func TestTreeMenuRenamesAndDeletes(t *testing.T) {
 	mx, my = u.find("Delete")
 	u.click(mx, my)
 	u.wait("for good?")
-	u.press("c") // Cancel keeps it.
+	u.key(tcell.KeyEnter) // Cancel comes first, so a stray Enter keeps it.
 	u.waitGone("for good?")
 	if _, err := os.Stat(filepath.Join(u.dir, "a.txtx")); err != nil {
 		t.Error(err)
@@ -272,7 +324,9 @@ func TestTreeMenuRenamesAndDeletes(t *testing.T) {
 	u.release(x, y)
 	mx, my = u.find("Delete")
 	u.click(mx, my)
-	u.press("d")
+	u.wait("for good?")
+	u.key(tcell.KeyDown)
+	u.key(tcell.KeyEnter)
 	u.waitGone("a.txtx")
 	if _, err := os.Stat(filepath.Join(u.dir, "a.txtx")); err == nil {
 		t.Error("still there")
@@ -327,4 +381,87 @@ func TestGoToLineAndAbout(t *testing.T) {
 	mx, my = u.find("About LazyCode")
 	u.click(mx, my)
 	u.wait("Version")
+}
+
+func TestHubsOpenFromTheBar(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "one\n"})
+	u.wait("a.txt")
+	for name, inside := range map[string]string{"Proj": "New Project", "Dirs": "Add Folder", "Term": "Running here", "Help": "Good to know"} {
+		x, y := u.find(name)
+		u.click(x, y)
+		u.wait(inside)
+		u.key(tcell.KeyEsc)
+		u.waitGone(inside)
+	}
+}
+
+func TestArrowsPassOverHubs(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "one\n"})
+	u.wait("a.txt")
+	x, y := u.find("File")
+	u.click(x, y)
+	u.wait("Save All")
+	u.key(tcell.KeyRight)
+	u.wait("Undo") // Edit, past Project and Directories.
+}
+
+func TestAltQClosesATerminalFromInside(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "one\n"})
+	u.wait("a.txt")
+	u.run("term")
+	u.wait("❯+")
+	u.alt('q')
+	u.waitGone("❯+")
+}
+
+func TestTerminalHubClosesARow(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "one\n"})
+	u.wait("a.txt")
+	u.run("term")
+	u.wait("❯+")
+	u.key(tcell.KeyCtrlBackslash)
+	x, y := u.find("Term")
+	u.click(x, y)
+	u.wait("Running here")
+	x, y = u.find("terminal × ")
+	u.click(x+len("terminal "), y)
+	u.wait("Nothing yet")
+	u.key(tcell.KeyEsc)
+	u.waitGone("❯+")
+}
+
+func TestToolThatWantsTheMouseGetsTheDrag(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script")
+	}
+	script := "#!/bin/sh\nprintf '\\033[?1002h\\033[?1006hready\\n'\nstty -icanon -echo\ncat -v\n"
+	u := start(t, map[string]string{"a.txt": "one\n", "tool.sh": script})
+	u.wait("a.txt")
+	if err := os.Chmod(filepath.Join(u.dir, "tool.sh"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	u.run("term " + filepath.Join(u.dir, "tool.sh"))
+	x, y := u.find("ready")
+	u.drag(x, y, x+3, y)
+	u.wait("[<32;") // Button 0 plus the motion flag.
+}
+
+func TestHintsAreDroppedWhole(t *testing.T) {
+	if got := fitHints("a one   b two   c three", 14); got != "a one   b two" {
+		t.Errorf("got %q", got)
+	}
+	if got := fitHints("a one", 2); got != "" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestAFormSurvivesAStrayClick(t *testing.T) {
+	u := launch(t, t.TempDir())
+	u.run("project new")
+	u.wait("New project")
+	u.click(0, 12)
+	time.Sleep(50 * time.Millisecond)
+	u.wait("New project")
+	u.key(tcell.KeyEsc)
+	u.waitGone("New project")
 }

@@ -34,7 +34,7 @@ var palettes = map[string]palette{
 // theme holds the styles in use. They keep the default background: paintBackground fills it in
 // by region, so that no drawing code has to know which region it's in.
 type theme struct {
-	bg, panel, bar         tcell.Color
+	bg, panel, bar, focus  tcell.Color // focus is behind whichever area has the keys.
 	fg                     tcell.Color
 	primary, accent, muted tcell.Style
 	active                 tcell.Style // Whatever has focus, and selections.
@@ -75,7 +75,7 @@ func themeWith(name string, custom map[string]string) theme {
 	plain := tcell.StyleDefault
 	fg := func(key string) tcell.Style { return plain.Foreground(c(key)) }
 	th := theme{
-		bg: c("bg"), panel: c("panel"), bar: c("bar"), fg: c("fg"),
+		bg: c("bg"), panel: c("panel"), bar: c("bar"), fg: c("fg"), focus: blend(c("bg"), c("accent"), 12),
 		primary:      plain,
 		accent:       fg("accent").Bold(true),
 		muted:        fg("muted"),
@@ -143,6 +143,7 @@ func (a *app) paintBackground(st *dirState, w, h int) {
 	}
 	first, second, _ := a.regions()
 	panes := a.shownPanes(st)
+	focus := a.focusedArea(st)
 	for y := range h {
 		for x := 0; x < w; x++ {
 			text, style, width := a.screen.Get(x, y)
@@ -160,6 +161,9 @@ func (a *app) paintBackground(st *dirState, w, h int) {
 							region = a.th.panel
 						}
 					}
+				}
+				if focus.contains(x, y) {
+					region = a.th.focus
 				}
 				for _, o := range a.floating {
 					if o.contains(x, y) {
@@ -182,6 +186,14 @@ func (a *app) paintBackground(st *dirState, w, h int) {
 			}
 		}
 	}
+}
+
+// blend mixes percent of over into base.
+func blend(base, over tcell.Color, percent int32) tcell.Color {
+	r1, g1, b1 := base.RGB()
+	r2, g2, b2 := over.RGB()
+	mix := func(a, b int32) int32 { return a + (b-a)*percent/100 }
+	return tcell.NewRGBColor(mix(r1, r2), mix(g1, g2), mix(b1, b2))
 }
 
 func bgOf(s tcell.Style) tcell.Color {

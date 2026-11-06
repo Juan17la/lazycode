@@ -15,6 +15,13 @@ The first release, v0.1.0, will contain:
 - Word wrap (Alt+Z or `:wrap`), and `ui.text_style`.
 - A right-click menu in the file tree: new file, new folder, rename and delete.
 - Dragged sizes are remembered after quitting, and tabs can be dragged between splits.
+- A folder browser (File > Open Folder or `:dir open`) that reaches any folder on the device. The project and directory switchers offer new projects and other folders, and open from the names in the top bar.
+- Project, Directories, Terminal and Help in the menu bar open windows that list what's there, with × to remove a directory or close a terminal or AI session.
+- Clearer layout: the area with focus gets a tinted background and a solid title bar, code and dock areas show their name, panels have a rule under the title and an inset, and windows have padding, section rules and gaps between options when they fit.
+- Big pastes are quick and keep their line breaks. A paste with nowhere to go says so.
+- Easier to start with: one word for each thing (Files, Folder), hints that fit where you are and are never cut off, a clearer empty screen, `:messages` for what the status line said, shortcuts you can look up by key, forms a stray click can't close, and a real dialog before deleting.
+- Alt+Q closes a tab, even from inside a terminal. The status line of a terminal has Close and Leave buttons.
+- Tools that ask for the mouse now get the whole drag, so they can select text themselves.
 - More colour throughout: coloured borders that show focus, a colour per view, and a status line with a mode label.
 
 ### Changed

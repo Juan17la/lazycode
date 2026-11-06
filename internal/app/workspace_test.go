@@ -208,14 +208,22 @@ func TestProjectCommandsSaveToTheFile(t *testing.T) {
 	// Started in a folder in no project.
 	v := launchWith(t, u.dir, nil)
 	v.wait("Current folder")
-	v.run("dir add ../other")
-	v.wait(":project new NAME")
+	v.run("dir add ../other") // Kept for this run, and not written anywhere.
+	v.wait("› other")
+	if got := loadedProjects(t); len(got) != 0 {
+		t.Fatalf("file holds %+v", got)
+	}
+	v.run("dir")
+	v.wait("Switch folder")
+	v.key(tcell.KeyUp)
+	v.key(tcell.KeyEnter)
+	v.wait("› " + filepath.Base(u.dir))
 	v.run("project new My Site")
 	v.wait("My Site ›")
 	v.run("project new My Site")
 	v.wait("already a project")
 	v.run("dir add ../nowhere")
-	v.wait("isn't a directory")
+	v.wait("isn't a folder")
 	v.run("dir add ../other")
 	v.wait("› other")
 	v.wait("o.txt")
@@ -229,7 +237,7 @@ func TestProjectCommandsSaveToTheFile(t *testing.T) {
 	v.wait("› work")
 	v.wait("The folder is untouched")
 	v.run("dir remove")
-	v.wait("only directory")
+	v.wait("only folder")
 	if _, err := os.Stat(other); err != nil {
 		t.Errorf("the folder was touched: %v", err)
 	}
@@ -306,7 +314,7 @@ func TestEditingProjectsFileAppliesOnSave(t *testing.T) {
 	u.wait(" projects.toml* ")
 	u.key(tcell.KeyCtrlBackslash)
 	u.run("dir")
-	u.wait("Switch directory")
+	u.wait("Switch folder")
 	u.wait("other")
 }
 
@@ -335,7 +343,7 @@ func TestMissingDirectoryIsMarkedAndTheUserDecides(t *testing.T) {
 	pick()
 	v.key(tcell.KeyEsc)
 	v.waitGone("gone is missing")
-	v.wait("Can't read this directory")
+	v.wait("Can't read this folder")
 	if got := loadedProjects(t); len(got[0].Dirs) != 3 {
 		t.Fatalf("file holds %+v", got)
 	}
@@ -359,7 +367,7 @@ func TestCombinedTreeOpensAFileInItsOwnDirectory(t *testing.T) {
 	u.quitNow()
 	v := launchWith(t, u.dir, all)
 	v.run("tree")
-	v.wait("Files, all directories")
+	v.wait("Files, all folders")
 	v.wait("there.txt")
 	v.wait("here.txt")
 	// work, here.txt, other, there.txt.
@@ -375,12 +383,12 @@ func TestCombinedTreeOpensAFileInItsOwnDirectory(t *testing.T) {
 
 	// The tab belongs to the other directory, so it isn't here. The view choice is remembered.
 	w := launchWith(t, u.dir, all)
-	w.wait("Files, all directories")
+	w.wait("Files, all folders")
 	if text := w.text(); strings.Contains(text, " there.txt  ") && strings.Contains(strings.SplitN(text, "\n", 3)[1], "there.txt") {
 		t.Errorf("another directory's tab is showing:\n%s", text)
 	}
 	w.run("tree")
-	w.waitGone("all directories")
+	w.waitGone("all folders")
 	w.waitGone("there.txt")
 }
 

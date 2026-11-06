@@ -4,7 +4,7 @@ Everything here comes from what's built. If you find a mismatch, it's a bug in t
 
 The keys come in families, so that most can be guessed: **Alt+letter** shows something, **Alt+Shift+letter** makes something, **Ctrl+letter** acts on this file, and **F-keys** ask the language server.
 
-**On macOS, every Alt shortcut is Ctrl+K, then the key.** Alt+D is Ctrl+K, then D. Ctrl+F2 (all occurrences) is Ctrl+K, then O. An Alt+Shift shortcut is Ctrl+K, then the capital. Inside a terminal tab every key goes to the program there, except Ctrl+\\.
+**On macOS, every Alt shortcut is Ctrl+K, then the key.** Alt+D is Ctrl+K, then D. Ctrl+F2 (all occurrences) is Ctrl+K, then O. An Alt+Shift shortcut is Ctrl+K, then the capital. Inside a terminal tab every key goes to the program there, except Ctrl+\\ and Alt+Q, which closes the tab.
 
 ## Keys everywhere
 
@@ -77,7 +77,7 @@ Other views: in AI sessions, Enter resumes, N starts, R renames. In Git, S stage
 | `:quit`, `:q` | Quit, stopping every tab's command, asking about unsaved files |
 | `:close` | Close the tab |
 | `:project`, `:project new NAME`, `:project close` | Switch, make, or close a project |
-| `:dir`, `:dir add PATH`, `:dir remove` | Switch, add to the project, or remove from it |
+| `:dir`, `:dir open`, `:dir add PATH`, `:dir remove` | Switch, browse to any folder, add to the project, or remove from it |
 | `:term`, `:term COMMAND` | Open a shell, or run a command, in a new tab |
 | `:session`, `:session hidden` | Start an AI session or shell, or bring back a hidden one |
 | `:play`, `:p`, `:play COMMAND` | Run the project. With a command, set and remember it |

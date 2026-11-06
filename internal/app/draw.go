@@ -34,6 +34,12 @@ func (a *app) put(x, y, maxX int, text string, style tcell.Style) int {
 
 func (a *app) draw() {
 	s := a.screen
+	if a.message != a.shownMsg {
+		a.shownMsg = a.message
+		if a.message != "" {
+			a.messages = append(a.messages, a.message)
+		}
+	}
 	s.Clear()
 	s.HideCursor()
 	clear(a.hits) // Their closures hold closed tabs, whose screens are the biggest thing in memory.
@@ -115,7 +121,7 @@ func (a *app) drawPanel(st *dirState, index int, r rect) {
 	}
 	w, _ := a.screen.Size()
 	style := a.th.border
-	if !a.tabFocused && a.focusPanel == index {
+	if a.panelFocused(index) {
 		style = a.th.borderFocus
 	}
 	line := rect{r.x - 1, r.y, 1, r.h}
@@ -132,18 +138,24 @@ func (a *app) drawPanel(st *dirState, index int, r rect) {
 			}
 		}})
 	}
+	// Views keep their first row for the title. Below it goes a rule, then the view, inset from the edges.
+	body := r
+	if r.h >= 6 && r.w >= 20 {
+		body = rect{r.x + 1, r.y + 1, r.w - 2, r.h - 1}
+		a.fillLine(rect{r.x, r.y + 1, r.w, 1}, a.th.muted)
+	}
 	switch a.viewIn(index) {
 	case viewFiles:
-		a.drawTree(st, r)
+		a.drawTree(st, body)
 	case viewAI:
-		a.drawSessions(r)
+		a.drawSessions(body)
 	case viewGit:
-		a.drawGit(r)
+		a.drawGit(body)
 	case viewSearch:
-		a.drawSearch(r)
+		a.drawSearch(body)
 	default:
-		a.put(r.x+1, r.y, r.x+r.w, "No views here", a.th.muted)
-		a.put(r.x+1, r.y+1, r.x+r.w, ":view moves one", a.th.muted)
+		a.put(body.x+1, body.y+1, body.x+body.w, "No views here", a.th.muted)
+		a.put(body.x+1, body.y+2, body.x+body.w, ":view moves one", a.th.muted)
 	}
 	a.drawViewTitles(index, r)
 }
@@ -170,11 +182,11 @@ func (a *app) drawTree(st *dirState, r rect) {
 	t := a.tree()
 	y0, rows := r.y+1, r.h-1
 	if t.Err != nil {
-		a.put(r.x+1, y0, maxX, "Can't read this directory", a.th.primary)
+		a.put(r.x+1, y0, maxX, "Can't read this folder", a.th.primary)
 		return
 	}
 	if len(t.Rows) == 0 {
-		a.put(r.x+1, y0, maxX, "Empty directory", a.th.muted)
+		a.put(r.x+1, y0, maxX, "Empty folder", a.th.muted)
 		return
 	}
 	// Keep the selection on screen.
@@ -272,7 +284,9 @@ func (a *app) drawPane(st *dirState, p *pane) {
 	switch {
 	case it == nil:
 		a.put(content.x+1, content.y+1, content.x+content.w, "No tabs here.", a.th.primary)
-		a.put(content.x+1, content.y+2, content.x+content.w, "Enter opens a file. "+a.keyFor("view.terminal")+": terminal. "+a.keyFor("session.new")+": AI.", a.th.muted)
+		for i, line := range []string{"Enter  open the selected file", a.keyFor("view.terminal") + "  terminal", a.keyFor("session.new") + "  AI session", a.keyFor("app.menu") + "  menus"} {
+			a.put(content.x+1, content.y+3+i, content.x+content.w, line, a.th.muted)
+		}
 		a.hits = append(a.hits, hit{area: content, click: func(int, int, tcell.ModMask) { st.focus = p }})
 	case it.ed != nil:
 		a.drawEditor(st, p, it, content, focused)
@@ -358,6 +372,20 @@ func (a *app) drawTabBar(st *dirState, p *pane, focused bool) {
 	}
 	maxX := right
 	x := p.area.x + 1
+	if p.area.w >= 40 { // The name of the area, filled in when it has the keys.
+		name, colour := "Editor", "blue"
+		if isDock {
+			name, colour = "Terminal", "cyan"
+			if it := p.current(); it != nil && it.sess != nil && !it.sess.isShell {
+				name, colour = "AI", "purple"
+			}
+		}
+		style := a.th.icon[colour].Bold(true)
+		if focused && a.tabFocused {
+			style = a.pill(colour)
+		}
+		x = a.put(x, y, maxX, " "+name+" ", style) + 1
+	}
 	first := a.firstShownTab(p, maxX-x-2)
 	if first > 0 {
 		x = a.put(x, y, maxX, "‹", a.th.muted)
@@ -389,7 +417,7 @@ func (a *app) drawTabBar(st *dirState, p *pane, focused bool) {
 		x = a.put(x, y, maxX, icon+" ", iconStyle.Background(bg))
 		x = a.put(x, y, maxX, label+" ", style)
 		closeAt := x
-		closeStyle := a.th.muted.Background(bg)
+		closeStyle := a.th.err.Background(bg)
 		x = a.put(x, y, maxX, "× ", closeStyle)
 		p.spans = append(p.spans, tabSpan{it, start, x - start})
 		index := i
@@ -418,7 +446,7 @@ func (a *app) drawTabBar(st *dirState, p *pane, focused bool) {
 				a.menu = &openMenu{group: -1, x: mouseX, y: mouseY + 1, items: a.tabMenu(st, p, it)}
 			},
 		})
-		a.hits = append(a.hits, hit{area: rect{closeAt, y, 1, 1}, click: func(int, int, tcell.ModMask) { closeIt() }})
+		a.hits = append(a.hits, hit{area: rect{closeAt, y, 2, 1}, click: func(int, int, tcell.ModMask) { closeIt() }})
 		x++
 	}
 }
@@ -680,7 +708,7 @@ func (a *app) drawStatusBar(it *tabItem, w, y int) {
 	label, colour := a.mode()
 	x := a.put(0, y, w, " "+label+" ", a.pill(colour)) + 1
 	segments := []statusSegment{}
-	hints := a.hints("file.save", "save", "find.open", "find", "app.menu", "menu", "app.shortcuts", "keys")
+	hints := a.hints("file.save", "save", "find.open", "find", "command.open", "commands", "app.menu", "menu", "app.shortcuts", "keys")
 	switch {
 	case a.tabFocused && it != nil && it.ed != nil:
 		line, col := it.ed.Position()
@@ -697,13 +725,31 @@ func (a *app) drawStatusBar(it *tabItem, w, y int) {
 		wrap := either(a.cfg.Editor.WordWrap, " ↵ Wrap ", " → NoWrap ")
 		segments = append(segments, statusSegment{wrap, a.th.icon["green"], a.toggleWrap})
 	case a.tabFocused:
-		hints = `Ctrl+\ leaves the terminal`
+		hints = a.hints("tab.close", "close") + `   Ctrl+\ leaves`
+		segments = append(segments,
+			statusSegment{" ‹ Leave ", a.th.icon["green"], func() { a.tabFocused = false }},
+			statusSegment{" × Close ", a.th.icon["red"], a.closeTab})
+	case a.focusedView() == viewGit:
+		hints = "c commit   s stage   u unstage   p push   l pull   Enter diff"
+	case a.focusedView() == viewSearch:
+		hints = "Enter open   Tab next field   Esc back"
+	case a.focusedView() == viewAI:
+		hints = "Enter open   n new   Del hide"
 	default:
-		hints = "Enter open   Tab enter tab   " + a.hints("project.switch", "projects", "directory.switch", "dirs", "view.terminal", "terminal", "app.menu", "menu", "app.shortcuts", "keys") + "   : commands"
+		hints = "Enter open   Tab go to editor   : commands   " + a.hints("app.menu", "menu", "project.switch", "projects", "directory.switch", "folders", "view.terminal", "terminal", "app.shortcuts", "keys")
 	}
 	segments = append(segments, a.dockSegment())
 	free := a.drawSegments(segments, y, w)
-	a.put(x, y, max(x, free-1), hints, a.th.muted)
+	a.put(x, y, max(x, free-1), fitHints(hints, free-1-x), a.th.muted)
+}
+
+// fitHints drops whole hints from the end, so that none is ever cut in the middle of a word.
+func fitHints(hints string, room int) string {
+	parts := strings.Split(hints, "   ")
+	for len(parts) > 0 && runewidth.StringWidth(strings.Join(parts, "   ")) > room {
+		parts = parts[:len(parts)-1]
+	}
+	return strings.Join(parts, "   ")
 }
 
 // hints writes action and word pairs as "Key word", using whatever the keys are now.
@@ -778,38 +824,38 @@ func wrapText(text string, width int) []string {
 func (a *app) drawSwitcher(w, h int) {
 	s := a.switcher
 	matches := s.matches()
-	bw := max(1, min(50, w-4))
+	bw := max(1, min(56, w-4))
 	bh := max(1, min(len(matches), h-6))
 	x0, y0 := (w-bw)/2, max(0, (h-bh)/2-2)
-	a.floating = append(a.floating, rect{x0, y0, bw, bh + 3})
-
-	for y := y0; y < y0+bh+3; y++ {
-		for x := x0; x < x0+bw; x++ {
-			a.screen.SetContent(x, y, ' ', nil, a.th.primary)
-		}
-	}
-	maxX := x0 + bw
-	a.put(x0+1, y0, maxX, s.title, a.th.accent)
-	end := a.put(x0+1, y0+1, maxX, "> "+s.filter, a.th.primary)
-	a.screen.ShowCursor(min(end, maxX-1), y0+1)
+	a.frame(rect{x0, y0, bw, bh + 4}, a.th.borderFocus)
+	maxX := x0 + bw - 2
+	a.put(x0+2, y0, maxX, " "+s.title+" ", a.th.accent)
+	end := a.put(x0+2, y0+1, maxX, "❯ ", a.th.icon["cyan"])
+	end = a.put(end, y0+1, maxX, s.filter, a.th.primary)
+	a.screen.ShowCursor(min(end, maxX), y0+1)
+	a.modalRule(x0, y0+2, bw)
 	if len(matches) == 0 {
-		a.put(x0+1, y0+2, maxX, "No matches", a.th.muted)
+		a.put(x0+2, y0+3, maxX, "No matches", a.th.muted)
 	}
 	// The switcher takes the mouse too: a row picks, and elsewhere cancels.
 	a.hits = append(a.hits[:0], hit{
 		area:  rect{0, 0, w, h},
 		click: func(int, int, tcell.ModMask) { a.cancelSwitcher() },
 	})
-	for i := 0; i < bh && i < len(matches); i++ {
+	top := max(0, s.sel-bh+1)
+	for i := 0; i < bh && top+i < len(matches); i++ {
 		style := a.th.primary
 		prefix := "  "
-		if i == s.sel {
-			style, prefix = a.th.active, "› "
+		if top+i == s.sel {
+			style, prefix = a.th.active, "❯ "
+			for x := x0 + 1; x < x0+bw-1; x++ {
+				a.screen.SetContent(x, y0+3+i, ' ', nil, a.th.active)
+			}
 		}
-		a.put(x0+1, y0+2+i, maxX, prefix+s.labels[matches[i]], style)
-		picked := matches[i]
+		a.put(x0+2, y0+3+i, maxX, prefix+s.labels[matches[top+i]], style)
+		picked := matches[top+i]
 		a.hits = append(a.hits, hit{
-			area: rect{x0, y0 + 2 + i, bw, 1},
+			area: rect{x0, y0 + 3 + i, bw, 1},
 			click: func(int, int, tcell.ModMask) {
 				a.switcher = nil
 				s.pick(picked)

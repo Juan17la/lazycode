@@ -338,13 +338,13 @@ func (a *app) drawSearch(r rect) {
 			a.screen.ShowCursor(min(end, maxX-1), y)
 		}
 	}
-	label(r.y+1, "Find: ", s.query, !s.onReplace)
-	label(r.y+2, "With: ", s.replace, s.onReplace)
+	label(r.y+1, "Find:    ", s.query, !s.onReplace)
+	label(r.y+2, "Replace: ", s.replace, s.onReplace)
 	a.hits = append(a.hits,
 		hit{area: rect{r.x, r.y + 1, r.w, 1}, click: func(int, int, tcell.ModMask) { s.onReplace, a.tabFocused = false, false }},
 		hit{area: rect{r.x, r.y + 2, r.w, 1}, click: func(int, int, tcell.ModMask) { s.onReplace, a.tabFocused = true, false }})
 
-	status := "Type to search names and text"
+	status := "Type to search"
 	switch {
 	case s.query == "":
 	case s.running || !s.searched:

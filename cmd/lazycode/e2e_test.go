@@ -204,17 +204,17 @@ path = %q
 	if runtime.GOOS != "windows" {
 		d.key(tcell.KeyHome, 0)
 		d.wait("Ln 1, Col 1")
-		// 33 columns of tree and divider, then 3 of line numbers, so this is column 2.
-		d.tab.Mouse(38, 2, false, false, true)
-		d.tab.Mouse(38, 2, false, false, false)
+		// 35 columns of tree and divider, then 3 of line numbers, so this is column 2.
+		d.tab.Mouse(40, 2, false, false, true)
+		d.tab.Mouse(40, 2, false, false, false)
 		d.wait("Ln 1, Col 3")
 	}
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-	d.wait("Tab enter tab")
+	d.wait("Tab go to editor")
 
 	// Alt+D switches directory.
 	d.alt('d')
-	d.wait("Switch directory")
+	d.wait("Switch folder")
 	d.typeText("two")
 	d.enter()
 	d.wait("alpha › two")
@@ -251,7 +251,7 @@ path = %q
 	// Ctrl+\ leaves the tab. The same keys now reach LazyCode, not the tool.
 	d.wait(`Ctrl+\ leaves`)
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-	d.wait("Tab enter tab")
+	d.wait("Tab go to editor")
 	d.typeText(":")
 	d.typeText("nope")
 	d.enter()
@@ -277,7 +277,7 @@ path = %q
 
 	// :close removes the finished tab.
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-	d.wait("Tab enter tab")
+	d.wait("Tab go to editor")
 	d.typeText(":close")
 	d.enter()
 	d.wait("No tabs here.")
@@ -287,7 +287,7 @@ path = %q
 	d.enter()
 	d.wait("tool ready")
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-	d.wait("Tab enter tab")
+	d.wait("Tab go to editor")
 	d.typeText(":q")
 	d.enter()
 	select {

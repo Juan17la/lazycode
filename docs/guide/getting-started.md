@@ -40,11 +40,11 @@ The mouse works: click files, tabs and cursor positions, and scroll. LazyCode ta
 
 The menu bar at the top has everything, F1 lists the shortcuts, and Alt+S opens the settings. Files open in tabs at the top, and terminals and AI tools in a dock at the bottom. Tabs have close buttons, and the mouse can drag the edges between areas.
 
-LazyCode opens on the current folder. To group folders, press Alt+Shift+P and Alt+Shift+F, or type `:project new Shop`, then `:dir add ~/code/shop-web`, and again for each folder. Switch with Alt+O (projects) and Alt+D (directories), or `:project` and `:dir`. It's saved in `projects.toml` ([Keys and config](keys-and-config.md)).
+LazyCode opens on the current folder. To go to another one, use File > Open Folder, or click the folder name in the top bar. To group folders, press Alt+Shift+P and Alt+Shift+F, or type `:project new Shop`, then `:dir add ~/code/shop-web`, and again for each folder. Switch with Alt+P (projects) and Alt+D (directories), or `:project` and `:dir`. It's saved in `projects.toml` ([Keys and config](keys-and-config.md)).
 
 ## Terminals and AI tools
 
-`:term` opens your shell in a tab, and `:term claude` runs a command, here an AI tool. Inside a terminal tab every key goes to the tool, except Ctrl+\\, which takes you back out.
+`:term` opens your shell in a tab, and `:term claude` runs a command, here an AI tool. Inside a terminal tab every key goes to the tool, except Ctrl+\\, which takes you back out, and Alt+Q, which closes the tab.
 
 Alt+A shows AI sessions: Enter goes to one or resumes it, N starts a new one, R renames it. An idle session stops after 30 minutes to free memory, and resumes the same chat when you select it. Alt+E goes back to the files. When the tool changes a file you have open, it updates on screen, and changed lines are marked. If you have unsaved edits in it, LazyCode never replaces them.
 

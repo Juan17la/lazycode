@@ -133,7 +133,7 @@ func (a *app) panelWidth(w int) int {
 	if a.panelW > 0 {
 		return max(10, min(a.panelW, w/2))
 	}
-	return min(maxPanelWidth, w/3)
+	return min(maxPanelWidth, w/3) + 2 // The 2 is the inset around a view.
 }
 
 // regions returns the areas of the two panels, which are empty if hidden, and of the
@@ -491,10 +491,35 @@ func (a *app) moveFilesView() {
 	}
 }
 
-// drawViewTitles draws the header row of a panel. A click on an icon brings that view forward.
+// panelFocused reports whether a panel is where the keys are going.
+func (a *app) panelFocused(panel int) bool {
+	return !a.tabFocused && a.viewIn(panel) == a.focusedView()
+}
+
+// focusedArea is the area that has the keys, which paintBackground tints.
+func (a *app) focusedArea(st *dirState) rect {
+	first, second, _ := a.regions()
+	switch {
+	case a.tabFocused:
+		return st.focus.area
+	case a.panelFocused(0):
+		return first
+	case a.panelFocused(1):
+		return second
+	}
+	return rect{}
+}
+
+// drawViewTitles draws the header row of a panel, a solid bar when it has focus. A click on an icon
+// brings that view forward.
 func (a *app) drawViewTitles(panel int, r rect) {
 	top := a.viewIn(panel)
-	focused := !a.tabFocused && a.focusedView() == top
+	focused := a.panelFocused(panel) && top != ""
+	if focused {
+		for x := r.x; x < r.x+r.w; x++ {
+			a.screen.SetContent(x, r.y, ' ', nil, a.pill(viewColour[top]))
+		}
+	}
 	x, maxX := r.x+1, r.x+r.w
 	for _, v := range a.viewsIn(panel) {
 		// The icon alone, except the view on top, which also says its name (the part that isn't colour).
@@ -502,11 +527,11 @@ func (a *app) drawViewTitles(panel int, r rect) {
 		if v == top {
 			label, style = " "+a.viewIcon(v)+" "+v+" ", a.th.icon[viewColour[v]].Bold(true)
 			if v == viewFiles && a.showAll {
-				label = " " + a.viewIcon(v) + " Files, all directories "
+				label = " " + a.viewIcon(v) + " Files, all folders "
 			}
-			if focused {
-				style = style.Underline(true)
-			}
+		}
+		if focused {
+			style = a.pill(viewColour[top])
 		}
 		start := x
 		x = a.put(x, r.y, maxX, label, style)

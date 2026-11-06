@@ -14,7 +14,7 @@ import (
 )
 
 // minWidthForMenuNames is where the menu bar's names give way to one ≡ holding everything.
-const minWidthForMenuNames = 70
+const minWidthForMenuNames = 78
 
 // menuItem runs an action from the keymap, a : command, or something of its own. An empty one is a
 // separator.
@@ -25,9 +25,11 @@ type menuItem struct {
 	checked                func(a *app) bool
 }
 
+// menuGroup is a name in the bar. It drops down its items, or with open, shows them in a window.
 type menuGroup struct {
 	name  string
 	items []menuItem
+	open  func(a *app, items []menuItem)
 }
 
 // gitThen shows the Git view, which reads the status, and then does a Git job.
@@ -48,9 +50,10 @@ func init() {
 			{label: "New Project…", action: "project.new"},
 			{},
 			{label: "Open File by Name…", action: "file.open_by_name"},
-			{label: "Add Directory to Project…", action: "directory.add"},
+			{label: "Open Folder…", command: "dir open"},
+			{label: "Add Folder to Project…", action: "directory.add"},
 			{label: "Switch Project…", action: "project.switch"},
-			{label: "Switch Directory…", action: "directory.switch"},
+			{label: "Switch Folder…", action: "directory.switch"},
 			{},
 			{label: "Save", action: "file.save"},
 			{label: "Save All", do: (*app).saveAll},
@@ -61,7 +64,20 @@ func init() {
 			{},
 			{label: "Settings…", action: "app.settings"},
 			{label: "Quit", action: "app.quit"},
-		}},
+		}, nil},
+		{"Project", []menuItem{
+			{label: "New Project…", action: "project.new"},
+			{label: "Open Folder…", command: "dir open"},
+			{label: "Close Project", command: "project close"},
+			{label: "Open projects.toml", command: "config projects"},
+		}, (*app).openProjectHub},
+		{"Folders", []menuItem{
+			{label: "Add Folder to Project…", action: "directory.add"},
+			{label: "Open Folder…", command: "dir open"},
+			{label: "All Folders in Files", command: "tree", checked: func(a *app) bool { return a.showAll }},
+			{label: "Find in Folder", action: "view.search"},
+			{label: "Run This Folder", action: "run.play"},
+		}, (*app).openDirHub},
 		{"Edit", []menuItem{
 			{label: "Undo", action: "edit.undo"},
 			{label: "Redo", action: "edit.redo"},
@@ -72,11 +88,11 @@ func init() {
 			{},
 			{label: "Find", action: "find.open"},
 			{label: "Replace", action: "find.replace"},
-			{label: "Find in Directory", action: "view.search"},
+			{label: "Find in Folder", action: "view.search"},
 			{},
 			{label: "Format File", action: "lsp.format"},
 			{label: "Rename Symbol", action: "lsp.rename"},
-		}},
+		}, nil},
 		{"Selection", []menuItem{
 			{label: "Select All", action: "select.all"},
 			{label: "Select Line", do: (*app).selectLine},
@@ -86,18 +102,18 @@ func init() {
 			{},
 			{label: "Select to Start of File", action: "select.file_start"},
 			{label: "Select to End of File", action: "select.file_end"},
-		}},
+		}, nil},
 		{"View", []menuItem{
 			{label: "Command Bar", action: "command.open"},
 			{},
-			{label: "Explorer", action: "view.files"},
+			{label: "Files", action: "view.files"},
 			{label: "Search", action: "view.search"},
 			{label: "Git", action: "view.git"},
 			{label: "AI Sessions", action: "view.sessions"},
 			{},
 			{label: "Terminal Dock", action: "view.terminal", checked: func(a *app) bool { return a.dockVisible(a.dir()) }},
 			{label: "Second Panel", action: "panel.toggle_second", checked: func(a *app) bool { return a.showSecond }},
-			{label: "All Directories in Explorer", command: "tree", checked: func(a *app) bool { return a.showAll }},
+			{label: "All Folders in Files", command: "tree", checked: func(a *app) bool { return a.showAll }},
 			{label: "Move View to Other Panel", command: "view"},
 			{},
 			{label: "Split Right", action: "split.right"},
@@ -106,7 +122,7 @@ func init() {
 			{label: "Word Wrap", action: "view.wrap", checked: func(a *app) bool { return a.cfg.Editor.WordWrap }},
 			{label: "Appearance…", action: "app.appearance"},
 			{label: "Themes…", action: "app.themes"},
-		}},
+		}, nil},
 		{"Go", []menuItem{
 			{label: "Go to File…", action: "file.open_by_name"},
 			{label: "Go to Line…", do: (*app).openGoToLine},
@@ -118,16 +134,17 @@ func init() {
 			{label: "Next Tab", action: "tab.next"},
 			{label: "Previous Tab", action: "tab.previous"},
 			{label: "Next Split", action: "split.next"},
-		}},
+		}, nil},
 		{"Terminal", []menuItem{
 			{label: "New Terminal", action: "terminal.new"},
 			{label: "New AI Session…", action: "session.new"},
 			{label: "Hidden AI Sessions…", command: "session hidden"},
 			{},
-			{label: "Run This Directory", action: "run.play"},
+			{label: "Run This Folder", action: "run.play"},
 			{},
 			{label: "Show or Hide Dock", action: "view.terminal"},
-		}},
+			{label: "Close Current Tab", action: "tab.close"},
+		}, (*app).openTerminalHub},
 		{"Git", []menuItem{
 			{label: "Show Changes", action: "view.git"},
 			{label: "Commit…", do: gitThen((*app).gitCommit)},
@@ -141,7 +158,7 @@ func init() {
 			{label: "Merge Branch…", do: gitThen(func(a *app) { a.gitBranches(true) })},
 			{},
 			{label: "Create GitHub Repository", command: "repo create"},
-		}},
+		}, nil},
 		{"Tools", []menuItem{
 			{label: "Settings…", action: "app.settings"},
 			{label: "Shortcuts…", action: "app.shortcuts"},
@@ -155,7 +172,7 @@ func init() {
 			{},
 			{label: "Trust This Folder", command: "trust"},
 			{label: "Stop Trusting This Folder", command: "untrust"},
-		}},
+		}, nil},
 		{"Help", []menuItem{
 			{label: "Welcome Screen…", action: "app.onboarding"},
 			{label: "Shortcuts…", action: "app.shortcuts"},
@@ -166,7 +183,7 @@ func init() {
 			{},
 			{label: "Install Latest Version", command: "update"},
 			{label: "About LazyCode…", do: (*app).openAbout},
-		}},
+		}, (*app).openHelpHub},
 	}
 }
 
@@ -182,13 +199,7 @@ func (item menuItem) needsFile() bool {
 
 // hint is what's shown at an item's right: its key, or else the command that does the same.
 func (a *app) menuHint(item menuItem) string {
-	if key := a.keyFor(item.action); key != "" {
-		return key
-	}
-	if item.command != "" {
-		return ":" + item.command
-	}
-	return ""
+	return a.keyFor(item.action) // A : command would be typed into a file, so it's no hint here.
 }
 
 // openMenu is a menu on screen: from the bar, or a context menu at the mouse.
@@ -221,10 +232,40 @@ func allMenus() []menuItem {
 	return items
 }
 
+// barName is a menu's name in the bar. Under 110 columns the long ones shrink, to leave room for where we are.
+func barName(group menuGroup, w int) string {
+	if w < 110 {
+		switch group.name {
+		case "Project":
+			return "Proj"
+		case "Folders":
+			return "Dirs"
+		case "Terminal":
+			return "Term"
+		case "Selection":
+			return "Sel"
+		}
+	}
+	return group.name
+}
+
+// stepMenuBar goes to the next drop-down along. The arrows pass over names that open a window.
+func (a *app) stepMenuBar(group, direction int) {
+	group = (group + direction + len(menuBar)) % len(menuBar)
+	for menuBar[group].open != nil {
+		group = (group + direction + len(menuBar)) % len(menuBar)
+	}
+	a.openMenuBar(group)
+}
+
 // openMenuBar opens a menu by its place in the bar. x is where its name was drawn, if known.
 func (a *app) openMenuBar(group int) {
 	group = (group + len(menuBar)) % len(menuBar)
 	a.closeFind()
+	if w, _ := a.screen.Size(); w >= minWidthForMenuNames && menuBar[group].open != nil {
+		menuBar[group].open(a, menuBar[group].items)
+		return
+	}
 	w, _ := a.screen.Size()
 	if w < minWidthForMenuNames {
 		a.menu = &openMenu{group: 0, x: 0, y: 1, items: allMenus()}
@@ -232,7 +273,7 @@ func (a *app) openMenuBar(group int) {
 	}
 	x := 1
 	for _, g := range menuBar[:group] {
-		x += runewidth.StringWidth(g.name) + 1
+		x += runewidth.StringWidth(barName(g, w)) + 1
 	}
 	a.menu = &openMenu{group: group, x: x, y: 1, items: menuBar[group].items}
 }
@@ -264,11 +305,11 @@ func (a *app) handleMenuKey(ev *tcell.EventKey) {
 		m.settle(1)
 	case tcell.KeyLeft:
 		if m.group >= 0 {
-			a.openMenuBar(m.group - 1)
+			a.stepMenuBar(m.group, -1)
 		}
 	case tcell.KeyRight:
 		if m.group >= 0 {
-			a.openMenuBar(m.group + 1)
+			a.stepMenuBar(m.group, 1)
 		}
 	case tcell.KeyEnter:
 		a.runMenuItem(m.items[m.sel])
@@ -289,7 +330,7 @@ func (a *app) drawMenuBar(w int) {
 				style = a.pill("accent")
 			}
 			start := x
-			x = a.put(x, 0, w, group.name, style)
+			x = a.put(x, 0, w, barName(group, w), style)
 			at := i
 			a.hits = append(a.hits, hit{area: rect{start, 0, x - start, 1}, click: func(int, int, tcell.ModMask) {
 				if a.menu != nil && a.menu.group == at {
@@ -317,9 +358,13 @@ func (a *app) drawMenuBar(w int) {
 	if w >= 100 { // Where the names are tight, the room goes to where we are.
 		x = a.put(x+1, 0, maxX, "✻ ", a.th.icon["orange"])
 	}
+	start := x
 	x = a.put(x, 0, maxX, a.projects[a.project].Name, a.th.accent)
+	a.hits = append(a.hits, hit{area: rect{start, 0, x - start, 1}, click: func(int, int, tcell.ModMask) { a.do("project.switch") }})
 	x = a.put(x, 0, maxX, " › ", a.th.muted)
+	start = x
 	x = a.put(x, 0, maxX, filepath.Base(a.dirPath()), a.th.primary)
+	a.hits = append(a.hits, hit{area: rect{start, 0, x - start, 1}, click: func(int, int, tcell.ModMask) { a.do("directory.switch") }})
 	if branch := a.branchLabel(); branch != "" {
 		a.put(max(x+2, maxX-runewidth.StringWidth(branch)-1), 0, maxX, branch, a.th.icon["purple"])
 	}
@@ -392,6 +437,99 @@ func (a *app) drawMenu(w, h int) {
 	}
 }
 
+// The windows that open from the bar.
+
+const hubHint = "↑↓ move   Enter choose   Del or × remove   Esc close"
+
+// itemRows shows menu items in a window. Separators have no place in a list under a header.
+func (a *app) itemRows(items []menuItem) []modalRow {
+	var rows []modalRow
+	for _, item := range items {
+		if item.label == "" {
+			continue
+		}
+		label := item.label
+		if item.checked != nil && item.checked(a) {
+			label = "✓ " + label
+		}
+		rows = append(rows, modalRow{label: label, value: a.menuHint(item), run: func() {
+			a.closeModal(false)
+			a.runMenuItem(item)
+		}})
+	}
+	return rows
+}
+
+func (a *app) openProjectHub(items []menuItem) {
+	a.openModal(&modal{title: "✻ Projects", hint: "↑↓ move   Enter choose   Esc close", sel: a.project + 1, build: func() []modalRow {
+		rows := []modalRow{{label: "Switch to", header: true}}
+		for i, p := range a.projects {
+			rows = append(rows, modalRow{label: either(i == a.project, "✓ ", "  ") + p.Name, value: fmt.Sprintf("%d dirs", len(p.Dirs)), run: func() {
+				a.closeModal(false)
+				a.project = i
+				a.afterSwitch()
+			}})
+		}
+		return append(append(rows, modalRow{label: "Manage", header: true}), a.itemRows(items)...)
+	}})
+}
+
+func (a *app) openDirHub(items []menuItem) {
+	a.openModal(&modal{title: "▸ Folders", hint: hubHint, width: 72, sel: a.dirOf[a.project] + 1, build: func() []modalRow {
+		current := a.projects[a.project]
+		rows := []modalRow{{label: "In " + current.Name, header: true}}
+		for i, dir := range current.Dirs {
+			rows = append(rows, modalRow{label: either(i == a.dirOf[a.project], "✓ ", "  ") + filepath.Base(dir), value: dir, run: func() {
+				a.closeModal(false)
+				a.dirOf[a.project] = i
+				a.afterSwitch()
+			}, remove: func() { a.removeDir(current.Name, dir) }}) // It says so if it refuses.
+		}
+		return append(append(rows, modalRow{label: "Manage", header: true}), a.itemRows(items)...)
+	}})
+}
+
+// openTerminalHub lists the terminals and AI sessions running here, each with its way out.
+func (a *app) openTerminalHub(items []menuItem) {
+	a.openModal(&modal{title: "❯ Terminals and AI sessions", hint: hubHint, width: 72, build: func() []modalRow {
+		st := a.dir()
+		rows := []modalRow{{label: "Running here", header: true}}
+		for _, p := range st.panes() {
+			for _, it := range p.tabs {
+				if it.term == nil {
+					continue
+				}
+				label, icon, _ := a.tabLabel(it)
+				rows = append(rows, modalRow{label: icon + " " + label, value: either(it.sess != nil && !it.sess.isShell, "AI", "terminal"), run: func() {
+					a.closeModal(false)
+					if p == st.dock {
+						a.dockHidden = false
+					}
+					st.focus, p.cur = p, slices.Index(p.tabs, it)
+					a.focusTab()
+				}, remove: func() { a.removeTab(st, p, it) }})
+			}
+		}
+		if len(rows) == 1 {
+			rows = append(rows, modalRow{label: "Nothing yet"})
+		}
+		return append(append(rows, modalRow{label: "Actions", header: true}), a.itemRows(items)...)
+	}})
+}
+
+func (a *app) openHelpHub(items []menuItem) {
+	a.openModal(&modal{title: "? Help", hint: "↑↓ move   Enter choose   Esc close", width: 72, build: func() []modalRow {
+		rows := append([]modalRow{{label: "Get help", header: true}}, a.itemRows(items)...)
+		return append(rows,
+			modalRow{label: "Good to know", header: true},
+			modalRow{label: "Drag selects text. Double click takes a word, triple a line."},
+			modalRow{label: "In a terminal, dragging copies what you select."},
+			modalRow{label: "Close a tab: its ×, the middle button, or " + a.keyFor("tab.close") + "."},
+			modalRow{label: `Leave a terminal: click elsewhere, or Ctrl+\.`},
+			modalRow{label: "The right button opens a menu on tabs, files and code."})
+	}})
+}
+
 // What the menus do that nothing else did.
 
 func (a *app) saveAll() {
@@ -462,15 +600,15 @@ func (a *app) openGoToLine() {
 var allCommands = [][2]string{
 	{"save", "Save the file"}, {"new", "New file"}, {"close", "Close the tab"}, {"q", "Quit"},
 	{"project", "Switch project"}, {"project new", "New project"}, {"project close", "Close this project"},
-	{"dir", "Switch directory"}, {"dir add", "Add a directory"}, {"dir remove", "Take this directory out of the project"},
-	{"tree", "Show all directories in the Explorer"}, {"view", "Move a view to the other panel"},
+	{"dir", "Switch folder"}, {"dir open", "Open any folder"}, {"dir add", "Add a folder"}, {"dir remove", "Take this folder out of the project"},
+	{"tree", "Show all folders in Files"}, {"view", "Move a view to the other panel"},
 	{"term", "New terminal"}, {"dock", "Show or hide the dock"}, {"session", "New AI session"}, {"session hidden", "Hidden AI sessions"},
-	{"play", "Run this directory"}, {"split", "Split right"}, {"split down", "Split below"}, {"wrap", "Word wrap"},
-	{"find", "Find"}, {"replace", "Replace"}, {"search", "Find in directory"}, {"selectall", "Select all matches"},
+	{"play", "Run this folder"}, {"split", "Split right"}, {"split down", "Split below"}, {"wrap", "Word wrap"},
+	{"find", "Find"}, {"replace", "Replace"}, {"search", "Find in folder"}, {"selectall", "Select all matches"},
 	{"definition", "Go to definition"}, {"rename", "Rename the symbol"}, {"format", "Format the file"},
 	{"git", "Show Git"}, {"push", "Push"}, {"pull", "Pull"}, {"fetch", "Fetch"}, {"repo create", "Create a GitHub repository"},
 	{"settings", "Settings"}, {"appearance", "Appearance"}, {"themes", "Themes"}, {"plugins", "Plugins"}, {"store", "Plugin store"},
-	{"shortcuts", "Shortcuts"}, {"onboard", "Welcome screen"}, {"menu", "Menus"},
+	{"shortcuts", "Shortcuts"}, {"onboard", "Welcome screen"}, {"menu", "Menus"}, {"messages", "Recent messages"},
 	{"config", "Open config.toml"}, {"config keys", "Open keys.toml"}, {"config projects", "Open projects.toml"},
 	{"trust", "Trust this folder"}, {"untrust", "Stop trusting this folder"}, {"update", "Install the latest version"},
 }
@@ -509,6 +647,20 @@ func (a *app) openLinks() {
 			link("Troubleshooting", repoURL+"/blob/main/docs/guide/troubleshooting.md"),
 			link("Report a problem", repoURL+"/issues"),
 		}
+	}})
+}
+
+// openMessages shows what the status line said, newest first, since it can pass before it's read.
+func (a *app) openMessages() {
+	a.openModal(&modal{title: "Recent messages", hint: "Esc close", width: 72, build: func() []modalRow {
+		rows := []modalRow{}
+		for _, text := range slices.Backward(a.messages) {
+			rows = append(rows, modalRow{label: text})
+		}
+		if len(rows) == 0 {
+			rows = append(rows, modalRow{label: "Nothing yet"})
+		}
+		return rows
 	}})
 }
 

@@ -201,7 +201,7 @@ LazyCode runs in the user's terminal, which receives keys first (Q-50). The defa
 | Alt+D | Switch directory | Decided (Q-74) |
 | Ctrl+\\ | Leave a terminal tab | Decided (Q-74) |
 
-Inside a terminal tab, every key except Ctrl+\\ goes to the tool. Ctrl+C interrupts rather than copies, and Alt+D goes to the tool, so press Ctrl+\\ first.
+Inside a terminal tab, every key except Ctrl+\\ and Alt+Q (close the tab) goes to the tool. Ctrl+C interrupts rather than copies, and Alt+D goes to the tool, so press Ctrl+\\ first.
 
 ### Known key clashes
 
@@ -238,7 +238,7 @@ Terminal and OS defaults, which users can usually change in settings. Priority t
 
 **Decided (Q-48, widened on 2026-11-05):** Twelve built-in themes, chosen with `:theme`, which previews each one and saves the choice: `dark`, `light`, `gruvbox-dark`, `gruvbox-light`, `dracula`, `one-dark`, `nord`, `tokyo-night`, `catppuccin-mocha`, `solarized-dark`, `solarized-light` and `monokai`. `[ui.colors]` changes any colour. Syntax has its own colour per kind of code. Terminals with fewer than 256 colours keep their own background and use reversed selections.
 
-Panel headers show icons, with the name beside the view on top. `icons = "basic"` works in any font, and `icons = "nerd"` adds file-type icons but needs a Nerd Font.
+The area with the keys has a tinted background, and its title is a solid bar. Panel headers show icons, with the name beside the view on top. `icons = "basic"` works in any font, and `icons = "nerd"` adds file-type icons but needs a Nerd Font.
 
 **Tree:** names are coloured by Git state, with a letter too so that colour isn't the only sign: `A` added, `M` modified, `U` untracked, `R` renamed, `!` conflict. A folder gets a dot in the colour of the strongest state inside it.
 
