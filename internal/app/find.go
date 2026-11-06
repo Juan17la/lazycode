@@ -87,7 +87,7 @@ func (a *app) handleFindKey(ev *tcell.EventKey) {
 		f.inReplacement = f.replacing && !f.inReplacement
 	case "ctrl+f":
 		f.inReplacement = false
-	case "alt+h":
+	case "ctrl+r":
 		f.replacing, f.inReplacement = true, true
 	case "alt+a", "ctrl+a":
 		if f.replacing {

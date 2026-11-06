@@ -27,28 +27,30 @@ The screen has a file tree on the left and tabs on the right. Everything has two
 | Save | Ctrl+S | `:save` or `:w` |
 | Previous or next tab | Alt+, and Alt+. | |
 | Close the tab | Ctrl+W | `:close` |
-| Split the view | Alt+S | `:split` or `:split down` |
+| Split the view | Alt+Shift+S | `:split` or `:split down` |
 | Find in a file | Ctrl+F | `:find` |
 | Search the folder | Alt+F | `:search` |
 | Quit | | `:quit` or `:q` |
 
-**On macOS, read every Alt shortcut as Ctrl+K, then the key.** Alt+S is Ctrl+K, then S. Option types special characters on a Mac, so Alt doesn't work by default there.
+**On macOS, read every Alt shortcut as Ctrl+K, then the key.** Alt+D is Ctrl+K, then D. Option types special characters on a Mac, so Alt doesn't work by default there.
 
 The mouse works: click files, tabs and cursor positions, and scroll. LazyCode takes the mouse, so hold Shift to select text the terminal's way.
 
 ## Several folders in one project
 
-LazyCode opens on the current folder. To group folders, type `:project new Shop`, then `:dir add ~/code/shop-web`, and again for each folder. Switch with Alt+O (projects) and Alt+D (directories), or `:project` and `:dir`. It's saved in `projects.toml` ([Keys and config](keys-and-config.md)).
+The menu bar at the top has everything, F1 lists the shortcuts, and Alt+S opens the settings. Files open in tabs at the top, and terminals and AI tools in a dock at the bottom. Tabs have close buttons, and the mouse can drag the edges between areas.
+
+LazyCode opens on the current folder. To group folders, press Alt+Shift+P and Alt+Shift+F, or type `:project new Shop`, then `:dir add ~/code/shop-web`, and again for each folder. Switch with Alt+O (projects) and Alt+D (directories), or `:project` and `:dir`. It's saved in `projects.toml` ([Keys and config](keys-and-config.md)).
 
 ## Terminals and AI tools
 
 `:term` opens your shell in a tab, and `:term claude` runs a command, here an AI tool. Inside a terminal tab every key goes to the tool, except Ctrl+\\, which takes you back out.
 
-Alt+I shows AI sessions: Enter goes to one or resumes it, N starts a new one, R renames it. An idle session stops after 30 minutes to free memory, and resumes the same chat when you select it. Alt+E goes back to the files. When the tool changes a file you have open, it updates on screen, and changed lines are marked. If you have unsaved edits in it, LazyCode never replaces them.
+Alt+A shows AI sessions: Enter goes to one or resumes it, N starts a new one, R renames it. An idle session stops after 30 minutes to free memory, and resumes the same chat when you select it. Alt+E goes back to the files. When the tool changes a file you have open, it updates on screen, and changed lines are marked. If you have unsaved edits in it, LazyCode never replaces them.
 
 ## Running your project
 
-Alt+P (or `:play`) runs the project in the current directory. `:play cargo build` sets a different command and remembers it.
+Alt+R (or `:play`) runs the project in the current directory. `:play cargo build` sets a different command and remembers it.
 
 ## Git and language tools
 

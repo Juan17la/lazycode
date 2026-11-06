@@ -57,10 +57,10 @@ func TestDefaults(t *testing.T) {
 	if got := m.Lookup(Panel, "ctrl+s"); got != "" {
 		t.Errorf("saving has no meaning in the tree: %q", got)
 	}
-	if got := m.Lookup(Editor, "alt+o"); got != "project.switch" {
+	if got := m.Lookup(Editor, "alt+p"); got != "project.switch" {
 		t.Errorf("global keys work in files: %q", got)
 	}
-	if got := m.Lookup(Panel, "alt+o"); got != "project.switch" {
+	if got := m.Lookup(Panel, "alt+p"); got != "project.switch" {
 		t.Errorf("global keys work in the tree: %q", got)
 	}
 	if got := m.Lookup(Panel, "up"); got != "tree.up" {
@@ -97,11 +97,11 @@ func TestChordsMirrorAltKeys(t *testing.T) {
 	if got := m.LookupChord(Panel, ","); got != "tab.previous" {
 		t.Errorf(",: %q", got)
 	}
-	if got := m.LookupChord(Editor, "h"); got != "find.replace" {
+	if got := m.LookupChord(Editor, "t"); got != "view.terminal" {
 		t.Errorf("h: %q", got)
 	}
-	if got := m.LookupChord(Editor, "a"); got != "select.all_occurrences" {
-		t.Errorf("a is the macOS Ctrl+F2 (Q-80): %q", got)
+	if got := m.LookupChord(Editor, "o"); got != "select.all_occurrences" {
+		t.Errorf("o is the macOS Ctrl+F2 (Q-80): %q", got)
 	}
 	if got := m.LookupChord(Editor, "q"); got != "" {
 		t.Errorf("q: %q", got)
@@ -212,14 +212,14 @@ func TestEveryDefaultKeyIsWrittenCanonically(t *testing.T) {
 
 func TestLanguageServerKeys(t *testing.T) {
 	m := Default()
-	for key, want := range map[string]string{"f12": "lsp.definition", "f2": "lsp.rename", "alt+shift+f": "lsp.format"} {
+	for key, want := range map[string]string{"f12": "lsp.definition", "f2": "lsp.rename", "f3": "lsp.format"} {
 		if got := m.Lookup(Editor, key); got != want {
 			t.Errorf("%s is %q, want %q", key, got, want)
 		}
 	}
-	// The second form of Shift+Alt+F: Ctrl+K, then a capital F.
-	if got := m.LookupChord(Editor, "F"); got != "lsp.format" {
-		t.Errorf("Ctrl+K then F is %q", got)
+	// The second form of Alt+Shift+S: Ctrl+K, then a capital S.
+	if got := m.LookupChord(Editor, "S"); got != "split.right" {
+		t.Errorf("Ctrl+K then S is %q", got)
 	}
 	if got := m.LookupChord(Editor, "G"); got != "" {
 		t.Errorf("an unbound capital is %q", got)
@@ -228,5 +228,46 @@ func TestLanguageServerKeys(t *testing.T) {
 	ev := tcell.NewEventKey(tcell.KeyRune, 'F', tcell.ModAlt)
 	if got := Name(ev); got != "alt+shift+f" {
 		t.Errorf("named %q", got)
+	}
+}
+
+func TestBindWritesTheKeyAndTurnsOffTheOld(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "keys.toml")
+	m := Default()
+	if err := m.Bind(path, "alt+j", "view.git"); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := loaded.Lookup(Panel, "alt+j"); got != "view.git" {
+		t.Errorf("new key: %q", got)
+	}
+	if got := loaded.Lookup(Panel, "alt+g"); got != "" {
+		t.Errorf("old key still works: %q", got)
+	}
+	// Binding the same key again must not write a duplicate, which TOML refuses.
+	if err := loaded.Bind(path, "alt+j", "view.files"); err != nil {
+		t.Fatal(err)
+	}
+	if loaded, err = Load(path); err != nil {
+		t.Fatal(err)
+	}
+	if got := loaded.Lookup(Panel, "alt+j"); got != "view.files" {
+		t.Errorf("rebound key: %q", got)
+	}
+	for _, key := range []string{Reserved, "x"} {
+		if err := m.Bind(path, key, "view.git"); err == nil {
+			t.Errorf("%s was accepted", key)
+		}
+	}
+}
+
+func TestCatalogHoldsOnlyRealActions(t *testing.T) {
+	for _, entry := range Catalog {
+		if len(Default().KeysFor(entry.Action)) == 0 {
+			t.Errorf("%s has no key", entry.Action)
+		}
 	}
 }

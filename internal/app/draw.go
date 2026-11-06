@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strings"
 	"unicode"
@@ -11,6 +10,7 @@ import (
 	"github.com/Juan17la/lazycode/internal/editor"
 	"github.com/Juan17la/lazycode/internal/session"
 	"github.com/Juan17la/lazycode/internal/syntax"
+	"github.com/Juan17la/lazycode/internal/tree"
 	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-runewidth"
 )
@@ -42,12 +42,7 @@ func (a *app) draw() {
 	st := a.dir()
 
 	a.floating = a.floating[:0]
-	x := a.put(0, 0, w, " "+a.projects[a.project].Name, a.th.accent)
-	x = a.put(x, 0, w, " › ", a.th.muted)
-	x = a.put(x, 0, w, filepath.Base(a.dirPath()), a.th.primary)
-	if branch := a.branchLabel(); branch != "" {
-		a.put(max(x+2, w-runewidth.StringWidth(branch)-1), 0, w, branch, a.th.icon["purple"])
-	}
+	a.drawMenuBar(w)
 
 	first, second, _ := a.regions()
 	a.drawPanel(st, 0, first)
@@ -55,17 +50,26 @@ func (a *app) draw() {
 
 	dividers := a.layout(st)
 	a.resizeTabs(st)
-	for _, p := range st.root.panes() {
+	for _, p := range a.shownPanes(st) {
 		a.drawPane(st, p)
 	}
 	for _, d := range dividers {
-		a.fillLine(d)
+		a.fillLine(d.r, a.dividerStyle(st, d.r))
+		a.hits = append(a.hits, hit{area: d.r, click: func(int, int, tcell.ModMask) {}, drag: d.drag})
 	}
+	a.hits = append(a.hits, a.deferred...)
+	a.deferred = a.deferred[:0]
 	if a.review != nil {
 		a.drawReview(w, h)
 	}
 	if a.onboard != nil {
 		a.drawOnboard(w, h)
+	}
+	if a.menu != nil {
+		a.drawMenu(w, h)
+	}
+	if len(a.modals) > 0 {
+		a.drawModals(w, h)
 	}
 	a.drawStatus(w, h)
 	if a.switcher != nil {
@@ -92,14 +96,14 @@ func (a *app) branchLabel() string {
 }
 
 // fillLine draws a divider in r, which is one cell wide or one cell high.
-func (a *app) fillLine(r rect) {
+func (a *app) fillLine(r rect, style tcell.Style) {
 	char := '│'
 	if r.w > 1 {
 		char = '─'
 	}
 	for y := r.y; y < r.y+r.h; y++ {
 		for x := r.x; x < r.x+r.w; x++ {
-			a.screen.SetContent(x, y, char, nil, a.th.muted)
+			a.screen.SetContent(x, y, char, nil, style)
 		}
 	}
 }
@@ -110,10 +114,23 @@ func (a *app) drawPanel(st *dirState, index int, r rect) {
 		return
 	}
 	w, _ := a.screen.Size()
+	style := a.th.border
+	if !a.tabFocused && a.focusPanel == index {
+		style = a.th.borderFocus
+	}
+	line := rect{r.x - 1, r.y, 1, r.h}
 	if r.x == 0 {
-		a.fillLine(rect{r.x + r.w, r.y, 1, r.h})
-	} else if r.x > 0 && r.x+r.w <= w {
-		a.fillLine(rect{r.x - 1, r.y, 1, r.h})
+		line.x = r.x + r.w
+	}
+	if line.x >= 0 && line.x < w {
+		a.fillLine(line, style)
+		a.deferred = append(a.deferred, hit{area: line, click: func(int, int, tcell.ModMask) {}, drag: func(x, _ int) {
+			if r.x == 0 {
+				a.panelW = x
+			} else {
+				a.panelW = w - x - 1
+			}
+		}})
 	}
 	switch a.viewIn(index) {
 	case viewFiles:
@@ -129,6 +146,18 @@ func (a *app) drawPanel(st *dirState, index int, r rect) {
 		a.put(r.x+1, r.y+1, r.x+r.w, ":view moves one", a.th.muted)
 	}
 	a.drawViewTitles(index, r)
+}
+
+// dividerStyle lights up a line that borders what has focus.
+func (a *app) dividerStyle(st *dirState, r rect) tcell.Style {
+	if a.tabFocused {
+		f := st.focus.area
+		grown := rect{f.x - 1, f.y - 1, f.w + 2, f.h + 2}
+		if grown.contains(r.x, r.y) || grown.contains(r.x+r.w-1, r.y+r.h-1) {
+			return a.th.borderFocus
+		}
+	}
+	return a.th.border
 }
 
 func accentOf(th theme) tcell.Color {
@@ -165,6 +194,15 @@ func (a *app) drawTree(st *dirState, r rect) {
 			}
 		},
 		wheel: func(delta int) { t.Move(delta) },
+		context: func(x, y int) {
+			i := top + y - y0
+			row, onRow := tree.Row{}, i >= 0 && i < len(t.Rows)
+			if onRow {
+				t.Move(i - t.Sel)
+				row = t.Rows[i]
+			}
+			a.menu = &openMenu{group: -1, x: x, y: y + 1, items: a.treeMenu(row, onRow)}
+		},
 	})
 	badges := a.badges()
 	for i := st.top; i < len(t.Rows) && i < st.top+rows; i++ {
@@ -234,12 +272,13 @@ func (a *app) drawPane(st *dirState, p *pane) {
 	switch {
 	case it == nil:
 		a.put(content.x+1, content.y+1, content.x+content.w, "No tabs here.", a.th.primary)
-		a.put(content.x+1, content.y+2, content.x+content.w, "Enter opens a file. To start a tool, press : then type: term claude", a.th.muted)
+		a.put(content.x+1, content.y+2, content.x+content.w, "Enter opens a file. "+a.keyFor("view.terminal")+": terminal. "+a.keyFor("session.new")+": AI.", a.th.muted)
 		a.hits = append(a.hits, hit{area: content, click: func(int, int, tcell.ModMask) { st.focus = p }})
 	case it.ed != nil:
 		a.drawEditor(st, p, it, content, focused)
 	default:
 		it.term.Draw(a.screen, content.x, content.y, content.w, content.h)
+		a.paintTermSelection(it)
 		if x, y, visible := it.term.Cursor(); visible && focused && a.overlayFree() && a.tabFocused {
 			a.screen.ShowCursor(content.x+x, content.y+y)
 		}
@@ -249,25 +288,87 @@ func (a *app) drawPane(st *dirState, p *pane) {
 
 // overlayFree reports whether nothing else is taking the keys and showing a cursor.
 func (a *app) overlayFree() bool {
-	return a.switcher == nil && a.command == nil && a.find == nil && a.input == nil && a.review == nil && len(a.prompts) == 0
+	return len(a.modals) == 0 && a.menu == nil && a.switcher == nil && a.command == nil && a.find == nil && a.input == nil && a.review == nil && len(a.prompts) == 0
 }
 
+// tabLabel returns what a tab says, its icon, and that icon's colour.
+func (a *app) tabLabel(it *tabItem) (label, icon string, iconStyle tcell.Style) {
+	if it.ed != nil {
+		icon, iconStyle = a.iconFor(it.name(), false, false)
+		return it.name() + either(it.ed.File.Modified(), "*", ""), icon, iconStyle
+	}
+	colour := "cyan"
+	if it.sess != nil && !it.sess.isShell {
+		colour = "purple"
+	}
+	label = it.name()
+	if done, code := it.term.Exited(); done {
+		label = fmt.Sprintf("%s [exit %d]", label, code)
+	}
+	if it.sess != nil && it.sess.status == session.Attention {
+		return label, "●", a.th.success // The green detail (Q-36). The ● says it without colour.
+	}
+	return label, it.marker(), a.th.icon[colour]
+}
+
+// tabWidth is a tab's full width: space, icon, space, label, space, close button, space.
+func tabWidth(label, icon string) int {
+	return runewidth.StringWidth(icon) + runewidth.StringWidth(label) + 5
+}
+
+// firstShownTab scrolls the bar just enough for the current tab to fit.
+func (a *app) firstShownTab(p *pane, room int) int {
+	first := 0
+	for i := range p.tabs {
+		used := 0
+		for j := first; j <= min(p.cur, len(p.tabs)-1); j++ {
+			label, icon, _ := a.tabLabel(p.tabs[j])
+			used += tabWidth(label, icon) + 1
+		}
+		if used <= room || first >= p.cur {
+			return first
+		}
+		first = i + 1
+	}
+	return first
+}
+
+// drawTabBar draws a pane's tabs, each with a close button, and the buttons for that kind of pane at
+// the far end. Clicks pick a tab, dragging moves it, the middle button closes it, the right one asks.
 func (a *app) drawTabBar(st *dirState, p *pane, focused bool) {
-	x, y, maxX := p.area.x+1, p.area.y, p.area.x+p.area.w
-	for i, it := range p.tabs {
-		label := " " + it.name() + " "
-		icon, iconStyle := "", a.th.muted
-		switch {
-		case it.ed != nil:
-			icon, iconStyle = a.iconFor(it.name(), false, false)
-			if it.ed.File.Modified() {
-				label = " " + it.name() + "* "
-			}
-		default:
-			label = " " + it.marker() + " " + it.name() + " "
-			if done, code := it.term.Exited(); done {
-				label = fmt.Sprintf(" %s %s [exit %d] ", it.marker(), it.name(), code)
-			}
+	y := p.area.y
+	right := p.area.x + p.area.w
+	button := func(label string, style tcell.Style, run func()) {
+		width := runewidth.StringWidth(label)
+		if right-width <= p.area.x+8 {
+			return
+		}
+		right -= width
+		a.put(right, y, right+width, label, style)
+		a.hits = append(a.hits, hit{area: rect{right, y, width, 1}, click: func(int, int, tcell.ModMask) { run() }})
+	}
+	isDock := p == st.dock
+	if isDock {
+		button(" ▾ ", a.th.muted, a.toggleDock)
+		button(" ✻+ ", a.th.icon["purple"], a.openSessionPicker)
+		button(" ❯+ ", a.th.icon["cyan"], func() { a.startTab(nil) })
+	} else {
+		button(" ⊟ ", a.th.icon["blue"], func() { st.focus = p; a.splitPane(false) })
+		button(" ◫ ", a.th.icon["blue"], func() { st.focus = p; a.splitPane(true) })
+	}
+	maxX := right
+	x := p.area.x + 1
+	first := a.firstShownTab(p, maxX-x-2)
+	if first > 0 {
+		x = a.put(x, y, maxX, "‹", a.th.muted)
+	}
+	clear(p.spans) // It holds tabs, which must be freed once closed.
+	p.spans = p.spans[:0]
+	for i := first; i < len(p.tabs); i++ {
+		it := p.tabs[i]
+		label, icon, iconStyle := a.tabLabel(it)
+		if x >= maxX {
+			break
 		}
 		style := a.th.muted
 		if i == p.cur {
@@ -277,42 +378,66 @@ func (a *app) drawTabBar(st *dirState, p *pane, focused bool) {
 			}
 			if focused && a.tabFocused {
 				style = a.th.tabCurrent.Foreground(accentOf(a.th))
+				if isDock {
+					style = iconStyle.Background(bgOf(a.th.tabCurrent)).Bold(true)
+				}
 			}
 		}
-		if it.sess != nil && it.sess.status == session.Attention {
-			style = a.th.success // The green detail (Q-36). The label's ● says it without colour.
-			label = " ● " + it.name() + " "
-			icon = ""
-		}
-		if icon != "" { // Drawn apart, for its colour. Over the tab's own background if it has one.
-			_, bg, _ := style.Decompose()
-			label = strings.TrimPrefix(label, " ")
-			start := x
-			x = a.put(x, y, maxX, " ", style)
-			x = a.put(x, y, maxX, icon+" ", iconStyle.Background(bg))
-			x = a.put(x, y, maxX, label, style)
-			index := i
-			a.hits = append(a.hits, hit{
-				area: rect{start, y, x - start, 1},
-				click: func(int, int, tcell.ModMask) {
-					st.focus, p.cur = p, index
-					a.focusTab()
-				},
-			})
-			x++
-			continue
-		}
+		_, bg, _ := style.Decompose()
 		start := x
-		x = a.put(x, y, maxX, label, style)
+		x = a.put(x, y, maxX, " ", style)
+		x = a.put(x, y, maxX, icon+" ", iconStyle.Background(bg))
+		x = a.put(x, y, maxX, label+" ", style)
+		closeAt := x
+		closeStyle := a.th.muted.Background(bg)
+		x = a.put(x, y, maxX, "× ", closeStyle)
+		p.spans = append(p.spans, tabSpan{it, start, x - start})
 		index := i
+		pick := func() {
+			if index < len(p.tabs) && p.tabs[index] == it {
+				st.focus, p.cur = p, index
+			}
+		}
+		closeIt := func() {
+			pick()
+			a.closeTab()
+		}
 		a.hits = append(a.hits, hit{
 			area: rect{start, y, x - start, 1},
 			click: func(int, int, tcell.ModMask) {
-				st.focus, p.cur = p, index
+				pick()
 				a.focusTab()
 			},
+			drag: func() func(int, int) {
+				holder := p
+				return func(mouseX, mouseY int) { holder = a.dragTab(st, holder, it, mouseX, mouseY) }
+			}(),
+			middle: closeIt,
+			context: func(mouseX, mouseY int) {
+				pick()
+				a.menu = &openMenu{group: -1, x: mouseX, y: mouseY + 1, items: a.tabMenu(st, p, it)}
+			},
 		})
+		a.hits = append(a.hits, hit{area: rect{closeAt, y, 1, 1}, click: func(int, int, tcell.ModMask) { closeIt() }})
 		x++
+	}
+}
+
+// tabMenu is what the right button offers on a tab.
+func (a *app) tabMenu(st *dirState, p *pane, it *tabItem) []menuItem {
+	return []menuItem{
+		{label: "Close", action: "tab.close"},
+		{label: "Close Others", run: func() {
+			for _, other := range slices.Clone(p.tabs) {
+				if other != it && (other.ed == nil || !other.ed.File.Modified() || !a.lastView(other)) {
+					a.removeTab(st, p, other)
+				}
+			}
+			p.cur = max(0, slices.Index(p.tabs, it))
+		}},
+		{},
+		{label: "Split Right", action: "split.right"},
+		{label: "Split Below", action: "split.down"},
 	}
 }
 
@@ -324,33 +449,93 @@ func (a *app) drawEditor(st *dirState, p *pane, it *tabItem, r rect, focused boo
 	if r.w <= gutter+1 {
 		gutter = 0 // Too narrow for line numbers.
 	}
-	textWidth := max(1, r.w-gutter)
-	e.Scroll(textWidth, r.h)
+	scrollbar := e.File.LineCount() > r.h && r.w > gutter+2
+	textWidth := max(1, r.w-gutter-scrollbarWidth(scrollbar))
+	wrap := a.cfg.Editor.WordWrap
+	if wrap {
+		e.ScrollWrapped(textWidth, r.h)
+	} else {
+		e.WrapWidth = 0
+		e.Scroll(textWidth, r.h)
+	}
 	current, _ := e.Position()
 	colours := syntax.NewCursor(a.highlightSpans(e.File)) // Only what's on screen is looked up.
-	for row := range r.h {
-		line := e.ScrollLine + row
-		if line >= e.File.LineCount() {
-			break
+	// Which line and how far along it each row shows, so that the mouse can go the other way.
+	type place struct{ line, col, end int } // end is where the next row of the line starts, or -1.
+	rows := make([]place, 0, r.h)
+	drawGutter := func(row, line int, first bool) {
+		if gutter == 0 {
+			return
 		}
-		if gutter > 0 {
-			style := a.th.muted
-			if line == current {
-				style = a.th.accent
-			}
+		style := a.th.muted
+		if line == current {
+			style = a.th.accent
+		}
+		if first {
 			a.put(r.x, r.y+row, r.x+gutter, fmt.Sprintf(" %*d", gutter-2, line+1), style)
-			if marked[line] {
-				a.screen.SetContent(r.x, r.y+row, '▌', nil, a.th.gitModified)
-			}
 		}
-		for _, c := range e.Row(line, textWidth) {
-			a.screen.Put(r.x+gutter+c.X, r.y+row, c.Text, a.cellStyle(c, colours.At(c.Offset)))
+		if marked[line] {
+			a.screen.SetContent(r.x, r.y+row, '▌', nil, a.th.gitModified)
+		}
+	}
+	for line := e.ScrollLine; len(rows) < r.h && line < e.File.LineCount(); line++ {
+		if !wrap {
+			row := len(rows)
+			rows = append(rows, place{line, e.ScrollCol, -1})
+			drawGutter(row, line, true)
+			for _, c := range e.Row(line, textWidth) {
+				a.screen.Put(r.x+gutter+c.X, r.y+row, c.Text, a.cellStyle(c, colours.At(c.Offset)))
+			}
+			continue
+		}
+		top := len(rows)
+		breaks := e.WrapBreaks(line, textWidth)
+		for i, start := range breaks {
+			if len(rows) == r.h {
+				break
+			}
+			drawGutter(len(rows), line, i == 0)
+			end := -1
+			if i+1 < len(breaks) {
+				end = breaks[i+1]
+			}
+			rows = append(rows, place{line, start, end})
+		}
+		for _, c := range e.Row(line, textWidth*r.h) {
+			i := editor.WrapRowOf(breaks, c.X)
+			if row := top + i; row < r.h {
+				a.screen.Put(r.x+gutter+c.X-breaks[i], r.y+row, c.Text, a.cellStyle(c, colours.At(c.Offset)))
+			}
 		}
 	}
 	if focused && a.tabFocused && a.overlayFree() {
-		if x, y := e.ScreenCursor(); x >= 0 && x < textWidth && y >= 0 && y < r.h {
+		x, y := e.ScreenCursor()
+		visible := true
+		if wrap {
+			x, y, visible = e.ScreenCursorWrapped(textWidth)
+		}
+		if visible && x >= 0 && x < textWidth && y >= 0 && y < r.h {
 			a.screen.ShowCursor(r.x+gutter+x, r.y+y)
 		}
+	}
+	// A place on screen, in the file. Past the last row means the end of the last line.
+	placeAt := func(x, y int) (line, col int) {
+		row := y - r.y
+		if row < 0 || len(rows) == 0 {
+			return e.ScrollLine, 0
+		}
+		if row >= len(rows) {
+			last := rows[len(rows)-1]
+			if !wrap {
+				return last.line + row - len(rows) + 1, e.ScrollCol + x - r.x - gutter
+			}
+			return last.line, last.col + textWidth - 1
+		}
+		col = rows[row].col + max(0, x-r.x-gutter)
+		if end := rows[row].end; end >= 0 { // Past a short row's end stays on that row.
+			col = min(col, end-1)
+		}
+		return rows[row].line, col
 	}
 	a.hits = append(a.hits, hit{
 		area: r,
@@ -360,8 +545,66 @@ func (a *app) drawEditor(st *dirState, p *pane, it *tabItem, r rect, focused boo
 			if !wasFocused {
 				a.focusTab()
 			}
-			e.GoTo(e.ScrollLine+y-r.y, e.ScrollCol+x-r.x-gutter, mods&tcell.ModShift != 0)
+			line, col := placeAt(x, y)
+			switch a.mouse.clicks {
+			case 2:
+				e.SelectWord(line, col)
+			case 3:
+				e.SelectLine(line)
+			default:
+				e.GoTo(line, col, mods&tcell.ModShift != 0)
+			}
 		},
+		drag: func(x, y int) { // Past either end, it scrolls as it selects.
+			if y < r.y {
+				e.ScrollBy(-1)
+			} else if y >= r.y+r.h {
+				e.ScrollBy(1)
+			}
+			line, col := placeAt(x, y)
+			e.GoTo(line, col, true)
+		},
+		wheel: func(delta int) { e.ScrollBy(delta * wheelLines) },
+		context: func(x, y int) {
+			st.focus = p
+			a.menu = &openMenu{group: -1, x: x, y: y + 1, items: editorMenu}
+		},
+	})
+	if scrollbar {
+		a.drawScrollbar(e, rect{r.x + r.w - 1, r.y, 1, r.h})
+	}
+}
+
+// editorMenu is what the right button offers in a file.
+var editorMenu = []menuItem{
+	{label: "Cut", action: "edit.cut"},
+	{label: "Copy", action: "edit.copy"},
+	{label: "Paste", action: "edit.paste"},
+	{},
+	{label: "Select All", action: "select.all"},
+	{label: "Find", action: "find.open"},
+	{label: "Go to Definition", action: "lsp.definition"},
+	{label: "Rename", action: "lsp.rename"},
+	{label: "Format", action: "lsp.format"},
+}
+
+// drawScrollbar draws where the view is in the file. Clicking or dragging on it goes there.
+func (a *app) drawScrollbar(e *editor.Editor, r rect) {
+	lines := e.File.LineCount()
+	size := max(1, r.h*r.h/lines)
+	top := e.ScrollLine * r.h / lines
+	for y := range r.h {
+		char, style := '│', a.th.muted
+		if y >= top && y < top+size {
+			char, style = '█', a.th.border
+		}
+		a.screen.SetContent(r.x, r.y+y, char, nil, style)
+	}
+	jump := func(_, y int) { e.ScrollBy((y-r.y)*lines/r.h - e.ScrollLine) }
+	a.hits = append(a.hits, hit{
+		area:  r,
+		click: func(x, y int, _ tcell.ModMask) { jump(x, y) },
+		drag:  jump,
 		wheel: func(delta int) { e.ScrollBy(delta * wheelLines) },
 	})
 }
@@ -424,27 +667,54 @@ func (a *app) drawStatus(w, h int) {
 	case a.onboard != nil: // Its keys are on its own screen.
 	case a.git.busy != "":
 		a.put(1, y, w, a.git.busy, a.th.accent)
-	case a.tabFocused && it != nil && it.ed != nil:
-		line, col := it.ed.Position()
-		where := fmt.Sprintf("Ln %d, Col %d", line+1, col+1)
-		if n := it.ed.CursorCount(); n > 1 {
-			where = fmt.Sprintf("%d cursors  %s", n, where)
-		}
-		if it.ed.File.ReadOnly() {
-			where = "Read-only  " + where
-		}
-		if lang := syntax.ForPath(it.ed.File.Path); lang != nil {
-			where = lang.Name + "  " + where
-		}
-		a.put(max(1, w-utf8.RuneCountInString(where)-1), y, w, where, a.th.primary)
-		a.put(1, y, max(1, w-utf8.RuneCountInString(where)-2), `Ctrl+S save   Ctrl+F find   Ctrl+\ files   Esc : commands`, a.th.muted)
 	case a.tabFocused && it != nil && it.term != nil && it.term.ScrolledBack() > 0:
 		a.put(1, y, w, fmt.Sprintf("Looking back %d lines. Scroll down or type to return.", it.term.ScrolledBack()), a.th.muted)
-	case a.tabFocused:
-		a.put(1, y, w, `Ctrl+\ leaves the terminal`, a.th.muted)
 	default:
-		a.put(1, y, w, "Enter open   Alt+O or :project   Alt+D or :dir   Alt+, Alt+. tabs   Tab enter tab   : commands", a.th.muted)
+		a.drawStatusBar(it, w, y)
 	}
+}
+
+// drawStatusBar is the usual status line: where the keys are going, what's useful there, and on the
+// right where the cursor is and the buttons for the dock and word wrap.
+func (a *app) drawStatusBar(it *tabItem, w, y int) {
+	label, colour := a.mode()
+	x := a.put(0, y, w, " "+label+" ", a.pill(colour)) + 1
+	segments := []statusSegment{}
+	hints := a.hints("file.save", "save", "find.open", "find", "app.menu", "menu", "app.shortcuts", "keys")
+	switch {
+	case a.tabFocused && it != nil && it.ed != nil:
+		line, col := it.ed.Position()
+		if lang := syntax.ForPath(it.ed.File.Path); lang != nil {
+			segments = append(segments, statusSegment{lang.Name + "  ", a.th.icon["cyan"], nil})
+		}
+		if it.ed.File.ReadOnly() {
+			segments = append(segments, statusSegment{"Read-only  ", a.th.icon["red"], nil})
+		}
+		if n := it.ed.CursorCount(); n > 1 {
+			segments = append(segments, statusSegment{fmt.Sprintf("%d cursors  ", n), a.th.icon["purple"], nil})
+		}
+		segments = append(segments, statusSegment{fmt.Sprintf("Ln %d, Col %d ", line+1, col+1), a.th.icon["yellow"], nil})
+		wrap := either(a.cfg.Editor.WordWrap, " ↵ Wrap ", " → NoWrap ")
+		segments = append(segments, statusSegment{wrap, a.th.icon["green"], a.toggleWrap})
+	case a.tabFocused:
+		hints = `Ctrl+\ leaves the terminal`
+	default:
+		hints = "Enter open   Tab enter tab   " + a.hints("project.switch", "projects", "directory.switch", "dirs", "view.terminal", "terminal", "app.menu", "menu", "app.shortcuts", "keys") + "   : commands"
+	}
+	segments = append(segments, a.dockSegment())
+	free := a.drawSegments(segments, y, w)
+	a.put(x, y, max(x, free-1), hints, a.th.muted)
+}
+
+// hints writes action and word pairs as "Key word", using whatever the keys are now.
+func (a *app) hints(pairs ...string) string {
+	var parts []string
+	for i := 0; i+1 < len(pairs); i += 2 {
+		if key := a.keyFor(pairs[i]); key != "" {
+			parts = append(parts, key+" "+pairs[i+1])
+		}
+	}
+	return strings.Join(parts, "   ")
 }
 
 // drawPrompt asks on the status line. A question too long for it wraps upward, because a trust
@@ -546,4 +816,11 @@ func (a *app) drawSwitcher(w, h int) {
 			},
 		})
 	}
+}
+
+func scrollbarWidth(shown bool) int {
+	if shown {
+		return 1
+	}
+	return 0
 }

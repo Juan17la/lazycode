@@ -56,7 +56,9 @@ func (a *app) projectCommand(args []string) {
 	switch {
 	case len(args) == 0:
 		a.openProjectSwitcher()
-	case args[0] == "new" && len(args) > 1:
+	case args[0] == "new" && len(args) == 1:
+		a.openNewProject()
+	case args[0] == "new":
 		a.newProject(strings.Join(args[1:], " "))
 	case args[0] == "close" && len(args) == 1:
 		a.closeProject()
@@ -69,7 +71,9 @@ func (a *app) dirCommand(args []string) {
 	switch {
 	case len(args) == 0:
 		a.openDirSwitcher()
-	case args[0] == "add" && len(args) > 1:
+	case args[0] == "add" && len(args) == 1:
+		a.openAddDir()
+	case args[0] == "add":
 		a.addDir(strings.Join(args[1:], " "))
 	case args[0] == "remove" && len(args) == 1:
 		a.removeDir(a.projects[a.project].Name, a.dirPath())
@@ -91,7 +95,7 @@ func (a *app) closeProject() {
 		if !inScope(dir) {
 			continue
 		}
-		for _, p := range st.root.panes() {
+		for _, p := range st.panes() {
 			for _, it := range p.tabs {
 				if it.term != nil {
 					if done, _ := it.term.Exited(); !done {
@@ -122,7 +126,7 @@ func (a *app) finishCloseProject(closed project.Project) {
 	}
 	for _, dir := range closed.Dirs {
 		if st := a.dirs[dir]; st != nil {
-			for _, p := range st.root.panes() {
+			for _, p := range st.panes() {
 				for _, it := range slices.Clone(p.tabs) {
 					a.removeTab(st, p, it)
 				}
@@ -219,8 +223,10 @@ func (a *app) goTo(name, dir string) {
 }
 
 // newProject makes a project holding the current directory, and moves to it.
-func (a *app) newProject(name string) {
-	dir := a.dirPath()
+func (a *app) newProject(name string) { a.newProjectAt(name, a.dirPath()) }
+
+// newProjectAt makes a project holding one directory, and moves to it.
+func (a *app) newProjectAt(name, dir string) {
 	if a.editProjects(func(all []project.Project) ([]project.Project, string) {
 		if slices.ContainsFunc(all, func(p project.Project) bool { return p.Name == name }) {
 			return nil, "There's already a project called " + name + "."
@@ -267,7 +273,7 @@ func (a *app) addDir(path string) {
 // would become unreachable, so they have to be closed first.
 func (a *app) removeDir(name, dir string) {
 	if st := a.dirs[dir]; st != nil {
-		for _, p := range st.root.panes() {
+		for _, p := range st.panes() {
 			if len(p.tabs) > 0 {
 				a.message = "Close the tabs in " + filepath.Base(dir) + " first."
 				return
@@ -325,6 +331,7 @@ func (a *app) loadState() {
 		return
 	}
 	a.showSecond, a.showAll = a.state.ShowSecond, a.state.ShowAll
+	a.panelW, a.dockH, a.dockHidden = a.state.PanelWidth, a.state.DockHeight, a.state.DockHidden
 	a.setFilesPanel(max(0, min(a.state.FilesPanel, 1)))
 	if a.panelOf[viewFiles] == 1 {
 		a.showSecond = true
@@ -358,6 +365,7 @@ func (a *app) saveState() {
 		a.state.Directories[path] = saved
 	}
 	a.state.ShowSecond, a.state.FilesPanel, a.state.ShowAll = a.showSecond, a.panelOf[viewFiles], a.showAll
+	a.state.PanelWidth, a.state.DockHeight, a.state.DockHidden = a.panelW, a.dockH, a.dockHidden
 	project.SaveState(a.statePath, a.state) //nolint:errcheck // See above.
 }
 
@@ -379,7 +387,7 @@ func layoutEmpty(s *project.Split) bool {
 // come back through D3 and D4 (doc 08).
 func saveSplit(st *dirState, s *split) *project.Split {
 	if s.pane == nil {
-		return &project.Split{SideBySide: s.sideBySide, First: saveSplit(st, s.first), Second: saveSplit(st, s.second)}
+		return &project.Split{SideBySide: s.sideBySide, Ratio: s.ratio, First: saveSplit(st, s.first), Second: saveSplit(st, s.second)}
 	}
 	out := &project.Split{Focus: s.pane == st.focus}
 	for i, it := range s.pane.tabs {
@@ -398,7 +406,7 @@ func saveSplit(st *dirState, s *split) *project.Split {
 // newDirState makes a directory's state, with whatever was saved for it. It runs the first
 // time a directory is shown, so a project's other directories cost nothing until then.
 func (a *app) newDirState(path string) *dirState {
-	st := &dirState{tree: tree.New(path)}
+	st := &dirState{tree: tree.New(path), dock: &pane{}}
 	saved := a.state.Directories[path]
 	if len(saved.OpenFolders) > 0 {
 		st.tree.Reopen(saved.OpenFolders)
@@ -411,7 +419,7 @@ func (a *app) newDirState(path string) *dirState {
 		st.root = &split{pane: &pane{}}
 	}
 	if st.focus == nil {
-		st.focus = st.root.panes()[0]
+		st.focus = st.panes()[0]
 	}
 	if r.failed > 0 {
 		a.message = fmt.Sprintf("%d saved tabs in %s couldn't be reopened.", r.failed, filepath.Base(path))
@@ -444,7 +452,7 @@ func (r *restorer) split(s *project.Split) *split {
 		case second == nil:
 			return first
 		}
-		return &split{sideBySide: s.SideBySide, first: first, second: second}
+		return &split{sideBySide: s.SideBySide, ratio: s.Ratio, first: first, second: second}
 	}
 	p := &pane{}
 	for i, tab := range s.Tabs {
@@ -478,7 +486,7 @@ func (r *restorer) split(s *project.Split) *split {
 // can't end up beside a second copy of the file from disk. Nothing can have been typed in
 // them, because the recovery question comes before any other key.
 func (a *app) dropRestoredTabs(st *dirState, path string) {
-	for _, p := range st.root.panes() {
+	for _, p := range st.panes() {
 		for _, it := range slices.Clone(p.tabs) {
 			if it.ed != nil && it.ed.File.Path == path {
 				a.removeTab(st, p, it)

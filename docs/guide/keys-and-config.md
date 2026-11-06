@@ -2,24 +2,38 @@
 
 Everything here comes from what's built. If you find a mismatch, it's a bug in this page: please open an issue.
 
-**On macOS, every Alt shortcut is Ctrl+K, then the key.** Alt+D is Ctrl+K, then D. Ctrl+F2 (all occurrences) is Ctrl+K, then A. Inside a terminal tab every key goes to the program there, except Ctrl+\\.
+The keys come in families, so that most can be guessed: **Alt+letter** shows something, **Alt+Shift+letter** makes something, **Ctrl+letter** acts on this file, and **F-keys** ask the language server.
+
+**On macOS, every Alt shortcut is Ctrl+K, then the key.** Alt+D is Ctrl+K, then D. Ctrl+F2 (all occurrences) is Ctrl+K, then O. An Alt+Shift shortcut is Ctrl+K, then the capital. Inside a terminal tab every key goes to the program there, except Ctrl+\\.
 
 ## Keys everywhere
 
 | Action | Key | Command |
 |---|---|---|
-| Switch project | Alt+O | `:project` |
+| Menus | Alt+M or F10 | `:menu` |
+| Settings | Alt+S | `:settings` |
+| Shortcuts, which can also change them | Alt+K or F1 | `:shortcuts` |
+| Command bar | Alt+X | `:` in a panel |
+| Switch project | Alt+P | `:project` |
 | Switch directory | Alt+D | `:dir` |
+| New project, in a form | Alt+Shift+P | `:project new`, or `:project new NAME` |
+| Add a directory, in a form | Alt+Shift+F | `:dir add`, or `:dir add PATH` |
+| New file | Ctrl+N | `:new` |
 | Previous, next tab | Alt+, and Alt+. | |
 | Close the tab | Ctrl+W | `:close` |
-| Split the view | Alt+S | `:split`, `:split down` |
-| Next split | Alt+W | |
+| Split right, split below | Alt+Shift+S, Alt+Shift+B | `:split`, `:split down` |
+| Next split, and the dock | Alt+W | |
 | Open or close the second panel | Ctrl+B | |
-| Show AI sessions, or the files | Alt+I, Alt+E | `:session` |
+| Show the files | Alt+E | |
+| Show AI sessions | Alt+A | `:session` |
+| Show or hide the terminal dock | Alt+T | `:dock` |
+| New terminal, new AI session | Alt+Shift+T, Alt+Shift+A | `:term`, `:session` |
 | Search this directory | Alt+F | `:search` |
 | Show Git | Alt+G | `:git` |
 | Open a file by name | Ctrl+P | |
-| Run the directory's project | Alt+P | `:play`, `:p` |
+| Run the directory's project | Alt+R | `:play`, `:p` |
+| Word wrap | Alt+Z | `:wrap` |
+| Quit | Ctrl+Q | `:q` |
 | Leave a terminal tab for the file tree | Ctrl+\\ | |
 
 ## In the file tree
@@ -49,8 +63,8 @@ Everything here comes from what's built. If you find a mismatch, it's a bug in t
 | Cursor on every match | Ctrl+F2 (`:selectall`) |
 | Back to one cursor | Esc |
 | Find | Ctrl+F (`:find`) |
-| Replace | Alt+H (`:replace`). Enter replaces, Alt+A replaces all |
-| Definition, rename, format | F12, F2, Alt+Shift+F (`:definition`, `:rename`, `:format`) |
+| Replace | Ctrl+R (`:replace`). Enter replaces, Alt+A replaces all |
+| Definition, rename, format | F12, F2, F3 (`:definition`, `:rename`, `:format`) |
 | Command bar | Esc, then `:` |
 
 Other views: in AI sessions, Enter resumes, N starts, R renames. In Git, S stages, U unstages, C commits, P pushes, L pulls, F fetches, B switches branch, N makes a branch, M merges, X aborts a merge, O opens the file, Enter opens a diff or commit. In Search, Tab moves between Find and With, Enter opens a result, and Enter in With shows every change before making it.

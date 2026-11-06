@@ -7,7 +7,7 @@ LazyCode is not modal and doesn't have Vim keys. You are always typing: arrow ke
 - **`:` commands.** Press `:` in the file tree, or Esc, then `:` in a file. Commands have short forms: `:w` saves, `:q` quits, `:p` runs the project, `:split` splits.
 - **Splits and tabs.** `:split` and `:split down`, Alt+W to move between them. Alt+, and Alt+. for tabs.
 - **Plain-text config.** `config.toml` and `keys.toml`, applied when you save. `:config` and `:config keys` open them.
-- **Language servers.** `gopls`, `pyright` and `typescript-language-server`: F12 definition, F2 rename, Alt+Shift+F format. Install them yourself or from the first-run screen, which shows each command before it runs.
+- **Language servers.** `gopls`, `pyright` and `typescript-language-server`: F12 definition, F2 rename, F3 format. Install them yourself or from the first-run screen, which shows each command before it runs.
 - **Treesitter highlighting** for Go, Python, JavaScript and TypeScript.
 - **Small and quick.** One file, no runtime to install.
 
@@ -17,7 +17,7 @@ LazyCode is not modal and doesn't have Vim keys. You are always typing: arrow ke
 |---|---|
 | `:w`, `:q` | `:w` or `:save`, and `:q` or `:quit` (asks about unsaved files) |
 | `:e file`, Telescope find files | Ctrl+P, or Enter on a file in the tree |
-| `/` search, `:%s` replace | Ctrl+F in a file, Alt+H to replace |
+| `/` search, `:%s` replace | Ctrl+F in a file, Ctrl+R to replace |
 | `:grep`, live grep | Alt+F, or `:search` |
 | `:vsplit`, `:split` | `:split`, `:split down` |
 | `:terminal` | `:term` (a shell), `:term lazygit` or any command |

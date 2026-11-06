@@ -34,8 +34,9 @@ const frame = time.Second / 60 // Terminal output redraws at most this often.
 // dirState is what belongs to one directory: its tree and its tabs (D-30).
 type dirState struct {
 	tree  *tree.Tree
-	root  *split   // The arrangement of panes.
-	focus *pane    // The pane new tabs go in, and that keys go to.
+	root  *split   // The arrangement of the code's panes.
+	dock  *pane    // Terminal and AI tabs, under the code.
+	focus *pane    // The pane new tabs go in, and that keys go to. Can be the dock.
 	top   int      // First tree row on screen.
 	play  *tabItem // The tab :play last started here (Q-57).
 }
@@ -75,6 +76,13 @@ type app struct {
 	lang       language
 	marks      map[*buffer.File]*fileMarks
 	gitMarks   gitBadges
+	modals     []*modal  // Open windows, the last on top.
+	menu       *openMenu // The open menu.
+	mouse      mouseState
+	termSel    termSelection
+	panelW     int    // A panel's width, once dragged. 0 follows the resolution.
+	dockH      int    // The dock's height, once dragged. 0 follows the resolution.
+	dockHidden bool   // The dock is put away, and its tools keep running.
 	floating   []rect // Boxes drawn over everything this frame, with their own background.
 	plugins    pluginState
 	storeApp   storeState
@@ -92,6 +100,7 @@ type app struct {
 	upd        updates
 	quit       bool
 	hits       []hit // What the mouse can click, from the last frame.
+	deferred   []hit // Drawn early, but above what comes later: the panels' edges.
 
 	recovery      *editor.Recovery
 	autoSaves     map[*buffer.File]*time.Timer
@@ -145,9 +154,8 @@ func runApp(screen tcell.Screen, projects []project.Project, dir, startup string
 	}
 	defer screen.Fini()
 	screen.EnablePaste()
-	// Clicks and the wheel only (Q-13). Shift+drag still selects text in most terminals.
-	// ponytail: dragging later means asking for MouseDragEvents here too.
-	screen.EnableMouse(tcell.MouseButtonEvents)
+	// Clicks, the wheel and dragging. Shift+drag still reaches the terminal's own selection.
+	screen.EnableMouse(tcell.MouseDragEvents)
 
 	a := newApp(screen, projects, dir, startup)
 	tweak(a)
@@ -287,7 +295,7 @@ func (a *app) tab() *tabItem { return a.dir().focus.current() }
 func (a *app) closeAllTabs() {
 	var wg sync.WaitGroup
 	for _, st := range a.dirs {
-		for _, p := range st.root.panes() {
+		for _, p := range st.panes() {
 			for _, it := range p.tabs {
 				if it.term != nil {
 					wg.Go(it.term.Close)
@@ -330,7 +338,7 @@ func (a *app) loadSettings() {
 	a.keys = keys
 	a.setTheme(a.cfg.UI.Theme)
 	for _, st := range a.dirs {
-		for _, p := range st.root.panes() {
+		for _, p := range st.panes() {
 			for _, it := range p.tabs {
 				if it.ed != nil {
 					it.ed.TabSize = a.cfg.Editor.TabSize
@@ -370,6 +378,8 @@ func (a *app) handle(ev tcell.Event) {
 func (a *app) finishPaste(text string) {
 	switch it := a.tab(); {
 	case a.onboard != nil:
+	case len(a.modals) > 0:
+		a.modalPaste(text)
 	case a.find != nil:
 		a.find.paste(a, text)
 	case a.input != nil:
@@ -399,12 +409,21 @@ func (a *app) addPaste(ev *tcell.EventKey) {
 
 func (a *app) handleKey(ev *tcell.EventKey) {
 	a.message = ""
+	a.termSel = termSelection{}
 	if len(a.prompts) > 0 { // Asked before anything else, so no answer gets skipped.
 		a.handlePromptKey(ev)
 		return
 	}
 	if a.onboard != nil {
 		a.handleOnboardKey(ev)
+		return
+	}
+	if len(a.modals) > 0 {
+		a.handleModalKey(ev)
+		return
+	}
+	if a.menu != nil {
+		a.handleMenuKey(ev)
 		return
 	}
 	if term.IsLeaveKey(ev) { // Q-74: the one key a terminal tab never receives.
@@ -476,7 +495,7 @@ func (a *app) handleBoundKey(context keymap.Context, it *tabItem, ev *tcell.Even
 	}
 	if name == "ctrl+k" {
 		a.chord = true
-		a.message = "Ctrl+K: press d, o, comma, period or a"
+		a.message = "Ctrl+K: press the key you'd press with Alt. F1 lists them."
 		return
 	}
 	mods := ev.Modifiers()
@@ -588,6 +607,26 @@ func (a *app) run(line string) {
 		a.storeCommand()
 	case "theme":
 		a.themeCommand(fields[1:])
+	case "themes":
+		a.openThemes()
+	case "settings":
+		a.openSettingsMenu()
+	case "appearance":
+		a.openAppearance()
+	case "plugins":
+		a.openPlugins()
+	case "shortcuts", "keys":
+		a.openShortcuts()
+	case "onboard":
+		a.openOnboarding()
+	case "wrap":
+		a.toggleWrap()
+	case "menu":
+		a.openMenuBar(0)
+	case "new":
+		a.openNewFile()
+	case "dock":
+		a.toggleDock()
 	case "config":
 		name, content := "config.toml", config.Template
 		if len(fields) > 1 && fields[1] == "keys" {
@@ -601,7 +640,7 @@ func (a *app) run(line string) {
 		if a.runPlugin(fields[0]) {
 			return
 		}
-		a.message = "Unknown command: " + fields[0] + ". Try save, term, split, find, definition, rename, format, search, git, push, pull, fetch, repo, config, theme, plugin, store, project, dir, tree, close, update, or q."
+		a.message = "Unknown command: " + fields[0] + ". Try save, new, term, dock, wrap, settings, appearance, themes, plugins, shortcuts, onboard, menu, split, find, definition, rename, format, search, git, push, pull, fetch, repo, config, theme, plugin, store, project, dir, tree, close, update, or q."
 	}
 }
 
@@ -683,6 +722,9 @@ func (a *app) openDirSwitcher() {
 // afterSwitch shows the new directory's views. Tabs elsewhere keep running (Q-34).
 func (a *app) afterSwitch() {
 	a.tabFocused = false
+	if a.dockHidden { // Focus left in another directory's dock can't go to a tab that isn't showing.
+		a.leaveDock(a.dir())
+	}
 	a.closeFind()
 	a.tree().Refresh()
 	a.searchDirChanged()

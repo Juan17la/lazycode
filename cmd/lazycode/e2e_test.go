@@ -219,17 +219,17 @@ path = %q
 	d.enter()
 	d.wait("alpha › two")
 
-	// Ctrl+K then O is the macOS form of Alt+O (Q-80), and switches project.
+	// Ctrl+K then P is the macOS form of Alt+P (Q-80), and switches project.
 	d.key(tcell.KeyCtrlK, tcell.ModCtrl)
 	d.wait("Ctrl+K: press")
-	d.typeText("o")
+	d.typeText("p")
 	d.wait("Switch project")
 	d.typeText("beta")
 	d.enter()
 	d.wait("beta › three")
 
 	// Escape cancels a switcher, and a filter with no match says so.
-	d.alt('o')
+	d.alt('p')
 	d.typeText("nothing-matches")
 	d.wait("No matches")
 	d.key(tcell.KeyEsc, 0)
@@ -258,12 +258,12 @@ path = %q
 	d.wait("Unknown command: nope")
 
 	// Tabs belong to their directory, and keep running while hidden.
-	d.alt('o')
+	d.alt('p')
 	d.typeText("alpha")
 	d.enter()
 	d.wait("alpha › two")
 	d.waitGone("got: hello")
-	d.alt('o')
+	d.alt('p')
 	d.typeText("beta")
 	d.enter()
 	d.wait("got: hello")

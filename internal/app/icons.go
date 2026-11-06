@@ -11,9 +11,12 @@ import (
 // Icons come in two sets. A terminal app can't bring a font, so "basic" sticks to symbols most
 // fonts have, and "nerd" needs a Nerd Font and shows empty boxes without one.
 var (
-	basicViews = map[string]string{viewFiles: "▤", viewGit: "⎇", viewSearch: "⌕", viewAI: "✦"}
+	basicViews = map[string]string{viewFiles: "▤", viewGit: "⎇", viewSearch: "⌕", viewAI: "✻"}
 	nerdViews  = map[string]string{viewFiles: "", viewGit: "", viewSearch: "", viewAI: ""}
 )
+
+// viewColour gives each view a colour of its own, and it's the same wherever the view is named.
+var viewColour = map[string]string{viewFiles: "blue", viewGit: "orange", viewSearch: "yellow", viewAI: "purple"}
 
 type fileIcon struct{ glyph, colour string }
 

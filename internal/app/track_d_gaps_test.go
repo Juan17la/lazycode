@@ -19,7 +19,7 @@ func TestHiddenSessionsComeBack(t *testing.T) {
 
 	u.startFake()
 	u.key(tcell.KeyCtrlBackslash)
-	u.alt('i')
+	u.alt('a')
 	u.wait("Fake 1")
 	u.key(tcell.KeyDelete)
 	u.wait("No sessions yet")
@@ -29,7 +29,7 @@ func TestHiddenSessionsComeBack(t *testing.T) {
 	u.wait("Fake 1  (Fake)")
 	u.key(tcell.KeyEnter)
 	u.wait("Fake 1 is back on the list")
-	u.alt('i')
+	u.alt('a')
 	u.waitGone("No sessions yet")
 	u.wait("Fake 1")
 }

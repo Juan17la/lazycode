@@ -22,12 +22,17 @@ type Config struct {
 	Editor  struct {
 		AutoSave bool `toml:"auto_save"`
 		TabSize  int  `toml:"tab_size"`
+		WordWrap bool `toml:"word_wrap"`
 	} `toml:"editor"`
 	UI struct {
 		Theme   string            `toml:"theme"`
 		Icons   string            `toml:"icons"`
 		Colors  map[string]string `toml:"colors"`
 		Sidebar string            `toml:"sidebar"`
+		// Resolution is how much room the panels and dock take, since a terminal app can't change its
+		// font size or pixels. TextStyle is the one part of the font it controls.
+		Resolution string `toml:"resolution"`
+		TextStyle  string `toml:"text_style"`
 	} `toml:"ui"`
 	Terminal struct {
 		Scrollback int `toml:"scrollback"`
@@ -56,6 +61,8 @@ func Default() Config {
 	c.UI.Theme = DefaultTheme
 	c.UI.Icons = "basic"
 	c.UI.Sidebar = "left"
+	c.UI.Resolution = "auto"
+	c.UI.TextStyle = "rich"
 	c.Terminal.Scrollback = 1000
 	c.Sessions.SleepAfterMinutes = 30 // Q-77.
 	c.Updates.Check = true
@@ -69,12 +76,15 @@ version = 1
 [editor]
 auto_save = false   # Save a second after typing stops.
 tab_size = 4
+word_wrap = false   # Long lines continue on the next row. Alt+Z or :wrap.
 
 [ui]
 theme = "dark"      # Or use :theme. dark, light, gruvbox-dark, gruvbox-light, dracula, one-dark,
                     # nord, tokyo-night, catppuccin-mocha, solarized-dark, solarized-light, monokai
 icons = "basic"     # basic works in any font. nerd needs a Nerd Font: nerdfonts.com
 sidebar = "left"    # left or right
+resolution = "auto" # Room for panels and the dock: auto, compact, normal or spacious.
+text_style = "rich" # rich uses bold and italics. plain doesn't, for fonts that draw them badly.
 
 # Change any colour of the theme: bg, panel, bar, selection, fg, muted, comment, accent,
 # red, green, yellow, blue, purple, cyan, orange.
@@ -107,18 +117,24 @@ const DefaultTheme = "dark"
 // Themes lists the built-in themes, in the order :theme shows them.
 var Themes = []string{"dark", "light", "gruvbox-dark", "gruvbox-light", "dracula", "one-dark", "nord", "tokyo-night", "catppuccin-mocha", "solarized-dark", "solarized-light", "monokai"}
 
+// Resolutions are the choices for ui.resolution.
+var Resolutions = []string{"auto", "compact", "normal", "spacious"}
+
 // ColorKeys are what [ui.colors] can change.
 var ColorKeys = []string{"bg", "panel", "bar", "selection", "fg", "muted", "comment", "accent", "red", "green", "yellow", "blue", "purple", "cyan", "orange"}
 
 var (
 	hexColor  = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
-	themeLine = regexp.MustCompile(`(?m)^theme[ \t]*=[^\r\n#]*?([ \t]*(#[^\r\n]*)?)$`)
-	uiTable   = regexp.MustCompile(`(?m)^\[ui\][ \t]*\r?$`)
+	nextTable = regexp.MustCompile(`(?m)^\[`)
 )
 
-// SetTheme changes the theme in a config file and leaves the rest of it alone. The file is replaced
-// in one step, so a crash can't leave half of it.
-func SetTheme(path, name string) error {
+// SetTheme changes the theme in a config file and leaves the rest of it alone.
+func SetTheme(path, name string) error { return SetValue(path, "ui", "theme", fmt.Sprintf("%q", name)) }
+
+// SetValue changes one setting in a config file and leaves the rest of it alone, comments included.
+// value is written as it is, so a string needs its quotes. The file is replaced in one step, so a
+// crash can't leave half of it.
+func SetValue(path, table, key, value string) error {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		data, err = []byte(Template), nil
@@ -127,15 +143,22 @@ func SetTheme(path, name string) error {
 		return err
 	}
 	text := string(data)
-	line := fmt.Sprintf("theme = %q", name)
-	switch loc := themeLine.FindStringSubmatchIndex(text); {
-	case loc != nil:
-		text = text[:loc[0]] + line + text[loc[2]:loc[3]] + text[loc[1]:]
-	case uiTable.MatchString(text):
-		loc := uiTable.FindStringIndex(text)
-		text = text[:loc[1]] + "\n" + line + text[loc[1]:]
-	default:
-		text = strings.TrimRight(text, "\r\n") + "\n\n[ui]\n" + line + "\n"
+	line := key + " = " + value
+	header := regexp.MustCompile(`(?m)^\[` + regexp.QuoteMeta(table) + `\][ \t]*\r?$`)
+	setting := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(key) + `[ \t]*=[^\r\n#]*?([ \t]*(#[^\r\n]*)?)$`)
+	loc := header.FindStringIndex(text)
+	if loc == nil {
+		text = strings.TrimRight(text, "\r\n") + "\n\n[" + table + "]\n" + line + "\n"
+	} else {
+		end := len(text) // The table ends where the next one starts.
+		if next := nextTable.FindStringIndex(text[loc[1]:]); next != nil {
+			end = loc[1] + next[0]
+		}
+		if at := setting.FindStringSubmatchIndex(text[loc[1]:end]); at != nil {
+			text = text[:loc[1]+at[0]] + line + text[loc[1]+at[2]:]
+		} else {
+			text = text[:loc[1]] + "\n" + line + text[loc[1]:]
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -213,6 +236,12 @@ func Load(path string) (Config, error) {
 	}
 	if c.UI.Sidebar != "left" && c.UI.Sidebar != "right" {
 		problems = append(problems, `sidebar must be "left" or "right"`)
+	}
+	if !slices.Contains(Resolutions, c.UI.Resolution) {
+		problems = append(problems, "resolution must be one of "+strings.Join(Resolutions, ", "))
+	}
+	if c.UI.TextStyle != "rich" && c.UI.TextStyle != "plain" {
+		problems = append(problems, `text_style must be "rich" or "plain"`)
 	}
 	if c.Terminal.Scrollback < 1 || c.Terminal.Scrollback > maxScrollback {
 		problems = append(problems, fmt.Sprintf("scrollback must be from 1 to %d", maxScrollback))

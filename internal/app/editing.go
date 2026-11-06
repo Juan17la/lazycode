@@ -29,19 +29,19 @@ type tabItem struct {
 	play bool          // Started by :play.
 }
 
-// marker tells a terminal tab apart from a file, and changes while output is arriving (Q-25): the
-// filled shape means active.
+// marker tells a terminal tab apart from a file and an AI tab from a shell, in the symbols Claude Code
+// uses, and changes while output is arriving (Q-25).
 func (it *tabItem) marker() string {
 	active := time.Since(it.term.LastOutput()) < activeOutput
 	switch {
 	case it.sess != nil && !it.sess.isShell && active:
-		return "✦"
+		return "✻"
 	case it.sess != nil && !it.sess.isShell:
-		return "✧"
+		return "✢"
 	case active:
-		return "▶"
+		return "⏵"
 	}
-	return "▷"
+	return "❯"
 }
 
 func (it *tabItem) name() string {
@@ -78,7 +78,7 @@ func (a *app) openSelected() {
 // openFile opens a file in the focused pane. An already open file isn't opened twice:
 // it says so, and goes there (Q-15).
 func (a *app) openFile(st *dirState, path string) {
-	for _, p := range st.root.panes() {
+	for _, p := range st.panes() {
 		for i, it := range p.tabs {
 			if it.ed != nil && it.ed.File.Path == path {
 				st.focus, p.cur = p, i
@@ -114,6 +114,7 @@ func openError(path string, err error) string {
 }
 
 func (a *app) addEditor(st *dirState, f *buffer.File) *tabItem {
+	a.leaveDock(st) // Files open with the code, not with the terminals.
 	it := &tabItem{ed: editor.New(f, a.cfg.Editor.TabSize)}
 	st.focus.tabs = append(st.focus.tabs, it)
 	st.focus.cur = len(st.focus.tabs) - 1
@@ -266,7 +267,7 @@ func (a *app) savedSettings(f *buffer.File) {
 
 func (a *app) isOpen(f *buffer.File) bool {
 	for _, st := range a.dirs {
-		for _, p := range st.root.panes() {
+		for _, p := range st.panes() {
 			for _, it := range p.tabs {
 				if it.ed != nil && it.ed.File == f {
 					return true
@@ -280,7 +281,7 @@ func (a *app) isOpen(f *buffer.File) bool {
 // lastView reports whether no other tab shows its file, across every directory.
 func (a *app) lastView(it *tabItem) bool {
 	for _, st := range a.dirs {
-		for _, p := range st.root.panes() {
+		for _, p := range st.panes() {
 			for _, other := range p.tabs {
 				if other != it && other.ed != nil && other.ed.File == it.ed.File {
 					return false
@@ -300,7 +301,7 @@ func (a *app) closeTab() {
 	switch {
 	case it == nil && st.root.pane == nil: // An empty split.
 		st.root = st.root.without(p)
-		st.focus = st.root.panes()[0]
+		st.focus = st.panes()[0]
 		a.tabFocused = false
 	case it == nil:
 	case it.ed == nil || !it.ed.File.Modified() || !a.lastView(it):
@@ -329,7 +330,7 @@ func (a *app) askUnsaved(inScope func(dir string) bool, when string, discard map
 		if !inScope(dir) {
 			continue
 		}
-		for _, p := range st.root.panes() {
+		for _, p := range st.panes() {
 			for _, it := range p.tabs {
 				if it.ed == nil || !it.ed.File.Modified() || discard[it.ed.File] || a.shownOutside(it.ed.File, inScope) {
 					continue
@@ -357,7 +358,7 @@ func (a *app) shownOutside(f *buffer.File, inScope func(dir string) bool) bool {
 		if inScope(dir) {
 			continue
 		}
-		for _, p := range st.root.panes() {
+		for _, p := range st.panes() {
 			for _, it := range p.tabs {
 				if it.ed != nil && it.ed.File == f {
 					return true

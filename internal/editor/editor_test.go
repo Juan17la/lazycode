@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -1285,5 +1286,31 @@ func BenchmarkFrame100MB(b *testing.B) {
 		if e.File.LineOf(e.cur().pos) > 2_000_000 {
 			e.DocStart(false)
 		}
+	}
+}
+
+func TestWrapBreaksAndMovesByRow(t *testing.T) {
+	e := open(t, "aaaa bbbb cccc\nlonglonglonglong\nz")
+	e.Scroll(100, 10)
+	if got := e.WrapBreaks(0, 7); !slices.Equal(got, []int{0, 5, 10}) {
+		t.Errorf("between words: %v", got)
+	}
+	if got := e.WrapBreaks(1, 7); !slices.Equal(got, []int{0, 7, 14}) {
+		t.Errorf("one long word: %v", got)
+	}
+	e.ScrollWrapped(7, 10)
+	e.GoTo(0, 1, false)
+	e.Down(false)
+	if line, col := e.Position(); line != 0 || col != 6 {
+		t.Errorf("down a row: %d, %d", line, col)
+	}
+	e.Down(false)
+	e.Down(false) // Off the end of the line, into the next.
+	if line, col := e.Position(); line != 1 || col != 1 {
+		t.Errorf("into the next line: %d, %d", line, col)
+	}
+	e.Up(false)
+	if line, col := e.Position(); line != 0 || col != 11 {
+		t.Errorf("up to the last row: %d, %d", line, col)
 	}
 }

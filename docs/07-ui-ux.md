@@ -140,6 +140,9 @@ LazyCode runs in the user's terminal, which receives keys first (Q-50). The defa
 
 | Command | Short form | Action | Status |
 |---|---|---|---|
+| `:settings`, `:appearance`, `:themes`, `:plugins`, `:shortcuts`, `:onboard`, `:menu` | | Open that menu | Decided (D-44) |
+| `:new`, `:wrap`, `:dock` | | New file, word wrap, show or hide the dock | Decided (D-44) |
+| `:project new`, `:dir add` | | With no name or path, open the form | Decided (D-44) |
 | `:play` | `:p` | Run the directory's command | Decided, short form proposed |
 | `:save` | `:w` | Save | Decided, short form proposed |
 | `:quit` | `:q` | Quit | Decided |
@@ -174,27 +177,28 @@ LazyCode runs in the user's terminal, which receives keys first (Q-50). The defa
 |---|---|---|
 | Esc, then `:` | Open the command bar | Decided |
 | Alt+, and Alt+. | Previous and next tab | Decided (Q-80) |
+| Alt+E, G, F, A, T | Show Explorer, Git, Find in directory, AI sessions, the terminal dock | Decided (D-44) |
+| Alt+P, Alt+D, Alt+R | Projects, directories, run | Decided (D-44), replacing Alt+O and Alt+P for run |
+| Alt+M or F10, Alt+S, Alt+K or F1, Alt+X, Alt+Z | Menus, settings, shortcuts, command bar, word wrap | Decided (D-44) |
+| Alt+Shift+P, F, T, A, S, B | New project, add a folder, new terminal, new AI session, split right, split below | Decided (D-44) |
+| Ctrl+N, Ctrl+R, Ctrl+Q | New file, replace in file, quit | Decided (D-44) |
+| F3 | Format | Decided (D-44), replacing Shift+Alt+F |
 | Ctrl+B | Toggle second panel | Decided |
 | Ctrl+D | Add next occurrence | Decided |
-| Ctrl+F2 | Select all occurrences. On macOS, Ctrl+K then A. | Decided (Q-17, Q-80) |
+| Ctrl+F2 | Select all occurrences. On macOS, Ctrl+K then O. | Decided (Q-17, Q-80, D-44) |
 | Ctrl+S | Save | Proposed |
 | Ctrl+Z, Ctrl+Y | Undo, redo | Proposed |
 | Ctrl+X, Ctrl+C, Ctrl+V | Cut, copy, paste | Proposed |
 | Ctrl+F | Find in file | Proposed |
-| Alt+H | Replace in file | Proposed, because terminals send Ctrl+H as Backspace |
 | Alt+F | Search panel | Proposed, replacing Ctrl+Shift+F |
 | Alt+G | Git panel | Proposed |
 | Ctrl+P | Open a file by name | Proposed |
 | Ctrl+W | Close tab | Proposed |
-| Alt+S | Split | Proposed, because Ctrl+\\ leaves terminal tabs, and Alt+\\ can't be read |
 | Alt+W | Next split | Proposed (P-21) |
 | Alt+V | Move a view to the other panel, from the tree | Proposed (P-21) |
 | Ctrl+A | Select everything | Proposed |
 | F12, F2 | Go to definition, rename | Proposed |
-| Shift+Alt+F | Format | Proposed |
 | Alt+D | Switch directory | Decided (Q-74) |
-| Alt+O | Switch project | Decided (Q-74) |
-| Alt+P | Run, the same as `:play` | Decided (Q-74) |
 | Ctrl+\\ | Leave a terminal tab | Decided (Q-74) |
 
 Inside a terminal tab, every key except Ctrl+\\ goes to the tool. Ctrl+C interrupts rather than copies, and Alt+D goes to the tool, so press Ctrl+\\ first.
@@ -213,6 +217,8 @@ Terminal and OS defaults, which users can usually change in settings. Priority t
 | Ctrl+H | Most terminals: sends the same byte as Backspace. | Tested (`M0-07`) | Avoided |
 | Alt+\\ | Most terminals: sends `ESC \`, a control sequence that's dropped. | Tested (`M0-07`) | Avoided |
 | Ctrl+V | Windows Terminal: pastes. It arrives as a paste, which does the same job. | Tested (`M0-07`) | Accepted |
+| Alt+Shift+D | Windows Terminal: duplicate pane. | General knowledge, not checked | Avoided (D-44) |
+| F1, F10 | GNOME Terminal: help and menu bar. | General knowledge, not checked | Each has an Alt form too (D-44) |
 | Ctrl+Tab | Windows Terminal and Kitty: next tab. | Microsoft docs, Kitty source | Avoided (Q-74) |
 | Ctrl+Shift+D | Windows Terminal: duplicate tab. | Microsoft docs | Avoided (Q-74) |
 | Ctrl+Shift+Space | Windows Terminal: new tab dropdown. | Microsoft docs | Avoided (Q-74) |
@@ -221,6 +227,9 @@ Terminal and OS defaults, which users can usually change in settings. Priority t
 **No default found** in Windows Terminal's docs, Kitty's docs or Apple's lists for: Ctrl+\\, Alt+D, Alt+O, Alt+P, Alt+, and Alt+. on Linux and Windows, or Ctrl+K on macOS, where Apple lists it as reaching the program. **Tested on 2026-11-04 (`M0-07`).** `cmd/keytest` ran in real Windows Terminal, macOS Terminal and Kitty on CI, with simulated key presses, and every listed key arrived. Kitty also passed with a Spanish layout, including Ctrl+\\. The presses were simulated, so a physical keyboard and other layouts are still worth a try: run `go run ./cmd/keytest` in the terminal, press each key, then press q.
 
 ## Mouse behaviour
+
+**Added by D-44.** Clicking works on everything, including tab close buttons and the buttons at the end of each tab bar. Dragging selects text, moves a tab along its bar or to another split, moves the panel edges, the dock's top and split lines, and moves the scroll bar. A double click takes a word and a triple click a line. The middle button closes a tab, and the right button opens a menu on a tab, in a file or in the file tree. In a terminal tab dragging selects what's on screen and copies it, unless the tool asked for the mouse.
+
 
 - **Decided (Q-13):** Clicking and scrolling. Dragging later.
 - **Proposed:** Click tabs, tree items, buttons, cursor positions and the panels' view titles. A terminal tab receives mouse input if its tool asks for it.

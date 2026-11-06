@@ -18,6 +18,9 @@ type State struct {
 	ShowSecond  bool                `json:"show_second,omitempty"`
 	FilesPanel  int                 `json:"files_panel,omitempty"`
 	ShowAll     bool                `json:"show_all,omitempty"`
+	PanelWidth  int                 `json:"panel_width,omitempty"` // Dragged sizes. 0 follows the resolution.
+	DockHeight  int                 `json:"dock_height,omitempty"`
+	DockHidden  bool                `json:"dock_hidden,omitempty"`
 }
 
 // DirState is one directory's layout and open folders.
@@ -28,12 +31,13 @@ type DirState struct {
 
 // Split is a pane with its tabs, or two children.
 type Split struct {
-	Tabs       []Tab  `json:"tabs,omitempty"`
-	Cur        int    `json:"cur,omitempty"`
-	Focus      bool   `json:"focus,omitempty"`
-	SideBySide bool   `json:"side_by_side,omitempty"`
-	First      *Split `json:"first,omitempty"`
-	Second     *Split `json:"second,omitempty"`
+	Tabs       []Tab   `json:"tabs,omitempty"`
+	Cur        int     `json:"cur,omitempty"`
+	Focus      bool    `json:"focus,omitempty"`
+	SideBySide bool    `json:"side_by_side,omitempty"`
+	Ratio      float64 `json:"ratio,omitempty"` // The first child's share. 0 is even.
+	First      *Split  `json:"first,omitempty"`
+	Second     *Split  `json:"second,omitempty"`
 }
 
 // Tab is an open file and where its view was.

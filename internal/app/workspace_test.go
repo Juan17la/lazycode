@@ -97,7 +97,7 @@ func TestTabsCursorsSplitsAndFoldersComeBackAfterQuitting(t *testing.T) {
 	u.key(tcell.KeyDown)
 	u.key(tcell.KeyDown)
 	u.wait("Ln 3, Col 1")
-	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt)) // A second view, side by side.
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'S', tcell.ModAlt)) // A second view, side by side.
 	u.waitCount(" a.txt ", 3)                                   // The tree, and two tabs.
 	u.quitNow()
 
@@ -114,7 +114,7 @@ func TestTabsCursorsSplitsAndFoldersComeBackAfterQuitting(t *testing.T) {
 func TestDeletedFileIsSkippedAndItsPaneGoes(t *testing.T) {
 	u := start(t, map[string]string{"a.txt": "a\n", "b.txt": "b\n"})
 	u.open("a.txt")
-	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt))
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'S', tcell.ModAlt))
 	u.waitCount(" a.txt ", 3) // The tree, and two tabs.
 	u.quitNow()
 	if err := os.Remove(filepath.Join(u.dir, "a.txt")); err != nil {

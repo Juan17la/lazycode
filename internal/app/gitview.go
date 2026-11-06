@@ -671,7 +671,7 @@ func (a *app) openText(root, name, text string) {
 	}, name)
 	path := filepath.Join(root, ".git", "lazycode-views", name)
 	st := a.dir()
-	for _, p := range st.root.panes() {
+	for _, p := range st.panes() {
 		for _, it := range slices.Clone(p.tabs) {
 			if it.ed != nil && it.ed.File.Path == path {
 				a.removeTab(st, p, it)

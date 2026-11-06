@@ -133,6 +133,92 @@ func (e *Editor) ScrollBy(lines int) {
 	e.ScrollLine = max(0, min(e.ScrollLine+lines, e.File.LineCount()-1))
 }
 
+// WrapBreaks returns the column each row of a wrapped line starts at, the first being 0. It breaks after
+// a space when the row has one, and otherwise wherever the width runs out. Only a screenful of the line
+// is looked at, so that a very long line stays cheap.
+func (e *Editor) WrapBreaks(line, width int) []int {
+	start, end, _ := e.lineSpan(line)
+	breaks := []int{0}
+	rowStart, afterSpace := 0, 0
+	limit := min(end, start+width*max(1, e.height)*maxBytesPerColumn)
+	walk(e.File.Slice(start, limit), 0, e.TabSize, func(g glyph) bool {
+		if g.col+g.width-rowStart > width && g.col > rowStart {
+			rowStart = g.col
+			if afterSpace > breaks[len(breaks)-1] {
+				rowStart = afterSpace
+			}
+			breaks = append(breaks, rowStart)
+		}
+		if g.text == " " {
+			afterSpace = g.col + g.width
+		}
+		return true
+	})
+	return breaks
+}
+
+// WrapRowOf returns which row of a wrapped line holds a column.
+func WrapRowOf(breaks []int, col int) int {
+	i, found := slices.BinarySearch(breaks, col)
+	if found {
+		return i
+	}
+	return max(0, i-1)
+}
+
+// ScrollWrapped is Scroll for word wrap: nothing scrolls sideways, and the cursor's row has to fit
+// after the rows of the lines above it. Like Scroll, it leaves the wheel alone until the cursor moves.
+func (e *Editor) ScrollWrapped(width, height int) {
+	e.WrapWidth = width
+	moved := !e.followed.valid || e.followed.pos != e.cur().pos || !e.followed.text.Same(e.File.Snapshot)
+	e.ScrollCol = 0
+	e.Scroll(1<<30, height)
+	if !moved {
+		return
+	}
+	for {
+		if _, y, ok := e.ScreenCursorWrapped(width); ok && y < e.height {
+			return
+		}
+		line, _ := e.Position()
+		if e.ScrollLine >= line {
+			return // Its line alone is taller than the screen.
+		}
+		e.ScrollLine++
+	}
+}
+
+// ScreenCursorWrapped returns the cursor's place on screen under word wrap. ok is false above the screen.
+func (e *Editor) ScreenCursorWrapped(width int) (x, y int, ok bool) {
+	line, col := e.Position()
+	if line < e.ScrollLine {
+		return 0, 0, false
+	}
+	for l := e.ScrollLine; l < line; l++ {
+		if y += len(e.WrapBreaks(l, width)); y >= e.height {
+			return 0, y, true
+		}
+	}
+	breaks := e.WrapBreaks(line, width)
+	row := WrapRowOf(breaks, col)
+	return col - breaks[row], y + row, true
+}
+
+// SelectWord selects the word at a place, as a double click does. Outside any word it's just a click.
+func (e *Editor) SelectWord(line, col int) {
+	e.GoTo(line, col, false)
+	start, end := e.wordAt(e.cur().pos)
+	e.moveTo(start, false)
+	e.moveTo(end, true)
+}
+
+// SelectLine selects a whole line and its line break, as a triple click does.
+func (e *Editor) SelectLine(line int) {
+	start, _, next := e.lineSpan(max(0, min(line, e.File.LineCount()-1)))
+	e.moveTo(start, false)
+	e.moveTo(next, true)
+}
+
 // ScreenCursor returns the cursor's position in the text area.
 func (e *Editor) ScreenCursor() (x, y int) {
 	line, col := e.Position()

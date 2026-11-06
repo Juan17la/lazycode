@@ -25,6 +25,7 @@ type onboarding struct {
 	light, autoSave bool
 	tools           []toolChoice
 	row             int
+	again           bool // Opened from the menus, so settings already exist and skipping changes nothing.
 }
 
 type toolChoice struct {
@@ -112,12 +113,40 @@ func (a *app) handleOnboardKey(ev *tcell.EventKey) {
 // finishOnboarding saves the choices, then asks before running each picked install. Skipping
 // passes an empty one: the defaults are saved too, because a skipped screen stays skipped.
 func (a *app) finishOnboarding(o *onboarding) {
+	again := a.onboard != nil && a.onboard.again
 	a.onboard = nil
+	if again {
+		a.finishOnboardingAgain(o)
+		return
+	}
 	a.cfg.UI.Theme, a.cfg.Editor.AutoSave = o.theme(), o.autoSave
 	a.setTheme(o.theme())
 	if err := config.EnsureFile(a.settingsPath("config.toml"), config.FirstConfig(o.theme(), o.autoSave)); err != nil {
 		a.message = "Your choices weren't saved, so this screen will come back: " + err.Error()
 	}
+	a.askInstalls(o)
+	a.askToTrust()
+}
+
+// finishOnboardingAgain applies only what was changed. Skipping passes an empty one, which changes nothing.
+func (a *app) finishOnboardingAgain(o *onboarding) {
+	if !o.again {
+		a.setTheme(a.cfg.UI.Theme)
+		return
+	}
+	if wasDark := a.cfg.UI.Theme != "light"; (o.light && wasDark) || (!o.light && a.cfg.UI.Theme == "light") {
+		a.chooseTheme(o.theme())
+	} else {
+		a.setTheme(a.cfg.UI.Theme) // A theme that's neither stays, unless the row really changed it.
+	}
+	if o.autoSave != a.cfg.Editor.AutoSave {
+		a.setConfig("editor", "auto_save", fmt.Sprint(o.autoSave))
+	}
+	a.askInstalls(o)
+}
+
+// askInstalls asks before running each picked install.
+func (a *app) askInstalls(o *onboarding) {
 	for _, t := range o.tools {
 		if t.picked {
 			command := t.Server.Install
@@ -126,7 +155,6 @@ func (a *app) finishOnboarding(o *onboarding) {
 				choice{'s', "Skip", func() {}})
 		}
 	}
-	a.askToTrust()
 }
 
 // runInstall shows the install in a terminal tab, so its output and any failure can be read. It runs
@@ -164,7 +192,10 @@ func (o *onboarding) detail() []string {
 
 // onboardNotes are what the screen discloses or explains (Q-79, Q-80).
 func onboardNotes(goos string) []string {
-	notes := []string{"LazyCode looks on GitHub for a new version once a day. Set check = false under [updates] in :config to stop that."}
+	notes := []string{
+		"Shortcuts come in families: Alt+letter shows, Alt+Shift+letter makes. F1 or Alt+K lists them, F10 or Alt+M opens the menus.",
+		"LazyCode looks on GitHub for a new version once a day. Set check = false under [updates] in :config to stop that.",
+	}
 	if goos == "darwin" {
 		notes = append(notes, "On macOS, shortcuts shown as Alt+key are Ctrl+K, then that key. Option types special characters by default.")
 	}
@@ -208,7 +239,8 @@ func (a *app) drawOnboard(w, h int) {
 		line(text, style)
 	}
 
-	line("Welcome to LazyCode", a.th.accent)
+	a.frame(rect{x0 - 2, y - 1, width + 4, 10 + len(o.tools) + len(notes)}, a.th.borderFocus)
+	line("✻ Welcome to LazyCode", a.th.accent)
 	y++
 	option(rowTheme, "Theme      "+either(o.light, "Dark   [Light]", "[Dark]  Light"))
 	option(rowAutoSave, "Auto-save  "+either(o.autoSave, "Off    [On]", "[Off]   On"))

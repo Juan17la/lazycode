@@ -43,11 +43,19 @@ type theme struct {
 	success                tcell.Style // A session wanting attention (Q-36).
 	err                    tcell.Style
 	tabCurrent             tcell.Style
+	border, borderFocus    tcell.Style // Lines between areas, and those around what has focus.
 	// Syntax. Keywords stay bold and comments italic, so meaning survives without colour.
 	keyword, str, number, constant, function, typ, variable, property, operator, tag, comment tcell.Style
 	// Git state in the tree, each with a letter too (Q-48).
 	gitAdded, gitModified, gitUntracked, gitConflict tcell.Style
 	icon                                             map[string]tcell.Style // By palette colour name.
+}
+
+// plainText takes out the bold and italics, for fonts that draw them badly.
+func (th *theme) plainText() {
+	for _, s := range []*tcell.Style{&th.accent, &th.err, &th.success, &th.tabCurrent, &th.borderFocus, &th.keyword, &th.comment, &th.gitConflict} {
+		*s = s.Bold(false).Italic(false)
+	}
 }
 
 func themeFor(name string) theme { return themeWith(name, nil) }
@@ -76,6 +84,8 @@ func themeWith(name string, custom map[string]string) theme {
 		match:        fg("yellow").Underline(true),
 		err:          fg("red").Bold(true),
 		success:      fg("green").Bold(true),
+		border:       fg("blue"),
+		borderFocus:  fg("accent").Bold(true),
 		tabCurrent:   plain.Background(c("bg")).Foreground(c("fg")).Bold(true),
 		keyword:      fg("purple").Bold(true),
 		str:          fg("green"),
@@ -100,10 +110,23 @@ func themeWith(name string, custom map[string]string) theme {
 	return th
 }
 
+// pill is a coloured label: the theme's colour behind its background colour. With few colours,
+// it's reversed, which is the part that always shows.
+func (a *app) pill(colour string) tcell.Style {
+	fg, _, _ := a.th.icon[colour].Decompose()
+	if a.lowColour() {
+		return tcell.StyleDefault.Reverse(true).Bold(true)
+	}
+	return tcell.StyleDefault.Background(fg).Foreground(a.th.bg).Bold(true)
+}
+
 // setTheme applies a theme. A terminal with few colours keeps its own background, and selections
 // are reversed there, because a subtle shade could round to the same colour as the text behind it.
 func (a *app) setTheme(name string) {
 	a.th = themeWith(name, a.cfg.UI.Colors)
+	if a.cfg.UI.TextStyle == "plain" {
+		a.th.plainText()
+	}
 	if a.lowColour() {
 		a.th.active = tcell.StyleDefault.Reverse(true)
 		a.th.tabCurrent = tcell.StyleDefault.Bold(true).Underline(true)
@@ -119,7 +142,7 @@ func (a *app) paintBackground(st *dirState, w, h int) {
 		return
 	}
 	first, second, _ := a.regions()
-	panes := st.root.panes()
+	panes := a.shownPanes(st)
 	for y := range h {
 		for x := 0; x < w; x++ {
 			text, style, width := a.screen.Get(x, y)
@@ -159,4 +182,9 @@ func (a *app) paintBackground(st *dirState, w, h int) {
 			}
 		}
 	}
+}
+
+func bgOf(s tcell.Style) tcell.Color {
+	_, bg, _ := s.Decompose()
+	return bg
 }

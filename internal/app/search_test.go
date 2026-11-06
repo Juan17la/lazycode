@@ -12,7 +12,7 @@ import (
 func TestPanelHeaderListsAllViewsAndClicksSwitch(t *testing.T) {
 	u := start(t, map[string]string{"a.txt": "x"})
 	u.screen.SetSize(100, 30)
-	u.wait("▤ Files  ⎇  ⌕  ✦")
+	u.wait("▤ Files  ⎇  ⌕  ✻")
 	u.clickOn("⎇")
 	u.wait("⎇ Git")
 	u.wait("▤  ⎇ Git") // Files is now only its icon.
