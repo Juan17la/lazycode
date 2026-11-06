@@ -92,7 +92,7 @@ AI tools manage their own logins.
 | AI tools | Their own, and outside LazyCode's control |
 | Update check | **The one automatic connection.** To GitHub's latest release, at most once a day at startup (Q-79). GitHub sees the IP address, and no other data is sent. A setting turns it off. |
 
-`scripts/privacy-check.sh` lists what can connect or start a program. Only `internal/update` makes a connection itself. Without being asked, LazyCode also starts two local programs: `git`, for modified-line markers, and `ps`, for session activity on Linux and macOS.
+`scripts/privacy-check.sh` lists what can connect or start a program. Only `internal/update`, and `internal/store` when the user runs `:store`, make a connection themselves. Without being asked, LazyCode also starts two local programs: `git`, for modified-line markers, and `ps`, for session activity on Linux and macOS.
 
 Local logs are for debugging only. They contain no file contents, and rotate at a limited size. User counts can only come from public data such as release downloads.
 

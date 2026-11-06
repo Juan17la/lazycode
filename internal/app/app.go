@@ -20,6 +20,7 @@ import (
 	"github.com/Juan17la/lazycode/internal/project"
 	"github.com/Juan17la/lazycode/internal/run"
 	"github.com/Juan17la/lazycode/internal/session"
+	"github.com/Juan17la/lazycode/internal/store"
 	"github.com/Juan17la/lazycode/internal/term"
 	"github.com/Juan17la/lazycode/internal/tree"
 	"github.com/Juan17la/lazycode/internal/trust"
@@ -73,6 +74,7 @@ type app struct {
 	lang       language
 	marks      map[*buffer.File]*fileMarks
 	plugins    pluginState
+	storeApp   storeState
 
 	tabFocused bool
 	chord      bool // Ctrl+K was pressed, and the next key finishes it.
@@ -110,6 +112,7 @@ func newApp(screen tcell.Screen, projects []project.Project, dir, startup string
 		keys:     keymap.Default(),
 		message:  startup,
 		upd:      newUpdates(),
+		storeApp: storeState{client: store.New()},
 
 		autoSaves:     map[*buffer.File]*time.Timer{},
 		marks:         map[*buffer.File]*fileMarks{},
@@ -578,6 +581,8 @@ func (a *app) run(line string) {
 		a.repoCommand(fields[1:])
 	case "plugin":
 		a.pluginCommand(fields[1:])
+	case "store":
+		a.storeCommand()
 	case "config":
 		name, content := "config.toml", config.Template
 		if len(fields) > 1 && fields[1] == "keys" {
@@ -591,7 +596,7 @@ func (a *app) run(line string) {
 		if a.runPlugin(fields[0]) {
 			return
 		}
-		a.message = "Unknown command: " + fields[0] + ". Try save, term, split, find, definition, rename, format, search, git, push, pull, fetch, repo, config, plugin, project, dir, tree, close, update, or q."
+		a.message = "Unknown command: " + fields[0] + ". Try save, term, split, find, definition, rename, format, search, git, push, pull, fetch, repo, config, plugin, store, project, dir, tree, close, update, or q."
 	}
 }
 

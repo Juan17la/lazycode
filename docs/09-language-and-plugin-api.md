@@ -18,19 +18,19 @@ These are configured by default, but they aren't bundled. **The user installs th
 
 ## Adding a language
 
-**Proposed:** A language needs only a small TOML file, and no code. This meets your original "easy" requirement, and contributors can add one without knowing Lua.
+A language pack is a plugin folder with a small `language.toml` as well, so it goes through the same consent prompt and store review. Built-in languages can't be replaced, and its server starts under the same folder trust as the others.
 
 ```toml
 name = "rust"
 extensions = ["rs"]
-comment = "//"
-indent = 4
 
 [server]
 command = "rust-analyzer"
+args = []
+markers = ["Cargo.toml"]
 ```
 
-**Open technical point:** Tree-sitter grammars are compiled C, so a language pack can't simply add one as text. Options are shared libraries built per OS, or building more grammars into LazyCode. This needs a decision before the store (M6), and doesn't affect the first version.
+**Open technical point:** Packs add a language server, but not syntax colours. Tree-sitter grammars are compiled C, so a pack can't simply add one as text. Options are shared libraries built per OS, or building more grammars into LazyCode. The store works without this decision.
 
 ## Plugin model
 
@@ -114,7 +114,7 @@ Store plugins go through the same prompt, and the answer is remembered per plugi
 
 **Decided (Q-06, Q-31, Q-67):** A store with plugins and language support from contributors. The store only shows plugins accepted through its Git repository. Local plugins work without submission, and aren't listed.
 
-**Proposed flow:**
+**Flow:** the repository's starting files are in [store-template](../store-template), and `:store` browses and installs.
 
 ```text
 Author's repo ──► pull request to lazycode-store (adds an index entry)
@@ -128,10 +128,14 @@ An index entry pins an exact commit:
 
 ```toml
 name = "my-plugin"
+version = "1.0.0"
+description = "Trims trailing spaces on save"
 repository = "https://github.com/author/my-plugin"
 commit = "<full commit hash>"
 checksum = "<hash>"
 ```
+
+`checksum` is a SHA-256 over each file's path, size and content, from `storecheck checksum`. It doesn't hash the archive, because GitHub doesn't promise to keep an archive's bytes the same. The download must match it, and the plugin's name and version must match the entry, before the consent prompt appears. Archives may only hold plain files, inside their own folder.
 
 Pinning matters: without it, a plugin could change after being reviewed. Each update is a new pull request.
 

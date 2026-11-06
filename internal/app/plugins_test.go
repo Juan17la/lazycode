@@ -1,13 +1,20 @@
 package app
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/Juan17la/lazycode/internal/lsp"
+	"github.com/Juan17la/lazycode/internal/store"
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -140,4 +147,111 @@ lc.key("ctrl+alt+y", "front")`)
 	u.wait("12abc")
 	u.press("x") // The cursor was at the start, where the text went in, so it stays before it.
 	u.wait("x12abc")
+}
+
+func TestLanguagePackAddsAServerAndStopsWithIt(t *testing.T) {
+	u := withPlugins(t, nil, func(root string) {
+		writePlugin(t, root, "rust", "1", "")
+		lang := "name = \"rust\"\nextensions = [\"rs\"]\n[server]\ncommand = \"rust-analyzer\"\n"
+		if err := os.WriteFile(filepath.Join(root, "rust", "language.toml"), []byte(lang), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	})
+	u.press("a")
+	u.wait("Added rust")
+	if srv, id, ok := lsp.ForPath("a.RS"); !ok || srv.Command != "rust-analyzer" || id != "rust" {
+		t.Fatalf("got %+v %q %v", srv, id, ok)
+	}
+	u.run("plugin off rust")
+	u.wait("Turned off rust")
+	if _, _, ok := lsp.ForPath("a.rs"); ok {
+		t.Fatal("still there after turning it off")
+	}
+}
+
+func storeServer(t *testing.T, name, version, lua string) string {
+	t.Helper()
+	files := map[string]string{
+		"plugin.toml": "name = \"" + name + "\"\nversion = \"" + version + "\"\napi_version = 1\ndoes = \"Does store things\"\n",
+		"main.lua":    lua,
+	}
+	dir := t.TempDir()
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	w := tar.NewWriter(gz)
+	for n, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, n), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		w.WriteHeader(&tar.Header{Typeflag: tar.TypeReg, Name: "top/" + n, Mode: 0o644, Size: int64(len(content))}) //nolint:errcheck // Checked by Close.
+		w.Write([]byte(content))                                                                                    //nolint:errcheck // Checked by Close.
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	gz.Close() //nolint:errcheck // Only memory.
+	sum, err := store.Checksum(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commit := strings.Repeat("a", 40)
+	index := fmt.Sprintf("[[plugin]]\nname=%q\nversion=%q\ndescription=\"From the store\"\nrepository=\"https://github.com/o/r\"\ncommit=%q\nchecksum=%q\n", name, version, commit, sum)
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/index.toml" {
+			rw.Write([]byte(index)) //nolint:errcheck // A test.
+			return
+		}
+		rw.Write(buf.Bytes()) //nolint:errcheck // A test.
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+func TestStoreBrowseAndInstall(t *testing.T) {
+	url := storeServer(t, "fromstore", "1.0.0", `require("lazycode").command("hi", function() require("lazycode").message("hi from store") end)`)
+	var dir string
+	u := startTweaked(t, nil, func(a *app) {
+		dir = a.pluginsDir()
+		a.storeApp.client = &store.Client{Index: url + "/index.toml", GitHub: url, HTTP: http.DefaultClient}
+	})
+	u.run("store")
+	u.wait("fromstore 1.0.0  From the store")
+	u.key(tcell.KeyEnter)
+	u.wait("Add plugin fromstore 1.0.0? Does store things")
+	u.wait("Only accept plugins you trust")
+	if _, err := os.Stat(filepath.Join(dir, "fromstore")); err == nil {
+		t.Fatal("in place before the user accepted")
+	}
+	u.press("a")
+	u.wait("Added fromstore")
+	u.run("hi")
+	u.wait("hi from store")
+	u.run("store")
+	u.wait("(installed)")
+}
+
+func TestStoreDeclineInstallsNothing(t *testing.T) {
+	url := storeServer(t, "fromstore", "1.0.0", "")
+	var dir string
+	u := startTweaked(t, nil, func(a *app) {
+		dir = a.pluginsDir()
+		a.storeApp.client = &store.Client{Index: url + "/index.toml", GitHub: url, HTTP: http.DefaultClient}
+	})
+	u.run("store")
+	u.wait("fromstore 1.0.0")
+	u.key(tcell.KeyEnter)
+	u.wait("Add plugin fromstore")
+	u.key(tcell.KeyEsc)
+	u.waitGone("Add plugin fromstore")
+	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+		t.Fatalf("left behind: %v", entries)
+	}
+}
+
+func TestStoreUnreachableSaysSo(t *testing.T) {
+	u := startTweaked(t, nil, func(a *app) {
+		a.storeApp.client = &store.Client{Index: "http://127.0.0.1:1/index.toml", HTTP: http.DefaultClient}
+	})
+	u.run("store")
+	u.wait("Couldn't open the store")
 }

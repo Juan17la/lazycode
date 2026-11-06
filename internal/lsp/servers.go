@@ -31,9 +31,44 @@ type Language struct {
 // Languages is what onboarding offers to install.
 var Languages = []Language{{"Go", gopls}, {"Python", pyright}, {"TypeScript, JS", tsserver}}
 
+type added struct {
+	srv Server
+	id  string
+}
+
+// packs holds servers from language packs, by extension. Only the UI goroutine uses it.
+var packs = map[string]added{}
+
+// SetPacks replaces the language pack servers. Built-in languages can't be replaced.
+func SetPacks(languages []Pack) {
+	packs = map[string]added{}
+	for _, l := range languages {
+		for _, ext := range l.Extensions {
+			packs["."+strings.ToLower(strings.TrimPrefix(ext, "."))] = added{l.Server, strings.ToLower(l.Server.Name)}
+		}
+	}
+}
+
+// Pack is a language added by a language pack.
+type Pack struct {
+	Extensions []string
+	Server     Server // Its Name is also the language ID.
+}
+
 // ForPath returns the server for a file and the language ID it expects, by extension.
 func ForPath(path string) (srv Server, languageID string, ok bool) {
-	switch strings.ToLower(filepath.Ext(path)) {
+	ext := strings.ToLower(filepath.Ext(path))
+	if srv, id, ok := builtIn(ext); ok {
+		return srv, id, true
+	}
+	if p, ok := packs[ext]; ok {
+		return p.srv, p.id, true
+	}
+	return Server{}, "", false
+}
+
+func builtIn(ext string) (srv Server, languageID string, ok bool) {
+	switch ext {
 	case ".go":
 		return gopls, "go", true
 	case ".py":

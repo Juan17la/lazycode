@@ -8,7 +8,9 @@ import (
 	"strings"
 
 	"github.com/Juan17la/lazycode/internal/buffer"
+	"github.com/Juan17la/lazycode/internal/lsp"
 	"github.com/Juan17la/lazycode/internal/plugin"
+	"github.com/Juan17la/lazycode/internal/store"
 )
 
 // pluginState holds the running plugins. They only ever come from plugins/ in the config
@@ -28,6 +30,7 @@ func (a *app) loadPlugins() {
 		problems = append(problems, "plugins.toml: "+err.Error())
 	}
 	a.plugins.consents = consents
+	store.CleanLeftovers(a.pluginsDir())
 	entries, err := os.ReadDir(a.pluginsDir())
 	if err != nil && !os.IsNotExist(err) {
 		problems = append(problems, "Plugins not loaded: "+err.Error())
@@ -46,7 +49,7 @@ func (a *app) loadPlugins() {
 				problems = append(problems, err.Error())
 			}
 		case !consents.Declined(m):
-			a.askPlugin(m, dir, func() {})
+			a.askLocal(m, dir)
 		}
 	}
 	if len(problems) > 0 {
@@ -77,31 +80,53 @@ func (a *app) startPlugin(dir string) error {
 		return err
 	}
 	a.plugins.loaded = append(a.plugins.loaded, p)
+	a.syncLanguagePacks()
 	return nil
 }
 
+func (a *app) syncLanguagePacks() {
+	var packs []lsp.Pack
+	for _, p := range a.plugins.loaded {
+		if l := p.Lang; l != nil {
+			packs = append(packs, lsp.Pack{Extensions: l.Extensions, Server: lsp.Server{
+				Name: l.Name, Command: l.Server.Command, Args: l.Server.Args, Markers: l.Server.Markers,
+			}})
+		}
+	}
+	lsp.SetPacks(packs)
+}
+
 // askPlugin is the consent prompt (Q-67). The description is the author's and can't be checked,
-// so the warning is always part of the question. Esc declines.
-func (a *app) askPlugin(m plugin.Manifest, dir string, then func()) {
-	answer := func(accepted bool) {
-		if err := a.plugins.consents.Set(m, accepted); err != nil {
-			a.message = "Couldn't remember the answer: " + err.Error()
-			if accepted {
-				return // It must not run if it would be forgotten silently.
-			}
+// so the warning is always part of the question. Esc declines. On accepting, prepare says which
+// folder to run, and the plugin's older copy stops first.
+func (a *app) askPlugin(m plugin.Manifest, prepare func() (string, error), declined func()) {
+	accept := func() {
+		a.stopPlugin(m.Name)
+		dir, err := prepare()
+		if err == nil {
+			err = a.plugins.consents.Set(m, true) // It must not run if it would be forgotten.
 		}
-		if accepted {
-			if err := a.startPlugin(dir); err != nil {
-				a.message = err.Error()
-			} else {
-				a.message = "Added " + m.Name + "."
-			}
+		if err == nil {
+			err = a.startPlugin(dir)
 		}
-		then()
+		if err != nil {
+			a.message = "Couldn't add " + m.Name + ": " + err.Error()
+			return
+		}
+		a.message = "Added " + m.Name + " " + m.Version + "."
 	}
 	a.ask(fmt.Sprintf("Add plugin %s %s? %s Plugins can read your files and run any command. Only accept plugins you trust.", m.Name, m.Version, m.Does),
-		choice{'a', "Accept", func() { answer(true) }},
-		choice{'d', "Decline", func() { answer(false) }})
+		choice{'a', "Accept", accept},
+		choice{'d', "Decline", declined})
+}
+
+// askLocal asks about a plugin already in the plugins folder, and remembers a no.
+func (a *app) askLocal(m plugin.Manifest, dir string) {
+	a.askPlugin(m, func() (string, error) { return dir, nil }, func() {
+		if err := a.plugins.consents.Set(m, false); err != nil {
+			a.message = "Couldn't remember the answer: " + err.Error()
+		}
+	})
 }
 
 func (a *app) closePlugins() {
@@ -119,6 +144,7 @@ func (a *app) stopPlugin(name string) {
 		p.Close()
 		return true
 	})
+	a.syncLanguagePacks()
 }
 
 // runPlugin runs a plugin's command, and reports whether one has it.
@@ -224,8 +250,7 @@ func (a *app) pluginOn(name string) {
 		a.message = "Can't turn on " + name + ": " + err.Error()
 		return
 	}
-	a.stopPlugin(m.Name) // So that a disabled one starts fresh.
-	a.askPlugin(m, dir, func() {})
+	a.askLocal(m, dir)
 }
 
 // pluginBuffer gives a plugin one tab's file.

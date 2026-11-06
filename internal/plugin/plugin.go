@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -54,7 +55,8 @@ type Host struct {
 // Plugin is one loaded plugin.
 type Plugin struct {
 	Manifest
-	Err error // Why it was disabled. A disabled plugin never runs again.
+	Err  error     // Why it was disabled. A disabled plugin never runs again.
+	Lang *Language // What its language.toml adds, if it has one.
 
 	host     Host
 	l        *lua.LState
@@ -64,6 +66,12 @@ type Plugin struct {
 	handlers map[string][]*lua.LFunction
 	keys     map[string]string
 }
+
+// ValidName reports whether a plugin name is safe to use as a folder name.
+func ValidName(name string) bool { return namePattern.MatchString(name) }
+
+// Clean makes remote text safe to show on screen.
+func Clean(text string) string { return clean(text, maxText) }
 
 var namePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
@@ -98,14 +106,43 @@ func ReadManifest(dir string) (Manifest, error) {
 	return m, nil
 }
 
+// Language is a language pack's language.toml (doc 09): a language server, and no code.
+type Language struct {
+	Name       string   `toml:"name"`
+	Extensions []string `toml:"extensions"`
+	Server     struct {
+		Command string   `toml:"command"`
+		Args    []string `toml:"args"`
+		Markers []string `toml:"markers"`
+	} `toml:"server"`
+}
+
+func readLanguage(dir string) (*Language, error) {
+	var l Language
+	if _, err := toml.DecodeFile(filepath.Join(dir, "language.toml"), &l); errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("language.toml: %w", err)
+	}
+	if l.Name == "" || len(l.Extensions) == 0 || l.Server.Command == "" {
+		return nil, errors.New("language.toml: it needs a name, extensions and a server command")
+	}
+	return &l, nil
+}
+
 // Load runs the plugin's main.lua. The caller must have the user's consent.
 func Load(dir string, host Host) (*Plugin, error) {
 	m, err := ReadManifest(dir)
 	if err != nil {
 		return nil, err
 	}
+	lang, err := readLanguage(dir)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", m.Name, err)
+	}
 	p := &Plugin{
 		Manifest: m,
+		Lang:     lang,
 		host:     host,
 		l:        lua.NewState(),
 		limit:    callLimit,
