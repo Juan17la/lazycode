@@ -35,6 +35,8 @@ Shown on first run, and any step can be skipped (Q-16, Q-29).
 
 The screen also says LazyCode checks GitHub for updates, with a setting to turn that off (Q-79). On macOS, it explains the Ctrl+K shortcuts (Q-80).
 
+**Built (P-53, P-54):** Up and Down move, Space changes a row, Enter continues, and Esc skips. It shows while `config.toml` doesn't exist, and either way out creates that file. Each install is confirmed once more, then runs in a terminal tab started in the home folder, so its output can be read.
+
 ## Startup screen
 
 **Proposed:** Recent projects and three actions. No panels until a project is open.
@@ -125,6 +127,8 @@ Colour is never the only signal, because each state has its own shape.
 - A click moves focus (Q-13).
 - Editor areas, panels and the command bar use the keymap.
 - **Terminal tabs get all keys except Ctrl+\** (Q-74). The command bar shows that key while a terminal tab has focus.
+- When a terminal tab's command exits, focus returns to the file tree, so keys don't go to a tool that's gone.
+- Ctrl+\ also moves focus from a file to the file tree, and Tab moves it back.
 
 ## Default keymap
 
@@ -142,10 +146,27 @@ LazyCode runs in the user's terminal, which receives keys first (Q-50). The defa
 | `:config` | | Open configuration | Decided |
 | `:project` | | Switch project. A backup for its shortcut. | Decided (Q-74) |
 | `:dir` | | Switch directory. A backup for its shortcut. | Decided (Q-74) |
+| `:project new NAME` | | Make a project holding the current directory | Proposed |
+| `:dir add PATH` | | Add a directory to this project. A relative path starts from the current directory. | Proposed |
+| `:dir remove` | | Take this directory out of the project. The folder is untouched. | Proposed |
+| `:tree` | | Show all of the project's directories in the tree, or go back to one (Q-41) | Proposed |
+| `:config projects` | | Open `projects.toml`. Saving it applies it. | Proposed |
 | `:session` | | Start an AI session | Proposed |
 | `:update` | | Install the latest release | Decided (Q-79) |
-| `:split` | | Split the view | Proposed |
+| `:split` | | Split the view. `:split down` splits below. | Proposed |
 | `:selectall` | | Select all occurrences | Decided (Q-80) |
+| `:find`, `:replace` | | Find or replace in the file | Proposed |
+| `:view` | | Move the Files view to the other panel | Proposed |
+| `:search`, `:git` | | Show the Search or Git view | Proposed |
+| `:push`, `:pull`, `:fetch` | | The Git buttons | Proposed |
+| `:repo create` | | Create a GitHub repository through `gh` | Proposed |
+| `:definition`, `:rename`, `:format` | | Language server actions | Proposed |
+| `:session hidden` | | List hidden sessions, and bring one back | Proposed (P-42) |
+| `:project close` | | Close this project's tabs, and move to the next project | Proposed (P-43) |
+
+**Git view keys (P-32):** `p` push, `l` pull, `f` fetch, `c` commit, `s` stage or mark resolved, `u` unstage, `b` switch branch, `n` new branch, `m` merge, `x` abort a merge, `o` open the file, `i` create a repository, `r` refresh, Enter opens a diff or commit.
+
+**Search view keys:** Tab moves between Find and With, Enter opens a result or starts a replace from With, Esc goes back to the tab, and `:` opens the command bar when the field is empty.
 
 ### Shortcuts
 
@@ -159,11 +180,16 @@ LazyCode runs in the user's terminal, which receives keys first (Q-50). The defa
 | Ctrl+S | Save | Proposed |
 | Ctrl+Z, Ctrl+Y | Undo, redo | Proposed |
 | Ctrl+X, Ctrl+C, Ctrl+V | Cut, copy, paste | Proposed |
-| Ctrl+F, Ctrl+H | Find, replace in file | Proposed |
+| Ctrl+F | Find in file | Proposed |
+| Alt+H | Replace in file | Proposed, because terminals send Ctrl+H as Backspace |
 | Alt+F | Search panel | Proposed, replacing Ctrl+Shift+F |
+| Alt+G | Git panel | Proposed |
 | Ctrl+P | Open a file by name | Proposed |
 | Ctrl+W | Close tab | Proposed |
-| Alt+\\ | Split | Proposed, because Ctrl+\\ now leaves terminal tabs |
+| Alt+S | Split | Proposed, because Ctrl+\\ leaves terminal tabs, and Alt+\\ can't be read |
+| Alt+W | Next split | Proposed (P-21) |
+| Alt+V | Move a view to the other panel, from the tree | Proposed (P-21) |
+| Ctrl+A | Select everything | Proposed |
 | F12, F2 | Go to definition, rename | Proposed |
 | Shift+Alt+F | Format | Proposed |
 | Alt+D | Switch directory | Decided (Q-74) |
@@ -184,12 +210,15 @@ Terminal and OS defaults, which users can usually change in settings. Priority t
 | Ctrl+F2 | macOS: focus the menu bar. | Apple docs | Avoided on macOS (Q-80) |
 | Alt+F2 | Linux desktops: commonly opens a run dialog. | General knowledge, not checked | Avoided (Q-80) |
 | Alt+key | macOS: types special characters unless the Option setting is on. | Apple's Terminal list, secondary source | Avoided on macOS (Q-80) |
+| Ctrl+H | Most terminals: sends the same byte as Backspace. | Tested (`M0-07`) | Avoided |
+| Alt+\\ | Most terminals: sends `ESC \`, a control sequence that's dropped. | Tested (`M0-07`) | Avoided |
+| Ctrl+V | Windows Terminal: pastes. It arrives as a paste, which does the same job. | Tested (`M0-07`) | Accepted |
 | Ctrl+Tab | Windows Terminal and Kitty: next tab. | Microsoft docs, Kitty source | Avoided (Q-74) |
 | Ctrl+Shift+D | Windows Terminal: duplicate tab. | Microsoft docs | Avoided (Q-74) |
 | Ctrl+Shift+Space | Windows Terminal: new tab dropdown. | Microsoft docs | Avoided (Q-74) |
 | Ctrl+Shift+P | Kitty: prefix for hints. | Kitty source | Avoided (Q-74) |
 
-**No default found** in Windows Terminal's docs, Kitty's docs or Apple's lists for: Ctrl+\\, Alt+D, Alt+O, Alt+P, Alt+, and Alt+. on Linux and Windows, or Ctrl+K on macOS, where Apple lists it as reaching the program. That doesn't prove they arrive, and none of this has been tested in real terminals yet. That's prototype item `M0-07`.
+**No default found** in Windows Terminal's docs, Kitty's docs or Apple's lists for: Ctrl+\\, Alt+D, Alt+O, Alt+P, Alt+, and Alt+. on Linux and Windows, or Ctrl+K on macOS, where Apple lists it as reaching the program. **Tested on 2026-11-04 (`M0-07`).** `cmd/keytest` ran in real Windows Terminal, macOS Terminal and Kitty on CI, with simulated key presses, and every listed key arrived. Kitty also passed with a Spanish layout, including Ctrl+\\. The presses were simulated, so a physical keyboard and other layouts are still worth a try: run `go run ./cmd/keytest` in the terminal, press each key, then press q.
 
 ## Mouse behaviour
 

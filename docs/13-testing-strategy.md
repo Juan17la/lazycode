@@ -43,7 +43,8 @@ Key sequences run against a simulated screen, and the result is compared with a 
 - **Key forwarding:** The tool receives exact bytes, and the reserved key never gets through.
 - **Real tools before release:** Claude Code, Codex, OpenCode, `vim` and `htop` display correctly.
 - **Processes:** Closing a project ends all its children. No orphan processes remain after a forced crash.
-- **Fuzz:** Random output can't crash the emulator wrapper.
+- **Fuzz:** Random output can't crash or stall the emulator wrapper (`FuzzEmulatorOutput`). It found both, in `vt` itself.
+- **Forced crash:** `TestToolsDontOutliveACrash` kills LazyCode with `SIGKILL` on Linux and macOS, and the tool must go too. Windows isn't covered.
 
 ## Compatibility matrix
 
@@ -53,12 +54,12 @@ Key sequences run against a simulated screen, and the result is compared with a 
 | Terminal with PTY or ConPTY | CI | CI | CI |
 | C parser builds | CI | CI | CI |
 | Install script and update | CI | CI | CI |
-| App icon opens the default terminal | Manual | Manual | Manual |
-| Keys arrive in priority terminals (Q-74, Q-75) | Kitty | macOS Terminal, Kitty | Windows Terminal |
+| App icon opens a terminal | CI, xterm | CI, Terminal.app | CI, starts only |
+| Keys arrive in priority terminals (Q-74, Q-75) | Kitty, CI | macOS Terminal, CI | Windows Terminal, CI |
 
 **Priority terminals (Q-75):** Windows Terminal, macOS Terminal and Kitty must work fully. Release checks cover these. Others, including your own Warp, only get occasional checks.
 
-CI now runs the prototype on all three systems, in a real PTY or ConPTY with a stand-in tool, and parses all four languages with the C parser. A real AI tool has only run on Linux, and no priority terminal has been tried by hand yet (`M0-03`, `M0-07`).
+CI now runs the prototype on all three systems, in a real PTY or ConPTY with a stand-in tool, and parses all four languages with the C parser. A real AI tool has only run on Linux (`M0-03`). Priority terminals get simulated key presses on CI, and those for macOS and Windows only report, because they depend on what the runners allow. Physical keyboards are still a manual check.
 
 ## Sleep and live update tests
 

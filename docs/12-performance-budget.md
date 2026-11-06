@@ -66,7 +66,60 @@ TypeScript, repetitive synthetic input, parsed once. RSS includes the test progr
 | 1 MB | 260 ms, 75 MB | 632 ms, 204 MB |
 | 10 MB | 3.0 s, 679 MB | 6.4 s, 1,592 MB |
 
-**Chosen: the C binding, with highlighting off above about 1 MB (Q-69).** The first full parse of a 1 MB file takes 260 ms here and longer on an i3, so it must run in the background. Later edits are incremental, which wasn't measured.
+**Chosen: the C binding, with highlighting off above about 1 MB (Q-69).** The first full parse of a 1 MB file takes 260 ms here and longer on an i3, so it must run in the background. Later edits are incremental.
+
+Measured with highlighting built (`E1`), on an Intel Core Ultra 5 125H with dense 1 MiB Go, in the background: first parse and query about 372 ms, and one key press about 142 ms, mostly the query over the whole tree. A frame of that file takes 1.30–1.38 ms, and of a 100 MB file 1.16–1.28 ms. RSS stays flat over repeated open and close. That parse tree is about 40 MB of C memory.
+
+### Directory search
+
+`BenchmarkSearch50000Files` (`B1`): 50,000 files of about 2 KB, warm cache, 18 logical cores: about 0.57 s outside Git, and 0.73 s in Git with every file untracked. This machine is not the i3 reference.
+
+### Prototype
+
+Measured on 2026-11-04, on the owner's Linux machine (`M0-09`), with `TestMemoryStaysUnderLimit`. Tabs are 120 columns with a full 1,000-line scrollback. The tools' own memory isn't counted (Q-70). **There's no editor yet.** CI fails if any step reaches 300 MB, or if over 100 MB stays after closing every tab.
+
+| State | RSS | Peak |
+|---|---|---|
+| Idle, no tabs | 19 MB | 19 MB |
+| 1 full tab | 57 MB | 57 MB |
+| 5 full tabs | 191 MB | 191 MB |
+| 10 full tabs | 236 MB | 239 MB |
+| All tabs closed | 38 MB | 239 MB |
+
+Before fixes, 10 tabs reached 362 MB, and closing them gave nothing back. A 250 MiB Go memory limit, clearing the closed tab's slot and returning memory on close fixed that. `GOGC=50` also helped (274 MB at 10 tabs), but the limit did better, and only applies when it's needed. Past about 15 full tabs, the limit makes the garbage collector work harder. That wasn't measured.
+
+### Text buffer
+
+Measured on 2026-11-04, on the owner's Linux machine (Intel Core Ultra 5 125H, not the i3), with the benchmarks in `internal/buffer` (`CORE-01`). The file is 100 MiB of 50-byte lines.
+
+| Operation | Time | Memory allocated |
+|---|---|---|
+| Open, from disk (`CORE-02`) | 77 ms | 108 MB: the file itself, plus 3.5 MB, mostly temporary |
+| Save (`CORE-02`) | 0.25 s, and it blocks the UI for now | 0.1 MB |
+| Write a recovery file (`CORE-02`) | 0.15 s, on another goroutine | 0.1 MB |
+| Build the buffer from bytes already in memory | 10 ms | 3.5 MB, mostly temporary |
+| One edit, after 20,000 scattered edits | 9 µs | 5.9 KB, the upper limit on what one undo step keeps |
+| Draw a whole frame at 120 by 50 (`CORE-03`) | 1.1 ms | 0.4 MB |
+| Read 60 lines, after 20,000 scattered edits | 0.12 ms | 3.8 KB |
+| Replace 100,000 places, as one undo step | 0.46 s | 574 MB, mostly temporary |
+| Each key in the find bar, for a word that isn't there (`CORE-06`) | 62 ms, over the 16 ms budget | 1 MB |
+
+These are outside the 100 MiB file:
+
+| Operation | Time | Memory allocated |
+|---|---|---|
+| One key press with 10,000 cursors (`CORE-05`) | 84 ms, over the 16 ms budget | 64 MB, mostly temporary |
+| Frame with the cursor at the end of a 1 MB line | 12 ms | 1 MB |
+
+With track D's sessions, watching and a once-a-second status check, `TestMemoryStaysUnderLimit` measured 17 MB idle, 191 MB with 5 full tabs, 235 MB peak with 10, and 37 MB after closing them.
+
+**Very long lines are a weak spot.** That 1 MB line is under budget on this machine, but will likely be over on the i3. It's quicker nearer the start of the line. The same line of non-ASCII text is several times slower, because only ASCII has a fast path.
+
+**Work that scales with the file or the cursor count runs on the UI goroutine.** Normal files and normal cursor counts are far under the budget. Counting find matches in a 100 MiB file and typing with 10,000 cursors aren't. Counting in the background is the upgrade if that gets noticed.
+
+**A 100 MiB file slightly misses the "under 100 MB extra" target,** because it's read into memory (P-15), and comes close to the 300 MB limit alongside 5 full terminal tabs: about 191 MB plus 108 MB. That combination hasn't been measured. Memory-mapping wouldn't fix it: on the same machine, scanning a mapped 100 MiB file for lines added 100 MB of RSS too.
+
+Undo history has no limit yet. At the upper limit of 5.9 KB per step, 10,000 steps keep about 59 MB alive, and typed text joined into one step keeps far less.
 
 ### Budget check (estimate)
 
@@ -74,10 +127,10 @@ TypeScript, repetitive synthetic input, parsed once. RSS includes the test progr
 |---|---|
 | Editor and open buffers | 50–150 MB |
 | Syntax trees for visible files | Included above, unless files are near the 1 MB cap |
-| 5 awake terminal tabs, full | Up to 180 MB |
-| **Total** | **Up to 330 MB** |
+| 5 awake terminal tabs, full | 191 MB, measured, including the base |
+| **Total** | **About 240–340 MB** |
 
-That's slightly over the limit, so it needs work if it proves true: automatic sleep, a lower scrollback, or a more compact store. The prototype must measure this.
+The high end is over the limit, although the memory limit should hold total use down while there's memory to reclaim. The editor's real size decides this, so measure again after `CORE-02`. If it's too high: automatic sleep, a lower scrollback, or a more compact store.
 
 ## Benchmark scenarios
 
@@ -131,4 +184,4 @@ Wait 5 minutes after opening the project, with no extensions or language servers
 - CI runners vary in speed, so memory checks are strict and timing checks are warnings.
 - Every release publishes its numbers.
 
-No target above has been tested against LazyCode, because LazyCode doesn't exist yet.
+Only the terminal tab and idle targets above have been measured, on the prototype. The rest need the editor.

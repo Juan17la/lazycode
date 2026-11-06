@@ -17,6 +17,12 @@ import (
 
 // The test binary also plays the AI tool that runs inside LazyCode's terminal tab.
 func TestMain(m *testing.M) {
+	if file := os.Getenv("LAZYCODE_E2E_PIDFILE"); file != "" && os.Getenv("LAZYCODE_E2E_TOOL") != "" {
+		os.WriteFile(file, fmt.Appendf(nil, "%d", os.Getpid()), 0o644) //nolint:errcheck // The test notices.
+	}
+	if os.Getenv("LAZYCODE_E2E_TOOL") == "stream" {
+		streamLines()
+	}
 	if os.Getenv("LAZYCODE_E2E_TOOL") != "" {
 		fmt.Println("tool ready")
 		in := bufio.NewScanner(os.Stdin)
@@ -78,6 +84,27 @@ func (d *driver) typeText(text string) {
 
 func (d *driver) enter() { d.key(tcell.KeyEnter, 0) }
 
+// answerFirstQuestions saves what onboarding and the trust question would, for tests about other
+// things. The folders count as answered no, so anything that runs in them still asks.
+func answerFirstQuestions(t *testing.T, dirs ...string) {
+	t.Helper()
+	config, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mkdirs(t, filepath.Join(config, "lazycode"))
+	declined := "declined = [\n"
+	for _, dir := range dirs {
+		declined += fmt.Sprintf("%q,\n", dir)
+	}
+	declined += "]\n"
+	for name, content := range map[string]string{"config.toml": "version = 1\n", "trust.toml": declined} {
+		if err := os.WriteFile(filepath.Join(config, "lazycode", name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func mkdirs(t *testing.T, paths ...string) {
 	t.Helper()
 	for _, p := range paths {
@@ -105,9 +132,12 @@ func TestPrototypeEndToEnd(t *testing.T) {
 	t.Setenv("USERPROFILE", root)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
 	t.Setenv("AppData", filepath.Join(root, "config"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
+	t.Setenv("LocalAppData", filepath.Join(root, "cache"))
 
 	one, two, three := filepath.Join(root, "one"), filepath.Join(root, "two"), filepath.Join(root, "three")
 	mkdirs(t, filepath.Join(one, "sub"), two, three)
+	answerFirstQuestions(t, one, two, three)
 	if err := os.WriteFile(filepath.Join(one, "a.txt"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -157,6 +187,31 @@ path = %q
 	d.key(tcell.KeyLeft, 0)
 	d.wait("▸ sub")
 
+	// A file opens from the tree, takes typing, and saves. Unicode goes through the
+	// real terminal on every OS.
+	d.key(tcell.KeyDown, 0)
+	d.enter()
+	d.wait("Ln 1, Col 1")
+	d.typeText("héllo 世界")
+	d.wait("héllo 世界")
+	d.wait("a.txt*")
+	d.key(tcell.KeyCtrlS, tcell.ModCtrl)
+	d.wait("Saved a.txt")
+	if got, err := os.ReadFile(filepath.Join(one, "a.txt")); err != nil || string(got) != "héllo 世界" {
+		t.Fatalf("saved %q, %v", got, err)
+	}
+	// ConPTY handles mouse input differently, so this one is for real terminals elsewhere.
+	if runtime.GOOS != "windows" {
+		d.key(tcell.KeyHome, 0)
+		d.wait("Ln 1, Col 1")
+		// 33 columns of tree and divider, then 3 of line numbers, so this is column 2.
+		d.tab.Mouse(38, 2, false, false, true)
+		d.tab.Mouse(38, 2, false, false, false)
+		d.wait("Ln 1, Col 3")
+	}
+	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
+	d.wait("Tab enter tab")
+
 	// Alt+D switches directory.
 	d.alt('d')
 	d.wait("Switch directory")
@@ -196,7 +251,7 @@ path = %q
 	// Ctrl+\ leaves the tab. The same keys now reach LazyCode, not the tool.
 	d.wait(`Ctrl+\ leaves`)
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-	d.wait("Tab terminal")
+	d.wait("Tab enter tab")
 	d.typeText(":")
 	d.typeText("nope")
 	d.enter()
@@ -222,17 +277,17 @@ path = %q
 
 	// :close removes the finished tab.
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-	d.wait("Tab terminal")
+	d.wait("Tab enter tab")
 	d.typeText(":close")
 	d.enter()
-	d.wait("No terminal tabs here.")
+	d.wait("No tabs here.")
 
 	// A tab still running at quit is stopped with the app. :q exits cleanly.
 	d.typeText(":term " + tool)
 	d.enter()
 	d.wait("tool ready")
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-	d.wait("Tab terminal")
+	d.wait("Tab enter tab")
 	d.typeText(":q")
 	d.enter()
 	select {

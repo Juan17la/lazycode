@@ -1,0 +1,140 @@
+# Builds a DRAFT release when a tag like v0.1.0 is pushed (doc 15). Nothing is published
+# here: the owner checks the draft by hand, then publishes it.
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check the tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Tag is exactly vX.Y.Z
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          printf '%s\n' "$TAG" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || { echo "Not a vX.Y.Z tag: $TAG"; exit 1; }
+
+  test:
+    name: test ${{ matrix.os }}
+    needs: check
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-22.04, macos-15, windows-latest]
+    env:
+      CGO_ENABLED: "1" # The tree-sitter parser is C, and -race needs cgo too.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test -race -count=1 -timeout 10m ./...
+
+  # cgo is required, so every binary is built on a runner of its own kind, not cross
+  # compiled. Linux builds on the oldest Ubuntu runner, so the binaries need the oldest
+  # glibc and run on the most systems. macOS arm64 uses macos-15, not the newest image,
+  # for the same reason.
+  build:
+    name: build ${{ matrix.asset }}
+    needs: test
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { runner: ubuntu-22.04, asset: lazycode_linux_amd64 }
+          - { runner: ubuntu-22.04-arm, asset: lazycode_linux_arm64 }
+          - { runner: macos-15, asset: lazycode_darwin_arm64 }
+          - { runner: macos-15-intel, asset: lazycode_darwin_amd64 }
+          - { runner: windows-latest, asset: lazycode_windows_amd64.exe }
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Build
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          ASSET: ${{ matrix.asset }}
+        run: go build -trimpath -ldflags "-X main.version=$TAG" -o "dist/$ASSET" ./cmd/lazycode
+      # Every runner can run what it built, so each binary is asked for its version.
+      - name: The binary reports the tag
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          ASSET: ${{ matrix.asset }}
+        run: |
+          out=$("./dist/$ASSET" --version)
+          echo "$out"
+          case $out in *"$TAG"*) ;; *) echo "--version doesn't mention $TAG"; exit 1 ;; esac
+      # The runner has MinGW's DLLs and users don't, so running it here can't show this.
+      - name: The Windows binary needs only DLLs that Windows has
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          ASSET: ${{ matrix.asset }}
+        run: |
+          objdump -p "dist/$ASSET" | grep 'DLL Name' | tee dlls.txt
+          test -s dlls.txt
+          if grep -Ei 'libgcc|libwinpthread|libstdc' dlls.txt; then echo "Needs MinGW's DLLs"; exit 1; fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+          retention-days: 7
+
+  # The only job that can write to the repository.
+  release:
+    name: Draft release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: lazycode_*
+          path: dist
+          merge-multiple: true
+      - name: Collect files and write checksums.txt
+        run: |
+          cp THIRD_PARTY_LICENSES packaging/install-icon.sh packaging/install-icon.ps1 dist/
+          cd dist
+          for f in lazycode_linux_amd64 lazycode_linux_arm64 lazycode_darwin_amd64 lazycode_darwin_arm64 lazycode_windows_amd64.exe; do
+            test -f "$f" || { echo "missing $f"; exit 1; }
+          done
+          # install-icon.* are listed too: install.sh and install.ps1 download and verify them.
+          sha256sum lazycode_* install-icon.sh install-icon.ps1 THIRD_PARTY_LICENSES > checksums.txt
+          cat checksums.txt
+      - name: Create the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" --draft --verify-tag --title "$TAG" \
+            --notes "Draft. Fill in from CHANGELOG.md, and add the performance numbers, before publishing." \
+            dist/*
