@@ -574,6 +574,10 @@ func (a *app) drawEditor(st *dirState, p *pane, it *tabItem, r rect, focused boo
 				a.focusTab()
 			}
 			line, col := placeAt(x, y)
+			if mods&tcell.ModAlt != 0 {
+				e.ToggleCursor(line, col)
+				return
+			}
 			switch a.mouse.clicks {
 			case 2:
 				e.SelectWord(line, col)

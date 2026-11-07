@@ -157,6 +157,28 @@ func (a *app) doInEditor(action string) bool {
 		a.editWith(it, e.Backspace)
 	case "edit.delete":
 		a.editWith(it, e.Delete)
+	case "edit.delete_word_left":
+		a.editWith(it, e.DeleteWordLeft)
+	case "edit.delete_word_right":
+		a.editWith(it, e.DeleteWordRight)
+	case "edit.toggle_comment":
+		a.editWith(it, e.ToggleComment)
+	case "line.move_up":
+		a.editWith(it, func() error { return e.MoveLines(-1) })
+	case "line.move_down":
+		a.editWith(it, func() error { return e.MoveLines(1) })
+	case "line.copy_up":
+		a.editWith(it, func() error { return e.CopyLines(-1) })
+	case "line.copy_down":
+		a.editWith(it, func() error { return e.CopyLines(1) })
+	case "line.delete":
+		a.editWith(it, e.DeleteLines)
+	case "line.insert_below":
+		a.editWith(it, func() error { return e.InsertLine(true) })
+	case "line.insert_above":
+		a.editWith(it, func() error { return e.InsertLine(false) })
+	case "file.go_to_line":
+		a.openGoToLine()
 	case "edit.copy":
 		a.copyText(e.Copy())
 	case "edit.cut":
@@ -193,6 +215,10 @@ func (a *app) doInEditor(action string) bool {
 
 // editorMoves are the actions that only move cursors.
 var editorMoves = map[string]func(*editor.Editor){
+	"cursor.add_above": func(e *editor.Editor) { e.AddCursorLine(-1) },
+	"cursor.add_below": func(e *editor.Editor) { e.AddCursorLine(1) },
+	"select.line":      (*editor.Editor).SelectLines,
+
 	"move.left":       func(e *editor.Editor) { e.Left(false) },
 	"move.right":      func(e *editor.Editor) { e.Right(false) },
 	"move.up":         func(e *editor.Editor) { e.Up(false) },

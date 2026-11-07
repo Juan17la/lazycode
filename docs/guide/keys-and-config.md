@@ -180,3 +180,24 @@ path = "~/code/shop-web"
 [[project.directory]]
 path = "~/code/shop-api"
 ```
+
+## Editing like VS Code
+
+Typing `(`, `[`, `{`, `'`, `"` or `` ` `` adds its closer, surrounds any selection, and typing the closer steps over it. Backspace removes an empty pair, and Enter between brackets opens an indented block. `<` closes in markup files such as HTML, and in code only straight after a word, so `a < b` stays as typed.
+
+| Key | Does |
+|---|---|
+| Ctrl+Shift+Left, Right | Select by word |
+| Alt+Up, Alt+Down (or Ctrl+Alt+Up, Down) | Add a cursor above or below |
+| Alt+click | Add or remove a cursor |
+| Ctrl+D, Ctrl+Shift+L | Add the next match, select all matches |
+| Ctrl+Shift+Up, Down | Move the line |
+| Alt+Shift+Up, Down | Copy the line |
+| Ctrl+Shift+K | Delete the line |
+| Ctrl+Enter, Ctrl+Shift+Enter | New line below, above (Ctrl+J also goes below) |
+| Ctrl+L | Select the line, and the next each time |
+| Ctrl+/ | Comment or uncomment |
+| Ctrl+Backspace or Alt+Backspace, Ctrl+Delete | Delete a word back, forward |
+| Ctrl+G | Go to line |
+
+Some terminals can't send every combination, or keep them for themselves. Any of these can be changed in `keys.toml`.
