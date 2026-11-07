@@ -15,8 +15,8 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-// askFirstQuestions turns off onboarding and the trust question, which would otherwise stop every
-// test that isn't about them at the first key.
+// askFirstQuestions turns off onboarding, which would otherwise stop every test that isn't about it
+// at the first key.
 var askFirstQuestions = true
 
 // onboarding is the first-run screen (doc 07). It isn't shown again once config.toml exists, so it
@@ -41,13 +41,11 @@ const (
 	rowTools
 )
 
-// firstQuestions opens onboarding on a first run, and otherwise asks about this folder.
+// firstQuestions opens onboarding on a first run.
 func (a *app) firstQuestions() {
 	if _, err := os.Stat(a.settingsPath("config.toml")); askFirstQuestions && errors.Is(err, fs.ErrNotExist) {
 		a.onboard = newOnboarding()
-		return
 	}
-	a.askToTrust()
 }
 
 func newOnboarding() *onboarding {
@@ -125,7 +123,6 @@ func (a *app) finishOnboarding(o *onboarding) {
 		a.message = "Your choices weren't saved, so this screen will come back: " + err.Error()
 	}
 	a.askInstalls(o)
-	a.askToTrust()
 }
 
 // finishOnboardingAgain applies only what was changed. Skipping passes an empty one, which changes nothing.
@@ -159,7 +156,7 @@ func (a *app) askInstalls(o *onboarding) {
 
 // runInstall shows the install in a terminal tab, so its output and any failure can be read. It runs
 // in the home folder, because from a project a go.mod could pick the Go toolchain and an .npmrc the
-// package registry, before that folder has been trusted. Install is a fixed string, so a shell is
+// package registry. Install is a fixed string, so a shell is
 // safe, and on Windows it's what finds npm.cmd.
 func (a *app) runInstall(command string) {
 	home, err := os.UserHomeDir()

@@ -187,21 +187,19 @@ func (a *app) openSessionPicker() {
 	a.switcher = s
 }
 
-// startSession runs a new session of a tool in the active directory, once trusted (doc 11).
+// startSession runs a new session of a tool in the active directory.
 func (a *app) startSession(h session.Harness) {
 	dir := a.dirPath()
-	a.requireTrust(dir, h.Name, func() {
-		id, err := session.NewID()
-		if err != nil {
-			a.message = err.Error()
-			return
-		}
-		e := &sessionEntry{Session: session.Session{ID: id, Name: a.nextName(h.Name), Harness: h.Name, Dir: dir}}
-		if a.launch(e, h, false) {
-			a.sessions.entries = append(a.sessions.entries, e)
-			a.saveSessions()
-		}
-	})
+	id, err := session.NewID()
+	if err != nil {
+		a.message = err.Error()
+		return
+	}
+	e := &sessionEntry{Session: session.Session{ID: id, Name: a.nextName(h.Name), Harness: h.Name, Dir: dir}}
+	if a.launch(e, h, false) {
+		a.sessions.entries = append(a.sessions.entries, e)
+		a.saveSessions()
+	}
 }
 
 func (a *app) nextName(tool string) string {
@@ -258,9 +256,7 @@ func (a *app) openEntry(e *sessionEntry) {
 		a.message = e.Harness + " isn't in the tool list any more, so " + e.Name + " can't start."
 		return
 	}
-	a.requireTrust(e.Dir, h.Name, func() {
-		a.launch(e, h, h.CanResume()) // Without resume fields it starts afresh (Q-59).
-	})
+	a.launch(e, h, h.CanResume()) // Without resume fields it starts afresh (Q-59).
 }
 
 func (a *app) findTab(it *tabItem) (*dirState, *pane) {
@@ -517,65 +513,4 @@ func (a *app) quitCommand() {
 	a.ask(fmt.Sprintf("%d session(s) look busy, and quitting stops them.", working),
 		choice{'q', "Quit", func() { a.askQuit(map[*buffer.File]bool{}) }},
 		choice{'c', "Cancel", func() {}})
-}
-
-// Trust (doc 11). Running a project or an AI tool in a folder can run that folder's code.
-
-// requireTrust runs what's asked if dir is trusted, and asks first if it isn't.
-func (a *app) requireTrust(dir, what string, run func()) {
-	if a.trust.Trusted(dir) {
-		run()
-		return
-	}
-	a.ask(fmt.Sprintf("Run %s in %s? Only if you trust this folder.", what, filepath.Base(dir)),
-		choice{'t', "Trust", func() {
-			if err := a.trust.Add(dir); err != nil {
-				a.message = "Trust wasn't saved: " + err.Error()
-			}
-			run()
-		}},
-		choice{'o', "Once", run},
-		choice{'c', "Cancel", func() {}})
-}
-
-// askToTrust asks about a directory the first time it's opened or added (Q-45). An answer of no is
-// remembered too. Anything that would run still asks first, through requireTrust.
-func (a *app) askToTrust() {
-	dir := a.dirPath()
-	if !askFirstQuestions || a.onboard != nil || !a.trust.Undecided(dir) {
-		return
-	}
-	if _, err := os.Stat(dir); err != nil {
-		return // A missing folder has its own question.
-	}
-	text := fmt.Sprintf("Trust %s? :play, AI tools and language servers will run there without asking.", filepath.Base(dir))
-	if slices.ContainsFunc(a.prompts, func(p *prompt) bool { return p.text == text }) {
-		return
-	}
-	a.ask(text,
-		choice{'t', "Trust", func() {
-			a.message = filepath.Base(dir) + " is trusted."
-			if err := a.trust.Add(dir); err != nil {
-				a.message = "Trust wasn't saved: " + err.Error()
-			}
-		}},
-		choice{'n', "No", func() {
-			a.message = "Not trusted. Anything that would run asks first, and :trust changes this."
-			if err := a.trust.Remove(dir); err != nil {
-				a.message = "That wasn't saved, so this will be asked again: " + err.Error()
-			}
-		}})
-}
-
-func (a *app) setTrust(trusted bool) {
-	dir := a.dirPath()
-	change, done := a.trust.Remove, filepath.Base(dir)+" is no longer trusted."
-	if trusted {
-		change, done = a.trust.Add, filepath.Base(dir)+" is trusted."
-	}
-	if err := change(dir); err != nil {
-		a.message = "Trust wasn't changed: " + err.Error()
-		return
-	}
-	a.message = done
 }

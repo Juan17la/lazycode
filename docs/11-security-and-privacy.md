@@ -8,7 +8,7 @@
 
 | Threat | Example | Defence |
 |---|---|---|
-| Malicious repository | A cloned repo makes a language server run its code | Trust prompt, untrusted directories run nothing |
+| Malicious repository | A cloned repo makes a language server run its code | Not prevented: language servers start only on request, and nothing asks first (P-64) |
 | Malicious plugin | A plugin reads SSH keys | Store review, pinned commits, and consent before adding (Q-67). There's no sandbox. |
 | Tampered update | A bad release reaches users | Checksums, GitHub releases only. Releases are unsigned (Q-71). |
 | Install command misuse | A language tool's install runs the wrong thing | Show the exact command, and run it only after confirmation (Q-68) |
@@ -23,22 +23,7 @@
 
 ## Trusting directories
 
-**Decided (Q-45):** Ask before trusting, as other editors do.
-
-**Why it still matters:** All LazyCode config is local (Q-38), so a repo can't change shortcuts or commands directly. However, language servers and build tools can run code from the project, for example through project config files that those tools read.
-
-**Proposed:**
-
-| Directory | Editing, search, git history | Language servers | `:play` | AI sessions |
-|---|---|---|---|---|
-| Not trusted | Yes | No | Asks first | Asks first |
-| Trusted | Yes | Yes | Yes | Yes |
-
-- Asked when a directory is added, or first opened.
-- Trust is stored locally, by directory path.
-- Trust can be removed with a command: `:untrust`.
-
-**Implemented so far (P-29):** `:play`, AI sessions, language servers and writing Git operations ask first, showing what will run, and offer to trust the folder, run once, or cancel (P-36, P-48). A directory is also asked about when it's first opened or added, and the answer is remembered, including no (P-55). No means anything that would run keeps asking first, and that includes language servers (P-48).
+**Decided (Q-45, replaced by P-64):** LazyCode doesn't ask. Running `:play`, an AI session, a language server or a Git operation in any folder just runs it, so opening a repository you don't trust and using those features can run its code. Language servers still start only when F12, F2 or format is pressed (P-48).
 
 - Git operations can also run hooks. LazyCode's automatic background operations are read-only, and turn off the programs a repository can name: `core.fsmonitor`, `log.showSignature`, external diffs, text conversion, and filters through an empty attribute source on Git 2.40 or newer. A test proves `core.fsmonitor` doesn't run. `log.showSignature` is turned off from Git's documentation, without a test of its own, and the filter setting's effect couldn't be shown either way.
 

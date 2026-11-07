@@ -77,7 +77,7 @@ func TestMemoryStaysUnderLimit(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", root)                           // No saved state.
 	t.Setenv("LocalAppData", root)
 	t.Setenv("LAZYCODE_E2E_TOOL", "stream")
-	answerFirstQuestions(t, root)
+	answerFirstQuestions(t)
 
 	// 153 columns leaves the terminal area 120 wide, beside the 32-column tree.
 	tab, err := term.Start(root, []string{bin}, 153, 43, func() {})

@@ -33,9 +33,6 @@ func TestFirstRunSavesChoicesAndDoesntComeBack(t *testing.T) {
 	u.key(tcell.KeyEnter)
 	u.waitGone("Welcome to LazyCode")
 
-	u.wait("Trust work?")
-	u.press("t")
-	u.wait("work is trusted.")
 	u.quitNow()
 
 	dir, err := config.Dir()
@@ -52,33 +49,22 @@ func TestFirstRunSavesChoicesAndDoesntComeBack(t *testing.T) {
 
 	launchShows = "Files"
 	again := launch(t, u.dir)
-	if text := again.text(); strings.Contains(text, "Welcome") || strings.Contains(text, "Trust work?") {
+	if text := again.text(); strings.Contains(text, "Welcome") {
 		t.Fatalf("asked again:\n%s", text)
 	}
 }
 
-func TestSkippingSavesDefaultsAndNoStillAsksBeforeRunning(t *testing.T) {
+func TestSkippingSavesDefaults(t *testing.T) {
 	u := firstRun(t)
 	u.press(" ") // A choice made and then skipped doesn't count.
 	u.wait("[Light]")
 	u.key(tcell.KeyEsc)
-	u.wait("Trust work?")
-	u.key(tcell.KeyEsc) // The safe answer.
-	u.wait("Not trusted.")
+	u.waitGone("Welcome to LazyCode")
 	if got := readConfig(t, "config.toml"); got != config.Template {
 		t.Fatalf("skipping should save the defaults: %q", got)
 	}
 
-	u.run("play true")
-	u.wait("Run true in work?")
-	u.press("c")
 	u.quitNow()
-
-	launchShows = "Files"
-	again := launch(t, u.dir)
-	if text := again.text(); strings.Contains(text, "Trust work?") {
-		t.Fatalf("no wasn't remembered:\n%s", text)
-	}
 }
 
 func TestContinueAndARowCanBeClicked(t *testing.T) {
@@ -86,7 +72,7 @@ func TestContinueAndARowCanBeClicked(t *testing.T) {
 	u.clickOn("Theme")
 	u.wait("[Light]")
 	u.clickOn("Continue")
-	u.wait("Trust work?")
+	u.waitGone("Welcome to LazyCode")
 	if got := readConfig(t, "config.toml"); !strings.Contains(got, `theme = "light"`) {
 		t.Fatalf("config: %q", got)
 	}
@@ -148,7 +134,6 @@ func TestInstallShowsCommandAndRunsOutsideTheProjectAfterConfirming(t *testing.T
 	if want := filepath.Dir(u.dir) + " install -g pyright\n"; string(got) != want {
 		t.Fatalf("ran as %q, want %q", got, want)
 	}
-	u.wait("Trust work?") // The install didn't use up the folder's question.
 }
 
 func TestDecliningAnInstallRunsNothing(t *testing.T) {
@@ -162,7 +147,7 @@ func TestDecliningAnInstallRunsNothing(t *testing.T) {
 	u.key(tcell.KeyEnter)
 	u.wait("by running: npm install -g pyright")
 	u.key(tcell.KeyEsc)
-	u.wait("Trust work?")
+	u.waitGone("Welcome to LazyCode")
 	if _, err := os.Stat(log); err == nil {
 		t.Fatal("ran after declining")
 	}

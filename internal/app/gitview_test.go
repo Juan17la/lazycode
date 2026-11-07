@@ -62,14 +62,6 @@ func (u *ui) write(name, text string) {
 	}
 }
 
-// trustOnce answers the trust question with Trust, so later operations don't ask.
-func (u *ui) trustOnce() {
-	u.t.Helper()
-	u.wait("Only if you trust this folder")
-	u.press("t")
-	u.waitGone("Only if you trust this folder")
-}
-
 func TestNotARepoOffersToCreateOne(t *testing.T) {
 	u := startGit(t, map[string]string{"a.txt": "x"})
 	u.alt('g')
@@ -101,7 +93,6 @@ func TestStageUnstageCommitThroughKeys(t *testing.T) {
 	u.press("c")
 	u.wait("Nothing is staged")
 	u.press("s")
-	u.trustOnce()
 	u.wait("Staged (1)")
 	u.press("u")
 	u.wait("Untracked (1)")
@@ -116,20 +107,6 @@ func TestStageUnstageCommitThroughKeys(t *testing.T) {
 	u.wait("Nothing changed")
 	if out := u.git("log", "--format=%s"); strings.TrimSpace(out) != "-first commit" {
 		t.Errorf("log: %q", out)
-	}
-}
-
-func TestUntrustedFolderAsksBeforeStagingAndCancelDoesNothing(t *testing.T) {
-	u := startGit(t, map[string]string{"a.txt": "one\n"})
-	u.git("init", "-q")
-	u.alt('g')
-	u.wait("Untracked (1)")
-	u.press("s")
-	u.wait("Run git stage in work? Only if you trust this folder.")
-	u.key(tcell.KeyEsc) // The last choice, Cancel.
-	u.waitGone("Only if you trust")
-	if got := strings.TrimSpace(u.git("status", "--porcelain")); got != "?? a.txt" {
-		t.Errorf("cancel still staged: %q", got)
 	}
 }
 
@@ -181,7 +158,6 @@ func TestPushPullFetchWithALocalRemote(t *testing.T) {
 	u.press("p")
 	u.wait("has no upstream. Push it to origin and track it?")
 	u.press("y")
-	u.trustOnce()
 	u.wait("push done. main is up to date with origin/main.")
 	u.wait("↑0 ↓0")
 
@@ -232,7 +208,6 @@ func TestMergeConflictFlow(t *testing.T) {
 	u.key(tcell.KeyEnter)
 	u.wait("Merge other into main?")
 	u.press("m")
-	u.trustOnce()
 	u.wait("stopped with 1 conflicting files")
 	u.wait("Merge conflicts (1)")
 	u.wait("MERGING")
@@ -279,7 +254,6 @@ func TestBranchSwitchRefusedShowsGitsOwnMessage(t *testing.T) {
 	u.wait("Switch branch")
 	u.press("feat")
 	u.key(tcell.KeyEnter)
-	u.trustOnce()
 	u.wait("switch to feature failed:")
 	u.wait("overwritten")
 	if u.file("a.txt") != "dirty\n" {
@@ -428,8 +402,6 @@ func TestButtonsAndRowsAreClickable(t *testing.T) {
 	u.alt('g')
 	u.wait("[Fetch]")
 	u.clickOn("[Fetch]")
-	u.wait("Run git fetch in work? Only if you trust this folder.")
-	u.key(tcell.KeyEsc)
 	u.clickOn("M a.txt")
 	u.wait("a.txt (diff)")
 	u.wait("+two")

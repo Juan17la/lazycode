@@ -763,8 +763,8 @@ func (a *app) hints(pairs ...string) string {
 	return strings.Join(parts, "   ")
 }
 
-// drawPrompt asks on the status line. A question too long for it wraps upward, because a trust
-// question must show the whole of what would run.
+// drawPrompt asks on the status line. A question too long for it wraps upward, so the whole of
+// it can be read.
 func (a *app) drawPrompt(w, y int) {
 	p := a.prompts[0]
 	var options strings.Builder

@@ -308,9 +308,8 @@ func (a *app) moreHistory() {
 
 // Running things.
 
-// background runs op off the UI goroutine, with its progress on the status line. Anything that can
-// run the repository's own programs asks for trust first (doc 11). done runs on the UI goroutine.
-func (a *app) background(label string, needTrust bool, op func(ctx context.Context) (string, error), done func(out string, err error)) {
+// background runs op off the UI goroutine, with its progress on the status line. done runs on the UI goroutine.
+func (a *app) background(label string, op func(ctx context.Context) (string, error), done func(out string, err error)) {
 	g := &a.git
 	start := func() {
 		if g.busy != "" {
@@ -326,21 +325,17 @@ func (a *app) background(label string, needTrust bool, op func(ctx context.Conte
 			})
 		}()
 	}
-	if needTrust {
-		a.requireTrust(a.dirPath(), "git "+label, start)
-		return
-	}
 	start()
 }
 
 // gitOp runs a Git operation and reports how it went, with the new ahead and behind counts.
-func (a *app) gitOp(label string, needTrust bool, op func(ctx context.Context, root string) (string, error)) {
+func (a *app) gitOp(label string, op func(ctx context.Context, root string) (string, error)) {
 	root := a.gitRoot()
 	if root == "" {
 		a.message = "This isn't a Git repository yet. Alt+G shows how to make one."
 		return
 	}
-	a.background(label, needTrust, func(ctx context.Context) (string, error) { return op(ctx, root) }, func(_ string, err error) {
+	a.background(label, func(ctx context.Context) (string, error) { return op(ctx, root) }, func(_ string, err error) {
 		a.refreshGit(true, func() {
 			a.message = a.gitOutcome(label, err)
 			a.git.last = a.message
@@ -405,7 +400,7 @@ func (a *app) gitPush() {
 		branch := st.Branch
 		a.ask(fmt.Sprintf("%s has no upstream. Push it to origin and track it?", shown(branch)),
 			choice{'y', "Push", func() {
-				a.gitOp("push", true, func(ctx context.Context, root string) (string, error) {
+				a.gitOp("push", func(ctx context.Context, root string) (string, error) {
 					if remotes, err := git.Remotes(ctx, root); err == nil && len(remotes) == 0 {
 						return "", errors.New("there's no remote yet. :repo create makes one on GitHub")
 					}
@@ -414,16 +409,16 @@ func (a *app) gitPush() {
 			}},
 			choice{'c', "Cancel", func() {}})
 	default:
-		a.gitOp("push", true, func(ctx context.Context, root string) (string, error) { return git.Push(ctx, root, "", false) })
+		a.gitOp("push", func(ctx context.Context, root string) (string, error) { return git.Push(ctx, root, "", false) })
 	}
 }
 
 func (a *app) gitPull() {
-	a.gitOp("pull", true, func(ctx context.Context, root string) (string, error) { return git.Pull(ctx, root) })
+	a.gitOp("pull", func(ctx context.Context, root string) (string, error) { return git.Pull(ctx, root) })
 }
 
 func (a *app) gitFetch() {
-	a.gitOp("fetch", true, func(ctx context.Context, root string) (string, error) { return git.Fetch(ctx, root) })
+	a.gitOp("fetch", func(ctx context.Context, root string) (string, error) { return git.Fetch(ctx, root) })
 }
 
 func (a *app) gitCommit() {
@@ -443,7 +438,7 @@ func (a *app) gitCommit() {
 		return
 	}
 	a.ask1Line(fmt.Sprintf("Commit message (%d files):", staged), "", func(msg string) {
-		a.gitOp("commit", true, func(ctx context.Context, root string) (string, error) { return git.Commit(ctx, root, msg) })
+		a.gitOp("commit", func(ctx context.Context, root string) (string, error) { return git.Commit(ctx, root, msg) })
 	})
 }
 
@@ -459,7 +454,7 @@ func (a *app) stageSelected() {
 		a.message = "That's staged already. u unstages it."
 		return
 	}
-	a.gitOp("stage", true, func(ctx context.Context, root string) (string, error) {
+	a.gitOp("stage", func(ctx context.Context, root string) (string, error) {
 		if f.Kind == git.Conflicted && hasConflictMarkers(filepath.Join(root, f.Path)) {
 			return "", fmt.Errorf("%s still has conflict markers (<<<<<<<). Fix them first", git.Clean(f.Path))
 		}
@@ -493,7 +488,7 @@ func (a *app) unstageSelected() {
 		return
 	}
 	f, hasCommits := r.file, a.git.st.HasCommits
-	a.gitOp("unstage", true, func(ctx context.Context, root string) (string, error) {
+	a.gitOp("unstage", func(ctx context.Context, root string) (string, error) {
 		paths := []string{f.Path}
 		if f.Orig != "" {
 			paths = append(paths, f.Orig) // A rename is two paths.
@@ -546,12 +541,12 @@ func (a *app) gitBranches(merge bool) {
 					}
 					a.ask(fmt.Sprintf("Merge %s into %s?", shown(name), shown(cur)),
 						choice{'m', "Merge", func() {
-							a.gitOp("merge", true, func(ctx context.Context, root string) (string, error) { return git.Merge(ctx, root, name) })
+							a.gitOp("merge", func(ctx context.Context, root string) (string, error) { return git.Merge(ctx, root, name) })
 						}},
 						choice{'c', "Cancel", func() {}})
 					return
 				}
-				a.gitOp("switch to "+shown(name), true, func(ctx context.Context, root string) (string, error) { return "", git.Switch(ctx, root, name) })
+				a.gitOp("switch to "+shown(name), func(ctx context.Context, root string) (string, error) { return "", git.Switch(ctx, root, name) })
 			}
 			a.switcher = s
 		})
@@ -564,7 +559,7 @@ func (a *app) gitNewBranch() {
 		return
 	}
 	a.ask1Line("New branch name:", "", func(name string) {
-		a.gitOp("create branch", true, func(ctx context.Context, root string) (string, error) { return "", git.CreateBranch(ctx, root, name) })
+		a.gitOp("create branch", func(ctx context.Context, root string) (string, error) { return "", git.CreateBranch(ctx, root, name) })
 	})
 }
 
@@ -587,7 +582,7 @@ func (a *app) abortMerge() {
 	}
 	a.ask(fmt.Sprintf("Abort the merge? These %d files go back to how they were before it, and what you did to them in it is lost: %s", len(names), list),
 		choice{'a', "Abort merge", func() {
-			a.gitOp("abort merge", true, func(ctx context.Context, root string) (string, error) { return "", git.MergeAbort(ctx, root) })
+			a.gitOp("abort merge", func(ctx context.Context, root string) (string, error) { return "", git.MergeAbort(ctx, root) })
 		}},
 		choice{'c', "Keep merging", func() {}})
 }
@@ -596,7 +591,7 @@ func (a *app) gitInit() {
 	dir := a.dirPath()
 	a.ask(fmt.Sprintf("Run git init in %s? It makes a .git folder there.", filepath.Base(dir)),
 		choice{'y', "Create repository", func() {
-			a.background("init", false, func(ctx context.Context) (string, error) { return "", git.Init(ctx, dir) }, func(_ string, err error) {
+			a.background("init", func(ctx context.Context) (string, error) { return "", git.Init(ctx, dir) }, func(_ string, err error) {
 				a.refreshGit(true, func() {
 					a.message = a.gitOutcome("git init", err)
 					a.git.last = a.message
@@ -695,7 +690,7 @@ func (a *app) repoCommand(args []string) {
 // shows the exact command, and runs it only when told to.
 func (a *app) repoCreate() {
 	dir := a.dirPath()
-	a.background("checking gh", false, func(ctx context.Context) (string, error) {
+	a.background("checking gh", func(ctx context.Context) (string, error) {
 		if err := github.Check(ctx); err != nil {
 			return "", err
 		}
@@ -710,7 +705,7 @@ func (a *app) repoCreate() {
 		case out == "norepo":
 			a.ask(fmt.Sprintf("%s isn't a Git repository. Run git init first?", filepath.Base(dir)),
 				choice{'y', "git init", func() {
-					a.background("init", false, func(ctx context.Context) (string, error) { return "", git.Init(ctx, dir) }, func(_ string, err error) {
+					a.background("init", func(ctx context.Context) (string, error) { return "", git.Init(ctx, dir) }, func(_ string, err error) {
 						if err != nil {
 							a.message = "git init failed: " + shown(err.Error())
 							return
@@ -746,7 +741,7 @@ func (a *app) confirmRepo(name string, private bool) {
 	command := "gh " + strings.Join(github.CreateArgs(name, private), " ")
 	a.ask(fmt.Sprintf("This will run, in %s: %s", filepath.Base(dir), command),
 		choice{'r', "Run it", func() {
-			a.background("creating repository", false, func(ctx context.Context) (string, error) {
+			a.background("creating repository", func(ctx context.Context) (string, error) {
 				return github.CreateRepo(ctx, dir, name, private)
 			}, func(out string, err error) {
 				if err != nil {

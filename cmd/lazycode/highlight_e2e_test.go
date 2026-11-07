@@ -35,7 +35,7 @@ func TestGoFileIsColouredInARealTerminal(t *testing.T) {
 	t.Setenv("TERM", "xterm-256color") // The test's own may be a terminal without colour.
 	dir := filepath.Join(root, "work")
 	mkdirs(t, dir)
-	answerFirstQuestions(t, dir)
+	answerFirstQuestions(t)
 	src := "package main\n\n// note\nfunc main() {\n\tprintln(\"hi\", 42)\n}\n"
 	for name, text := range map[string]string{"a.go": src, "b.txt": src} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0o644); err != nil {

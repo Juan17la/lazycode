@@ -573,7 +573,7 @@ var allCommands = [][2]string{
 	{"settings", "Settings"}, {"appearance", "Appearance"}, {"themes", "Themes"}, {"plugins", "Plugins"}, {"store", "Plugin store"},
 	{"shortcuts", "Shortcuts"}, {"onboard", "Welcome screen"}, {"menu", "Menus"}, {"messages", "Recent messages"},
 	{"config", "Open config.toml"}, {"config keys", "Open keys.toml"}, {"config projects", "Open projects.toml"},
-	{"trust", "Trust this folder"}, {"untrust", "Stop trusting this folder"}, {"update", "Install the latest version"},
+	{"update", "Install the latest version"},
 }
 
 func (a *app) openCommandList() {

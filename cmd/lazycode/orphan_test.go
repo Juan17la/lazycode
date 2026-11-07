@@ -29,7 +29,7 @@ func TestToolsDontOutliveACrash(t *testing.T) {
 	t.Setenv("HOME", root)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
-	answerFirstQuestions(t, root)
+	answerFirstQuestions(t)
 	pidFile := filepath.Join(root, "tool.pid")
 	t.Setenv("LAZYCODE_E2E_TOOL", "1")
 	t.Setenv("LAZYCODE_E2E_PIDFILE", pidFile)

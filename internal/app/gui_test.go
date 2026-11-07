@@ -314,22 +314,55 @@ func TestTreeMenuRenamesAndDeletes(t *testing.T) {
 	u.release(x, y)
 	mx, my = u.find("Delete")
 	u.click(mx, my)
-	u.wait("for good?")
-	u.key(tcell.KeyEnter) // Cancel comes first, so a stray Enter keeps it.
-	u.waitGone("for good?")
+	u.waitGone("a.txtx") // No question.
+	if _, err := os.Stat(filepath.Join(u.dir, "a.txtx")); err == nil {
+		t.Error("still there")
+	}
+	u.key(tcell.KeyCtrlZ)
+	u.wait("a.txtx")
 	if _, err := os.Stat(filepath.Join(u.dir, "a.txtx")); err != nil {
 		t.Error(err)
 	}
-	u.post(tcell.NewEventMouse(x, y, tcell.Button2, 0))
-	u.release(x, y)
-	mx, my = u.find("Delete")
-	u.click(mx, my)
-	u.wait("for good?")
-	u.key(tcell.KeyDown)
-	u.key(tcell.KeyEnter)
-	u.waitGone("a.txtx")
-	if _, err := os.Stat(filepath.Join(u.dir, "a.txtx")); err == nil {
-		t.Error("still there")
+}
+
+func TestDeleteKeyAndUndoCoverFolders(t *testing.T) {
+	u := start(t, nil)
+	if err := os.MkdirAll(filepath.Join(u.dir, "box"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(u.dir, "box", "inner.txt"), []byte("kept"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	u.press("r")
+	u.wait("box")
+	u.key(tcell.KeyDelete)
+	u.wait("Ctrl+Z brings it back")
+	if _, err := os.Stat(filepath.Join(u.dir, "box")); err == nil {
+		t.Fatal("still there")
+	}
+	u.key(tcell.KeyCtrlZ)
+	u.wait("Brought back box.")
+	got, err := os.ReadFile(filepath.Join(u.dir, "box", "inner.txt"))
+	if err != nil || string(got) != "kept" {
+		t.Fatalf("%q, %v", got, err)
+	}
+	u.key(tcell.KeyCtrlZ)
+	u.wait("Nothing deleted to bring back.")
+}
+
+func TestCopyFilesCopiesAFolder(t *testing.T) {
+	from, to := t.TempDir(), filepath.Join(t.TempDir(), "copy")
+	if err := os.MkdirAll(filepath.Join(from, "a"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(from, "a", "f"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := copyFiles(from, to); err != nil { // What moveFiles falls back to across drives.
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(filepath.Join(to, "a", "f")); err != nil || string(got) != "x" {
+		t.Fatalf("%q, %v", got, err)
 	}
 }
 

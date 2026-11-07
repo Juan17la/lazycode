@@ -4,7 +4,7 @@
 // A repository can be hostile: its .git/config can name programs that git runs. Reading
 // functions here are safe to run in the background: they turn off the fsmonitor hook, external diff
 // and text conversion programs, and file filters, and take no locks. Functions that write run what
-// the repository configures, such as hooks, so the caller asks for trust first (doc 11).
+// the repository configures, such as hooks.
 package git
 
 import (

@@ -26,7 +26,7 @@ type lspClient struct {
 }
 
 // language servers (E2). They start when the user first asks for definition, rename or format, and
-// not before: a server can run the project's code, so an untrusted folder never gets one (doc 11).
+// not before.
 type language struct {
 	clients  map[string]*lspClient // By server and root.
 	starting map[string]bool
@@ -61,10 +61,7 @@ func (a *app) withServer(path string, use func(lc *lspClient, languageID string)
 		a.message = srv.Name + " isn't installed. Install: " + srv.Install
 		return
 	}
-	// Starting one runs code from the folder, so it asks like :play does.
-	a.requireTrust(dir, srv.Name, func() {
-		a.startServer(key, srv, root, func(lc *lspClient) { use(lc, languageID) })
-	})
+	a.startServer(key, srv, root, func(lc *lspClient) { use(lc, languageID) })
 }
 
 func (a *app) startServer(key string, srv lsp.Server, root string, then func(*lspClient)) {

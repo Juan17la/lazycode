@@ -42,7 +42,7 @@ func TestStartupTime(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	answerFirstQuestions(t, dir)
+	answerFirstQuestions(t)
 
 	const runs = 7
 	times := make([]time.Duration, 0, runs)

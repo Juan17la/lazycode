@@ -55,23 +55,20 @@ func (a *app) rememberAndRun(dir, command string) {
 	a.runPlay(dir, command)
 }
 
-// runPlay runs the command in a new tab, replacing the finished tab from the last run. The command is
-// shown before anything runs in a folder that isn't trusted (doc 11).
+// runPlay runs the command in a new tab, replacing the finished tab from the last run.
 func (a *app) runPlay(dir, command string) {
-	a.requireTrust(dir, command, func() {
-		st := a.dir()
-		if old := st.play; old != nil {
-			if _, p := a.findTab(old); p != nil {
-				a.removeTab(st, p, old)
-			}
+	st := a.dir()
+	if old := st.play; old != nil {
+		if _, p := a.findTab(old); p != nil {
+			a.removeTab(st, p, old)
 		}
-		it, err := a.openTerminal(dir, run.Shell(command))
-		if err != nil {
-			a.message = err.Error()
-			return
-		}
-		it.term.Name = command
-		it.play = true
-		st.play = it
-	})
+	}
+	it, err := a.openTerminal(dir, run.Shell(command))
+	if err != nil {
+		a.message = err.Error()
+		return
+	}
+	it.term.Name = command
+	it.play = true
+	st.play = it
 }
