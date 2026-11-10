@@ -51,6 +51,7 @@ func init() {
 		{label: "New Project…", action: "project.new"},
 		{label: "Open Folder…", command: "dir open"},
 		{label: "Close Project", command: "project close"},
+		{label: "Delete Project…", command: "project delete"},
 	}
 	folderItems = []menuItem{
 		{label: "Add Folder to Project…", action: "directory.add"},
@@ -71,6 +72,7 @@ func init() {
 			{label: "New Project…", action: "project.new"},
 			{label: "Switch Project…", action: "project.switch"},
 			{label: "Close Project", command: "project close"},
+			{label: "Delete Project…", command: "project delete"},
 			{},
 			{label: "Close Tab", action: "tab.close"},
 			{label: "Close Saved Tabs", do: (*app).closeSavedTabs},
@@ -423,7 +425,7 @@ func (a *app) itemRows(items []menuItem) []modalRow {
 		if item.checked != nil && item.checked(a) {
 			label = "✓ " + label
 		}
-		rows = append(rows, modalRow{label: label, value: a.menuHint(item), run: func() {
+		rows = append(rows, modalRow{label: label, action: true, value: a.menuHint(item), run: func() {
 			a.closeModal(false)
 			a.runMenuItem(item)
 		}})
@@ -432,14 +434,14 @@ func (a *app) itemRows(items []menuItem) []modalRow {
 }
 
 func (a *app) openProjectHub(items []menuItem) {
-	a.openModal(&modal{title: "✻ Projects", hint: "↑↓ move   Enter choose   Esc close", sel: a.project + 1, build: func() []modalRow {
+	a.openModal(&modal{title: "✻ Projects", hint: hubHint, sel: a.project + 1, build: func() []modalRow {
 		rows := []modalRow{{label: "Switch to", header: true}}
 		for i, p := range a.projects {
 			rows = append(rows, modalRow{label: either(i == a.project, "✓ ", "  ") + p.Name, value: fmt.Sprintf("%d dirs", len(p.Dirs)), run: func() {
 				a.closeModal(false)
 				a.project = i
 				a.afterSwitch()
-			}})
+			}, remove: func() { a.deleteProject(p) }})
 		}
 		return append(append(rows, modalRow{label: "Manage", header: true}), a.itemRows(items)...)
 	}})
@@ -570,10 +572,10 @@ func (a *app) openGoToLine() {
 // allCommands is what Help lists.
 var allCommands = [][2]string{
 	{"save", "Save the file"}, {"new", "New file"}, {"close", "Close the tab"}, {"q", "Quit"},
-	{"project", "Switch project"}, {"project new", "New project"}, {"project close", "Close this project"},
+	{"project", "Switch project"}, {"project new", "New project"}, {"project close", "Close this project"}, {"project delete", "Delete this project from the list"},
 	{"dir", "Switch folder"}, {"dir open", "Open any folder"}, {"dir add", "Add a folder"}, {"dir remove", "Take this folder out of the project"},
 	{"tree", "Show all folders in Files"}, {"view", "Move a view to the other panel"},
-	{"term", "New terminal"}, {"dock", "Show or hide the dock"}, {"session", "New AI session"}, {"session hidden", "Hidden AI sessions"},
+	{"tab.move", "Move this terminal between the editor area and the bottom panel"}, {"term", "New terminal"}, {"dock", "Show or hide the dock"}, {"session", "New AI session"}, {"session hidden", "Hidden AI sessions"},
 	{"play", "Run this folder"}, {"split", "Split right"}, {"split down", "Split below"}, {"wrap", "Word wrap"},
 	{"find", "Find"}, {"replace", "Replace"}, {"search", "Find in folder"}, {"selectall", "Select all matches"},
 	{"definition", "Go to definition"}, {"rename", "Rename the symbol"}, {"format", "Format the file"},

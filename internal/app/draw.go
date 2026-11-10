@@ -362,6 +362,9 @@ func (a *app) drawTabBar(st *dirState, p *pane, focused bool) {
 		a.hits = append(a.hits, hit{area: rect{right, y, width, 1}, click: func(int, int, tcell.ModMask) { run() }})
 	}
 	isDock := p == st.dock
+	if cur := p.current(); cur != nil && cur.term != nil {
+		button(either(isDock, " ⇱ ", " ⇲ "), a.th.icon["cyan"], func() { a.moveTabToArea(st, p, cur, !isDock) })
+	}
 	if isDock {
 		button(" ▾ ", a.th.muted, a.toggleDock)
 		button(" ✻+ ", a.th.icon["purple"], a.openSessionPicker)
@@ -453,7 +456,14 @@ func (a *app) drawTabBar(st *dirState, p *pane, focused bool) {
 
 // tabMenu is what the right button offers on a tab.
 func (a *app) tabMenu(st *dirState, p *pane, it *tabItem) []menuItem {
-	return []menuItem{
+	var move []menuItem
+	switch {
+	case p == st.dock:
+		move = []menuItem{{label: "Move to Editor Area", run: func() { a.moveTabToArea(st, p, it, false) }}, {}}
+	case it.term != nil:
+		move = []menuItem{{label: "Move to Bottom Panel", run: func() { a.moveTabToArea(st, p, it, true) }}, {}}
+	}
+	return append(move, []menuItem{
 		{label: "Close", action: "tab.close"},
 		{label: "Close Others", run: func() {
 			for _, other := range slices.Clone(p.tabs) {
@@ -466,7 +476,7 @@ func (a *app) tabMenu(st *dirState, p *pane, it *tabItem) []menuItem {
 		{},
 		{label: "Split Right", action: "split.right"},
 		{label: "Split Below", action: "split.down"},
-	}
+	}...)
 }
 
 func (a *app) drawEditor(st *dirState, p *pane, it *tabItem, r rect, focused bool) {

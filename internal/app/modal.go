@@ -36,6 +36,7 @@ type modal struct {
 type modalRow struct {
 	label    string
 	danger   bool   // Can't be undone, so it's in the error colour.
+	action   bool   // Does something, rather than being one of the things listed: its own colour.
 	value    string // Right-aligned.
 	header   bool
 	input    *string // A text field.
@@ -356,6 +357,9 @@ func (a *app) drawModalRow(m *modal, row modalRow, i int, r rect) {
 	style, valueStyle := a.th.primary, a.th.icon["cyan"]
 	if !row.pickable() {
 		style = a.th.muted
+	}
+	if row.action && row.pickable() {
+		style, valueStyle = a.th.icon["yellow"].Bold(true), a.th.muted
 	}
 	if row.danger {
 		style = a.th.err

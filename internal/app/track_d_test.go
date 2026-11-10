@@ -166,9 +166,9 @@ func TestRenameAndHide(t *testing.T) {
 	u.waitCount("auth rewrite", 2) // In the list and on its tab.
 
 	u.key(tcell.KeyDelete)
-	u.wait("off the list. The tool still has its chat")
+	u.wait("deleted from the list. The tool still has its chat")
 	u.wait("No sessions yet")
-	u.wait(" auth rewrite ") // Its tab keeps running (Q-60).
+	u.waitCount("auth rewrite", 1) // Only in the message: its tab stops with it.
 }
 
 func TestClosingAndResumingASession(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -29,6 +30,7 @@ const (
 	rowCommit
 	rowGraph // Graph lines between commits.
 	rowNote
+	rowDir // A folder in the tree view.
 )
 
 type gitRow struct {
@@ -36,6 +38,8 @@ type gitRow struct {
 	text  string
 	file  git.File
 	entry git.Entry
+	depth int        // How far a folder or file is indented in the tree view.
+	group []git.File // On a section's header: the files it can stage or unstage at once.
 }
 
 func (r gitRow) selectable() bool { return r.kind == rowFile || r.kind == rowCommit }
@@ -71,7 +75,11 @@ type gitState struct {
 	commits int    // Entries in log that are commits.
 	rows    []gitRow
 	sel     int
-	top     int
+	tree    bool // Changes are shown as folders, not a flat list.
+	histAt  int  // Where History starts in rows. What's before it is the Changes section.
+	topA    int  // First row showing in Changes, and in History.
+	topB    int
+	histH   int    // Rows History has on screen.
 	busy    string // What's running, for the status line.
 	last    string // How the last operation went, kept in the panel.
 	next    time.Time
@@ -110,14 +118,32 @@ func (g *gitState) rebuild() {
 				continue
 			}
 			files += len(in)
-			rows = append(rows, gitRow{kind: rowHeader, text: fmt.Sprintf("%s (%d)", sec.title, len(in))})
+			rows = append(rows, gitRow{kind: rowHeader, text: fmt.Sprintf("%s (%d)", sec.title, len(in)), group: in})
+			if g.tree {
+				slices.SortStableFunc(in, func(l, r git.File) int { return strings.Compare(l.Path, r.Path) })
+			}
+			seen := map[string]bool{}
 			for _, f := range in {
-				rows = append(rows, gitRow{kind: rowFile, file: f})
+				depth := 0
+				if g.tree {
+					if dir := path.Dir(f.Path); dir != "." {
+						parts := strings.Split(dir, "/")
+						for i := range parts {
+							if prefix := strings.Join(parts[:i+1], "/"); !seen[prefix] {
+								seen[prefix] = true
+								rows = append(rows, gitRow{kind: rowDir, text: parts[i], depth: i})
+							}
+						}
+						depth = len(parts)
+					}
+				}
+				rows = append(rows, gitRow{kind: rowFile, file: f, depth: depth})
 			}
 		}
 		if files == 0 {
 			rows = append(rows, gitRow{kind: rowNote, text: "Nothing changed"})
 		}
+		g.histAt = len(rows)
 		rows = append(rows, gitRow{kind: rowHeader, text: "History"})
 		if !st.HasCommits {
 			rows = append(rows, gitRow{kind: rowNote, text: "No commits yet"})
@@ -194,7 +220,7 @@ func (a *app) gitTick(now time.Time) {
 		return
 	}
 	if g.dir != a.dirPath() {
-		*g = gitState{dir: a.dirPath()} // A different directory: nothing here is about it.
+		*g = gitState{dir: a.dirPath(), tree: g.tree} // A different directory: nothing here is about it.
 	}
 	if !g.loaded || now.After(g.next) {
 		a.refreshGit(false, nil)
@@ -277,7 +303,7 @@ func countCommits(log []git.Entry) int {
 // moreHistory loads the next page when the selection reaches the end of what's loaded.
 func (a *app) moreHistory() {
 	g := &a.git
-	if g.logDone || g.logBusy || g.st == nil || g.sel < len(g.rows)-4 {
+	if g.logDone || g.logBusy || g.st == nil || (g.sel < len(g.rows)-4 && g.topB+g.histH/2 < len(g.rows)-4) {
 		return
 	}
 	g.logBusy = true
@@ -330,12 +356,20 @@ func (a *app) background(label string, op func(ctx context.Context) (string, err
 
 // gitOp runs a Git operation and reports how it went, with the new ahead and behind counts.
 func (a *app) gitOp(label string, op func(ctx context.Context, root string) (string, error)) {
+	a.gitOpThen(label, op, nil)
+}
+
+// gitOpThen is gitOp, running ok if the operation worked.
+func (a *app) gitOpThen(label string, op func(ctx context.Context, root string) (string, error), ok func()) {
 	root := a.gitRoot()
 	if root == "" {
 		a.message = "This isn't a Git repository yet. Alt+G shows how to make one."
 		return
 	}
 	a.background(label, func(ctx context.Context) (string, error) { return op(ctx, root) }, func(_ string, err error) {
+		if err == nil && ok != nil {
+			ok()
+		}
 		a.refreshGit(true, func() {
 			a.message = a.gitOutcome(label, err)
 			a.git.last = a.message
@@ -427,18 +461,58 @@ func (a *app) gitCommit() {
 		a.message = "This isn't a Git repository yet. Alt+G shows how to make one."
 		return
 	}
-	staged := 0
+	staged, changed := 0, 0
 	for _, f := range st.Files {
 		if f.Kind == git.Staged {
 			staged++
+		} else if f.Kind != git.Conflicted {
+			changed++
 		}
 	}
-	if staged == 0 && !st.Merging {
-		a.message = "Nothing is staged. s stages the selected file."
-		return
+	switch {
+	case staged == 0 && !st.Merging && changed == 0:
+		a.message = "Nothing to commit."
+	case staged == 0 && !st.Merging: // Quick commit: everything changed goes in, as VS Code offers.
+		a.ask1Line(fmt.Sprintf("Nothing is staged. Commit message, to stage all %d and commit:", changed), "", func(msg string) {
+			a.gitOp("commit", func(ctx context.Context, root string) (string, error) {
+				if err := git.Stage(ctx, root, "."); err != nil {
+					return "", err
+				}
+				return git.Commit(ctx, root, msg)
+			})
+		})
+	default:
+		a.ask1Line(fmt.Sprintf("Commit message (%d files):", staged), "", func(msg string) {
+			a.gitOp("commit", func(ctx context.Context, root string) (string, error) { return git.Commit(ctx, root, msg) })
+		})
 	}
-	a.ask1Line(fmt.Sprintf("Commit message (%d files):", staged), "", func(msg string) {
-		a.gitOp("commit", func(ctx context.Context, root string) (string, error) { return git.Commit(ctx, root, msg) })
+}
+
+// stageFiles stages files, or marks conflicted ones resolved. unstageFiles is the other way.
+func (a *app) stageFiles(files []git.File) {
+	a.gitOp("stage", func(ctx context.Context, root string) (string, error) {
+		var paths []string
+		for _, f := range files {
+			if f.Kind == git.Conflicted && hasConflictMarkers(filepath.Join(root, f.Path)) {
+				return "", fmt.Errorf("%s still has conflict markers (<<<<<<<). Fix them first", git.Clean(f.Path))
+			}
+			paths = append(paths, f.Path)
+		}
+		return "", git.Stage(ctx, root, paths...)
+	})
+}
+
+func (a *app) unstageFiles(files []git.File) {
+	hasCommits := a.git.st.HasCommits
+	a.gitOp("unstage", func(ctx context.Context, root string) (string, error) {
+		var paths []string
+		for _, f := range files {
+			paths = append(paths, f.Path)
+			if f.Orig != "" {
+				paths = append(paths, f.Orig) // A rename is two paths.
+			}
+		}
+		return "", git.Unstage(ctx, root, hasCommits, paths...)
 	})
 }
 
@@ -449,17 +523,11 @@ func (a *app) stageSelected() {
 		a.message = "Select a file first."
 		return
 	}
-	f := r.file
-	if f.Kind == git.Staged {
+	if r.file.Kind == git.Staged {
 		a.message = "That's staged already. u unstages it."
 		return
 	}
-	a.gitOp("stage", func(ctx context.Context, root string) (string, error) {
-		if f.Kind == git.Conflicted && hasConflictMarkers(filepath.Join(root, f.Path)) {
-			return "", fmt.Errorf("%s still has conflict markers (<<<<<<<). Fix them first", git.Clean(f.Path))
-		}
-		return "", git.Stage(ctx, root, f.Path)
-	})
+	a.stageFiles([]git.File{r.file})
 }
 
 // hasConflictMarkers looks for a leftover marker at the start of a line. A file it can't read or
@@ -481,20 +549,28 @@ func hasConflictMarkers(path string) bool {
 	return false
 }
 
+// stageAll stages everything that isn't staged yet.
+func (a *app) stageAll() {
+	var files []git.File
+	for _, f := range a.git.st.Files {
+		if f.Kind != git.Staged {
+			files = append(files, f)
+		}
+	}
+	if len(files) == 0 {
+		a.message = "Everything is staged already."
+		return
+	}
+	a.stageFiles(files)
+}
+
 func (a *app) unstageSelected() {
 	r, ok := a.git.selected()
 	if !ok || r.kind != rowFile || r.file.Kind != git.Staged {
 		a.message = "Select a staged file first."
 		return
 	}
-	f, hasCommits := r.file, a.git.st.HasCommits
-	a.gitOp("unstage", func(ctx context.Context, root string) (string, error) {
-		paths := []string{f.Path}
-		if f.Orig != "" {
-			paths = append(paths, f.Orig) // A rename is two paths.
-		}
-		return "", git.Unstage(ctx, root, hasCommits, paths...)
-	})
+	a.unstageFiles([]git.File{r.file})
 }
 
 // Branches.
@@ -809,6 +885,11 @@ func (a *app) gitKey(ev *tcell.EventKey) bool {
 			}
 		case 'r':
 			a.refreshGit(true, nil)
+		case 't':
+			g.tree = !g.tree
+			g.rebuild()
+		case 'a':
+			a.stageAll()
 		default:
 			return false
 		}
@@ -880,86 +961,89 @@ func (a *app) drawGit(r rect) {
 	if st.Merging {
 		line += "  MERGING"
 	}
-	a.put(r.x+1, r.y+1, maxX, line, a.th.accent)
+	a.put(r.x+1, r.y, maxX, a.gitIcon("branch")+" "+line, a.th.accent)
 
-	x := r.x + 1
-	for _, b := range []struct {
-		label string
-		do    func()
-	}{{"[Push]", a.gitPush}, {"[Pull]", a.gitPull}, {"[Fetch]", a.gitFetch}} {
-		start, do := x, b.do
-		x = a.put(x, r.y+2, maxX, b.label, a.th.primary) + 1
-		a.hits = append(a.hits, hit{area: rect{start, r.y + 2, x - start - 1, 1}, click: func(int, int, tcell.ModMask) { do() }})
+	buttons := func(y int, list ...gitButton) {
+		x := r.x + 1
+		for _, b := range list {
+			start, do := x, b.do
+			x = a.put(x, y, maxX, b.icon+" ", a.th.icon[b.colour])
+			x = a.put(x, y, maxX, b.label, a.th.primary) + 2
+			a.hits = append(a.hits, hit{area: rect{start, y, x - start - 2, 1}, click: func(int, int, tcell.ModMask) { do() }})
+		}
 	}
-	x = r.x + 1
-	for _, b := range []struct {
-		label string
-		do    func()
-	}{{"[Commit]", a.gitCommit}, {"[Branches]", func() { a.gitBranches(false) }}} {
-		start, do := x, b.do
-		x = a.put(x, r.y+3, maxX, b.label, a.th.primary) + 1
-		a.hits = append(a.hits, hit{area: rect{start, r.y + 3, x - start - 1, 1}, click: func(int, int, tcell.ModMask) { do() }})
-	}
+	buttons(r.y+1,
+		gitButton{a.gitIcon("push"), "Push", "green", a.gitPush},
+		gitButton{a.gitIcon("pull"), "Pull", "blue", a.gitPull},
+		gitButton{a.gitIcon("fetch"), "Fetch", "cyan", a.gitFetch})
+	buttons(r.y+2,
+		gitButton{a.gitIcon("branches"), "Branches", "purple", func() { a.gitBranches(false) }},
+		gitButton{a.gitIcon("tree"), either(g.tree, "List", "Tree"), "yellow", func() { g.tree = !g.tree; g.rebuild() }})
+	buttons(r.y+3, gitButton{a.gitIcon("commit"), "Commit…", "green", a.gitCommit}, gitButton{a.gitIcon("stage"), "Stage all", "orange", a.stageAll})
 
-	y0, rows := r.y+4, r.h-5
 	footer := g.last
 	if g.busy != "" {
 		footer = g.busy
 	} else if footer == "" {
-		footer = "p l f push pull fetch, c commit, s u stage"
+		footer = "p l f push pull fetch, c commit, s u a stage, t tree"
 	}
 	a.put(r.x+1, r.y+r.h-1, maxX, footer, a.th.muted)
-	if rows <= 0 || len(g.rows) == 0 {
+
+	// Changes above, History below, each scrolling by itself, so that neither hides the other.
+	y0, body := r.y+4, r.h-5
+	if body < 4 || len(g.rows) == 0 {
 		return
 	}
-	// Keep the selection on screen. Commits take two rows.
-	g.top = max(0, min(g.top, g.sel))
-	for g.top < g.sel && heightBetween(g.rows, g.top, g.sel+1) > rows {
-		g.top++
+	need := heightBetween(g.rows, 0, g.histAt)
+	h1 := min(need, body/2)
+	if need > body/2 && need < body-3 {
+		h1 = need
 	}
+	h2 := body - h1 - 1 // The row between is History's name.
 	focused := !a.tabFocused && a.focusedView() == viewGit
-	y := y0
+	a.drawGitRows(0, g.histAt, &g.topA, rect{r.x, y0, r.w, h1}, focused)
+	a.fillLine(rect{r.x, y0 + h1, r.w, 1}, a.th.muted)
+	a.put(r.x+1, y0+h1, maxX, " History ", a.th.accent)
+	g.histH = h2
+	a.drawGitRows(g.histAt+1, len(g.rows), &g.topB, rect{r.x, y0 + h1 + 1, r.w, h2}, focused)
+}
+
+// gitButton is one of the quick actions at the top of the view.
+type gitButton struct {
+	icon, label, colour string
+	do                  func()
+}
+
+// gitIcon returns an icon for a Git action: a plain symbol, or a Nerd Font glyph.
+func (a *app) gitIcon(name string) string {
+	if a.cfg.UI.Icons == "nerd" {
+		return map[string]string{"branch": "\ue0a0", "push": "\uf062", "pull": "\uf063", "fetch": "\uf021", "branches": "\uf126",
+			"tree": "\uf0e8", "commit": "\uf00c", "stage": "\uf067", "unstage": "\uf068"}[name]
+	}
+	return map[string]string{"branch": "⎇", "push": "↑", "pull": "↓", "fetch": "⟳", "branches": "⑂",
+		"tree": "☰", "commit": "✓", "stage": "+", "unstage": "−"}[name]
+}
+
+// drawGitRows draws rows lo to hi in area, scrolled by *top, and keeps the selection in view if it's in them.
+func (a *app) drawGitRows(lo, hi int, top *int, area rect, focused bool) {
+	g := &a.git
+	maxX := area.x + area.w
+	if area.h <= 0 || lo >= hi {
+		return
+	}
+	*top = max(lo, min(*top, hi-1))
+	if g.sel >= lo && g.sel < hi {
+		*top = max(lo, min(*top, g.sel))
+		for *top < g.sel && heightBetween(g.rows, *top, g.sel+1) > area.h {
+			*top++
+		}
+	}
+	y := area.y
 	type seen struct{ y, h, i int }
 	var drawn []seen
-	for i := g.top; i < len(g.rows) && y < y0+rows; i++ {
-		row := g.rows[i]
-		style := a.th.primary
-		if i == g.sel && focused && row.selectable() {
-			style = a.th.active
-		}
-		switch row.kind {
-		case rowHeader:
-			a.put(r.x+1, y, maxX, row.text, a.th.accent)
-		case rowNote:
-			a.put(r.x+1, y, maxX, row.text, a.th.muted)
-		case rowGraph:
-			a.put(r.x+1, y, maxX, graphLook.Replace(row.entry.Graph), a.th.muted)
-		case rowFile:
-			f := row.file
-			text := fmt.Sprintf("%c %s", f.Marker(), shown(f.Path))
-			if f.Orig != "" {
-				text = fmt.Sprintf("%c %s ← %s", f.Marker(), shown(f.Path), shown(f.Orig))
-			}
-			a.put(r.x+1, y, maxX, text, style)
-		case rowCommit:
-			e := row.entry
-			graph := graphLook.Replace(e.Graph)
-			a.put(r.x+1, y, maxX, graph+" "+shown(e.Subject), style)
-			if y+1 < y0+rows {
-				// Date and refs before the author, so a narrow panel cuts the least useful part.
-				detail := graphBelow(e.Graph) + " " + shown(e.When)
-				if e.Refs != "" {
-					detail += " (" + shown(e.Refs) + ")"
-				}
-				detail += " " + shown(e.Author)
-				a.put(r.x+1, y+1, maxX, detail, a.th.muted)
-			}
-		}
-		drawn = append(drawn, seen{y, row.height(), i})
-		y += row.height()
-	}
+	// Added first, because the last hit under the mouse wins, and the rows' own buttons come after.
 	a.hits = append(a.hits, hit{
-		area: rect{r.x, y0, r.w, rows},
+		area: area,
 		click: func(_, cy int, _ tcell.ModMask) {
 			for _, d := range drawn {
 				if cy >= d.y && cy < d.y+d.h && g.rows[d.i].selectable() {
@@ -969,8 +1053,75 @@ func (a *app) drawGit(r rect) {
 				}
 			}
 		},
-		wheel: func(delta int) { g.move(delta * 2); a.moreHistory() },
+		wheel: func(delta int) {
+			*top = max(lo, min(*top+delta*2, hi-1))
+			a.moreHistory()
+		},
 	})
+	for i := *top; i < hi && y < area.y+area.h; i++ {
+		row := g.rows[i]
+		style := a.th.primary
+		selected := i == g.sel && focused && row.selectable()
+		if selected {
+			style = a.th.active
+			a.fillLine(rect{area.x, y, area.w, 1}, a.th.active)
+		}
+		indent := strings.Repeat("  ", row.depth)
+		switch row.kind {
+		case rowHeader:
+			end := a.put(area.x+1, y, maxX-3, row.text, a.th.accent)
+			if len(row.group) > 0 {
+				icon, colour, do := a.gitIcon("stage"), "green", func() { a.stageFiles(row.group) }
+				if row.group[0].Kind == git.Staged {
+					icon, colour, do = a.gitIcon("unstage"), "red", func() { a.unstageFiles(row.group) }
+				}
+				_ = end
+				a.put(maxX-3, y, maxX, " "+icon+" ", a.th.icon[colour])
+				a.hits = append(a.hits, hit{area: rect{maxX - 3, y, 3, 1}, click: func(int, int, tcell.ModMask) { do() }})
+			}
+		case rowNote:
+			a.put(area.x+1, y, maxX, row.text, a.th.muted)
+		case rowDir:
+			a.put(area.x+1, y, maxX, indent+"▾ "+shown(row.text), a.th.muted)
+		case rowGraph:
+			a.put(area.x+1, y, maxX, graphLook.Replace(row.entry.Graph), a.th.muted)
+		case rowFile:
+			f := row.file
+			name := shown(f.Path)
+			if g.tree {
+				name = shown(path.Base(f.Path))
+			}
+			if f.Orig != "" {
+				name += " ← " + shown(f.Orig)
+			}
+			a.put(area.x+1, y, maxX-3, fmt.Sprintf("%s%c %s", indent, f.Marker(), name), style)
+			icon, colour, do := a.gitIcon("stage"), "green", func() { a.stageFiles([]git.File{f}) }
+			if f.Kind == git.Staged {
+				icon, colour, do = a.gitIcon("unstage"), "red", func() { a.unstageFiles([]git.File{f}) }
+			}
+			quick := a.th.icon[colour]
+			if selected {
+				quick = style
+			}
+			a.put(maxX-3, y, maxX, " "+icon+" ", quick)
+			a.hits = append(a.hits, hit{area: rect{maxX - 3, y, 3, 1}, click: func(int, int, tcell.ModMask) { do() }})
+		case rowCommit:
+			e := row.entry
+			graph := graphLook.Replace(e.Graph)
+			a.put(area.x+1, y, maxX, graph+" "+shown(e.Subject), style)
+			if y+1 < area.y+area.h {
+				// Date and refs before the author, so a narrow panel cuts the least useful part.
+				detail := graphBelow(e.Graph) + " " + shown(e.When)
+				if e.Refs != "" {
+					detail += " (" + shown(e.Refs) + ")"
+				}
+				detail += " " + shown(e.Author)
+				a.put(area.x+1, y+1, maxX, detail, a.th.muted)
+			}
+		}
+		drawn = append(drawn, seen{y, row.height(), i})
+		y += row.height()
+	}
 }
 
 func heightBetween(rows []gitRow, from, to int) int {

@@ -325,16 +325,18 @@ func (a *app) doInSessionsView(action string) bool {
 	return true
 }
 
-// hideEntry takes an entry off the list. It never touches a tool's data (Q-60). A running session
-// keeps its tab until that closes, and then stays hidden.
+// hideEntry removes an entry from the list for good, stopping it if it's running. It never touches a
+// tool's own data (Q-60), so the chat is still in the tool.
 func (a *app) hideEntry(e *sessionEntry) {
-	if e.isShell {
-		a.message = "A shell leaves the list when its tab closes."
-		return
+	s := &a.sessions
+	s.entries = slices.DeleteFunc(s.entries, func(other *sessionEntry) bool { return other == e })
+	if e.tab != nil {
+		if st, p := a.findTab(e.tab); st != nil {
+			a.removeTab(st, p, e.tab)
+		}
 	}
-	e.Hidden = true
 	a.saveSessions()
-	a.message = e.Name + " is off the list. The tool still has its chat."
+	a.message = e.Name + " is deleted from the list. The tool still has its chat."
 }
 
 // Drawing.
@@ -363,6 +365,7 @@ func (a *app) drawSessions(r rect) {
 	if len(list) == 0 {
 		a.put(r.x+1, y0, maxX, "No sessions yet", a.th.muted)
 		a.put(r.x+1, y0+1, maxX, "n starts one", a.th.muted)
+		a.put(r.x+1, y0+2, maxX, "Del removes one", a.th.muted)
 		return
 	}
 	top := max(0, s.sel-rows+1)
@@ -376,10 +379,13 @@ func (a *app) drawSessions(r rect) {
 		if i == s.sel && focused {
 			style = a.th.active
 		}
-		x := a.put(r.x+1, y0+i-top, maxX, e.marker()+" "+e.Name, style)
+		row := y0 + i - top
+		x := a.put(r.x+1, row, maxX-3, e.marker()+" "+e.Name, style)
 		if e.Dir != a.dirPath() {
-			a.put(x, y0+i-top, maxX, "  "+filepath.Base(e.Dir), a.th.muted)
+			a.put(x, row, maxX-3, "  "+filepath.Base(e.Dir), a.th.muted)
 		}
+		a.put(maxX-3, row, maxX, " × ", a.th.err)
+		a.hits = append(a.hits, hit{area: rect{maxX - 3, row, 3, 1}, click: func(int, int, tcell.ModMask) { a.hideEntry(e) }})
 	}
 	a.hits = append(a.hits, hit{
 		area: rect{r.x, y0, r.w, rows},
