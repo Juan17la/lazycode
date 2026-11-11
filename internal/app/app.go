@@ -400,6 +400,8 @@ func (a *app) finishPaste(text string) {
 		a.find.paste(a, text)
 	case a.input != nil:
 		a.input.paste(text)
+	case a.review == nil && len(a.prompts) == 0 && a.command == nil && a.switcher == nil && !a.tabFocused && a.focusedView() == viewGit && a.git.typing:
+		a.git.msg += strings.NewReplacer("\r", "", "\n", " ").Replace(text)
 	case a.review == nil && len(a.prompts) == 0 && a.command == nil && a.switcher == nil && !a.tabFocused && a.focusedView() == viewSearch:
 		a.searchPaste(text)
 	case a.command != nil || a.switcher != nil || len(a.prompts) > 0:

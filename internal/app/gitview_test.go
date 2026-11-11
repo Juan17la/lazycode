@@ -91,7 +91,11 @@ func TestStageUnstageCommitThroughKeys(t *testing.T) {
 	u.wait("Untracked (1)")
 	u.wait("No commits yet")
 	u.press("c")
+	u.wait("Type a commit message") // The box takes the keyboard.
+	u.press("-first commit")
+	u.key(tcell.KeyEnter)
 	u.wait("Nothing is staged") // Offers to stage everything and commit.
+	u.press("c")                // Cancel.
 	u.key(tcell.KeyEsc)
 	u.press("s")
 	u.wait("Staged (1)")
@@ -99,10 +103,7 @@ func TestStageUnstageCommitThroughKeys(t *testing.T) {
 	u.wait("Untracked (1)")
 	u.press("s")
 	u.wait("Staged (1)")
-	u.press("c")
-	u.wait("Commit message (1 files):")
-	u.press("-first commit")
-	u.key(tcell.KeyEnter)
+	u.press("c") // The message is still in the box.
 	u.wait("commit done")
 	u.wait("-first commit") // Starting with a dash is fine in a message.
 	u.wait("Nothing changed")
