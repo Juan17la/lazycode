@@ -1267,10 +1267,10 @@ sidebar = "right"
 
 	// The sidebar is on the right: its divider sits past the text.
 	line := strings.Split(u.text(), "\n")[2]
-	if !strings.HasSuffix(strings.TrimRight(line, " "), "│") && !strings.Contains(line, "│") {
+	if !strings.ContainsAny(line, "│┃") {
 		t.Fatalf("no divider: %q", line)
 	}
-	if strings.Index(line, "│") < 20 {
+	if strings.IndexAny(line, "│┃") < 20 {
 		t.Fatalf("the panel should be on the right: %q", line)
 	}
 }

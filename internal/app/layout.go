@@ -595,30 +595,10 @@ func (a *app) panelFocused(panel int) bool {
 	return !a.tabFocused && a.viewIn(panel) == a.focusedView()
 }
 
-// focusedArea is the area that has the keys, which paintBackground tints.
-func (a *app) focusedArea(st *dirState) rect {
-	first, second, _ := a.regions()
-	switch {
-	case a.tabFocused:
-		return st.focus.area
-	case a.panelFocused(0):
-		return first
-	case a.panelFocused(1):
-		return second
-	}
-	return rect{}
-}
-
-// drawViewTitles draws the header row of a panel, a solid bar when it has focus. A click on an icon
-// brings that view forward.
+// drawViewTitles draws the header row of a panel. Each view keeps its own colour, focused or not: focus
+// shows in the panel's border. A click on a name brings that view forward.
 func (a *app) drawViewTitles(panel int, r rect) {
 	top := a.viewIn(panel)
-	focused := a.panelFocused(panel) && top != ""
-	if focused {
-		for x := r.x; x < r.x+r.w; x++ {
-			a.screen.SetContent(x, r.y, ' ', nil, a.pill(viewColour[top]))
-		}
-	}
 	x, maxX := r.x+1, r.x+r.w
 	// Every view says its name when they all fit, and otherwise only the one on top does.
 	named := 0
@@ -631,13 +611,10 @@ func (a *app) drawViewTitles(panel int, r rect) {
 			label = " " + a.viewIcon(v) + " " + v + " "
 		}
 		if v == top {
-			label, style = " "+a.viewIcon(v)+" "+v+" ", a.th.icon[viewColour[v]].Bold(true)
+			label, style = " "+a.viewIcon(v)+" "+v+" ", style.Bold(true).Underline(true)
 			if v == viewFiles && a.showAll {
 				label = " " + a.viewIcon(v) + " Files, all folders "
 			}
-		}
-		if focused {
-			style = a.pill(viewColour[top])
 		}
 		start := x
 		x = a.put(x, r.y, maxX, label, style)
