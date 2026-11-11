@@ -232,13 +232,9 @@ func allMenus() []menuItem {
 	return items
 }
 
-// stepMenuBar goes to the next drop-down along. The arrows pass over names that open a window.
+// stepMenuBar goes to the next name along, whether it drops down or opens a window.
 func (a *app) stepMenuBar(group, direction int) {
-	group = (group + direction + len(menuBar)) % len(menuBar)
-	for menuBar[group].open != nil {
-		group = (group + direction + len(menuBar)) % len(menuBar)
-	}
-	a.openMenuBar(group)
+	a.openMenuBar((group + direction + len(menuBar)) % len(menuBar))
 }
 
 // openMenuBar opens a menu by its place in the bar. x is where its name was drawn, if known.
@@ -247,6 +243,7 @@ func (a *app) openMenuBar(group int) {
 	a.closeFind()
 	if w, _ := a.screen.Size(); w >= minWidthForMenuNames && menuBar[group].open != nil {
 		menuBar[group].open(a, menuBar[group].items)
+		a.modals[len(a.modals)-1].bar = group + 1 // So that Left and Right go on along the bar from its window.
 		return
 	}
 	w, _ := a.screen.Size()
@@ -420,7 +417,10 @@ func (a *app) drawMenu(w, h int) {
 
 // The windows that open from the bar.
 
-const hubHint = "↑↓ move   1-9 pick   Enter choose   Del or × remove   Esc close"
+const hubHint = "↑↓ move   1-9 pick   Enter choose   Del remove   Esc close"
+
+// barHint is the same for the windows that sit in the menu bar, where Left and Right go on along it.
+const barHint = "↑↓ move   ←→ menus   Enter choose   Del remove   Esc close"
 
 // itemRows shows menu items in a window. Separators have no place in a list under a header.
 func (a *app) itemRows(items []menuItem) []modalRow {
@@ -456,7 +456,7 @@ func (a *app) openProjectHub(items []menuItem) {
 	if i := slices.IndexFunc(a.projects, func(p project.Project) bool { return p.Name == a.prevProject }); i >= 0 && i != a.project {
 		start = i
 	}
-	a.openModal(&modal{title: "✻ Switch project", hint: hubHint, filtered: true, labelOnly: true, escCloses: true, again: "project.switch", sel: start + 1, build: func() []modalRow {
+	a.openModal(&modal{title: "✻ Switch project", hint: hubHint, filtered: true, compact: true, labelOnly: true, escCloses: true, again: "project.switch", sel: start + 1, build: func() []modalRow {
 		rows := []modalRow{{label: "Switch to", header: true}}
 		for i, p := range a.projects {
 			rows = append(rows, modalRow{label: either(i == a.project, "✓ ", "  ") + p.Name, hotkey: hotkeyFor(i), value: fmt.Sprintf("%d dirs", len(p.Dirs)), run: func() {
@@ -480,7 +480,7 @@ func (a *app) openDirHub(items []menuItem) {
 	if i := slices.Index(dirs, a.prevDir); i >= 0 && i != start {
 		start = i
 	}
-	a.openModal(&modal{title: "▸ Switch folder", hint: hubHint, width: 72, filtered: true, labelOnly: true, escCloses: true, again: "directory.switch", sel: start + 1, build: func() []modalRow {
+	a.openModal(&modal{title: "▸ Switch folder", hint: hubHint, width: 72, filtered: true, compact: true, labelOnly: true, escCloses: true, again: "directory.switch", sel: start + 1, build: func() []modalRow {
 		current := a.projects[a.project]
 		rows := []modalRow{{label: "In " + current.Name, header: true}}
 		for i, dir := range current.Dirs {
@@ -499,7 +499,7 @@ func (a *app) openDirHub(items []menuItem) {
 
 // openTerminalHub lists the terminals and AI sessions running here, each with its way out.
 func (a *app) openTerminalHub(items []menuItem) {
-	a.openModal(&modal{title: "❯ Terminals and AI sessions", hint: hubHint, width: 72, build: func() []modalRow {
+	a.openModal(&modal{title: "❯ Terminals and AI sessions", hint: barHint, width: 72, compact: true, build: func() []modalRow {
 		st := a.dir()
 		rows := []modalRow{{label: "Running here", header: true}}
 		for _, p := range st.panes() {
@@ -526,7 +526,7 @@ func (a *app) openTerminalHub(items []menuItem) {
 }
 
 func (a *app) openHelpHub(items []menuItem) {
-	a.openModal(&modal{title: "? Help", hint: "↑↓ move   Enter choose   Esc close", width: 72, build: func() []modalRow {
+	a.openModal(&modal{title: "? Help", hint: "↑↓ move   ←→ menus   Enter choose   Esc close", width: 72, compact: true, build: func() []modalRow {
 		rows := append([]modalRow{{label: "Get help", header: true}}, a.itemRows(items)...)
 		return append(rows,
 			modalRow{label: "Good to know", header: true},

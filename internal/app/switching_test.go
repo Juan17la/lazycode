@@ -95,3 +95,18 @@ func TestF2RenamesTheSelectedFile(t *testing.T) {
 	u.key(tcell.KeyF2)
 	u.wait("Rename")
 }
+
+func TestArrowsStopOnTerminalAndGoOnToGit(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "one\n"})
+	u.wait("a.txt")
+	u.alt('m')
+	u.wait("Save All")
+	for range 5 { // Project, Edit, View, Go, Terminal.
+		u.key(tcell.KeyRight)
+	}
+	u.wait("Running here")
+	u.key(tcell.KeyRight) // From the window, on to Git.
+	u.wait("Show Changes")
+	u.key(tcell.KeyLeft)
+	u.wait("Running here")
+}
