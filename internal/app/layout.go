@@ -7,6 +7,7 @@ import (
 
 	"github.com/Juan17la/lazycode/internal/editor"
 	"github.com/gdamore/tcell/v2"
+	"github.com/mattn/go-runewidth"
 )
 
 // Below this width panels hide, the second first (doc 07).
@@ -277,6 +278,47 @@ func (a *app) dragTab(st *dirState, from *pane, it *tabItem, x, y int) *pane {
 	return from
 }
 
+// moveTabToArea moves a terminal or AI tab between the dock below and the editor area above, where it
+// has the whole space, like a file. Files stay in the editor area. The tool keeps running.
+func (a *app) moveTabToArea(st *dirState, from *pane, it *tabItem, toDock bool) {
+	if it.term == nil {
+		a.message = "Only terminals and AI sessions can go to the bottom panel."
+		return
+	}
+	to := st.dock
+	if !toDock {
+		to = st.root.panes()[0]
+		if st.focus != st.dock && slices.Contains(st.root.panes(), st.focus) {
+			to = st.focus
+		}
+	}
+	if from == to || !slices.Contains(from.tabs, it) {
+		return
+	}
+	from.tabs = slices.DeleteFunc(from.tabs, func(other *tabItem) bool { return other == it })
+	from.spans = nil
+	from.cur = max(0, min(from.cur, len(from.tabs)-1))
+	if len(from.tabs) == 0 && from != st.dock && st.root.pane == nil {
+		st.root = st.root.without(from)
+	}
+	to.tabs = append(to.tabs, it)
+	to.cur = len(to.tabs) - 1
+	st.focus = to
+	a.dockHidden = a.dockHidden && !toDock
+	a.tabFocused = true
+	a.message = it.name() + " is in the " + either(toDock, "bottom panel", "editor area") + ". The tab's menu or :tab.move moves it back."
+}
+
+// moveCurrentTab sends the focused tab to the other area.
+func (a *app) moveCurrentTab() {
+	st := a.dir()
+	if it := a.tab(); it != nil {
+		a.moveTabToArea(st, st.focus, it, st.focus != st.dock)
+	} else {
+		a.message = "No tab to move."
+	}
+}
+
 // holdsFile reports whether a pane already shows the tab's file, which one pane never does twice.
 func holdsFile(p *pane, it *tabItem) bool {
 	return slices.ContainsFunc(p.tabs, func(other *tabItem) bool {
@@ -340,6 +382,63 @@ func (a *app) nextPane() {
 	} else {
 		a.tabFocused = false
 		a.message = "Empty split. Enter opens a file here, and :term starts a tool."
+	}
+}
+
+// focusNext moves focus to the next area, going round: the side panels and every split, in the order
+// they are on screen. Alt+Tab, as in a window manager.
+func (a *app) focusNext() {
+	st := a.dir()
+	first, second, tabs := a.regions()
+	type stop struct {
+		x     int
+		panel int // -1 for a split.
+		pane  *pane
+	}
+	var stops []stop
+	for i, r := range []rect{first, second} {
+		if r.w > 0 && a.viewIn(i) != "" {
+			stops = append(stops, stop{r.x, i, nil})
+		}
+	}
+	for _, p := range a.shownPanes(st) {
+		stops = append(stops, stop{p.area.x, -1, p})
+	}
+	if len(stops) < 2 {
+		return
+	}
+	// Panels sit either side of the code, whichever side Files is on; the dock is the last stop.
+	slices.SortStableFunc(stops, func(l, r stop) int {
+		rank := func(s stop) int {
+			switch {
+			case s.pane == st.dock:
+				return 2
+			case s.pane != nil:
+				return 1
+			case s.x < tabs.x:
+				return 0
+			}
+			return 3
+		}
+		return rank(l) - rank(r)
+	})
+	at := slices.IndexFunc(stops, func(s stop) bool {
+		if a.tabFocused {
+			return s.pane == st.focus
+		}
+		return s.pane == nil && a.panelFocused(s.panel)
+	})
+	next := stops[(at+1)%len(stops)]
+	if next.pane == nil {
+		a.focusPanel, a.tabFocused = next.panel, false
+		a.closeFind()
+		return
+	}
+	st.focus = next.pane
+	if next.pane.current() != nil {
+		a.focusTab()
+	} else {
+		a.tabFocused = false
 	}
 }
 
@@ -521,9 +620,16 @@ func (a *app) drawViewTitles(panel int, r rect) {
 		}
 	}
 	x, maxX := r.x+1, r.x+r.w
+	// Every view says its name when they all fit, and otherwise only the one on top does.
+	named := 0
 	for _, v := range a.viewsIn(panel) {
-		// The icon alone, except the view on top, which also says its name (the part that isn't colour).
+		named += runewidth.StringWidth(" " + a.viewIcon(v) + " " + v + " ")
+	}
+	for _, v := range a.viewsIn(panel) {
 		label, style := " "+a.viewIcon(v)+" ", a.th.icon[viewColour[v]]
+		if named <= r.w-1 {
+			label = " " + a.viewIcon(v) + " " + v + " "
+		}
 		if v == top {
 			label, style = " "+a.viewIcon(v)+" "+v+" ", a.th.icon[viewColour[v]].Bold(true)
 			if v == viewFiles && a.showAll {

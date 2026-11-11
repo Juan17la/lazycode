@@ -60,6 +60,10 @@ func (a *app) do(action string) bool {
 		a.splitPane(false)
 	case "split.next":
 		a.nextPane()
+	case "tab.move":
+		a.moveCurrentTab()
+	case "focus.next":
+		a.focusNext()
 	case "view.terminal":
 		a.toggleDock()
 	case "view.wrap":

@@ -62,8 +62,10 @@ func (a *app) projectCommand(args []string) {
 		a.newProject(strings.Join(args[1:], " "))
 	case args[0] == "close" && len(args) == 1:
 		a.closeProject()
+	case args[0] == "delete" && len(args) == 1:
+		a.deleteProject(a.projects[a.project])
 	default:
-		a.message = "Try :project, :project new NAME, or :project close."
+		a.message = "Try :project, :project new NAME, :project close or :project delete."
 	}
 }
 
@@ -89,8 +91,32 @@ func (a *app) dirCommand(args []string) {
 // touched: projects.toml, the folders, and AI sessions, which sleep and can be resumed.
 // ponytail: a directory that's in several projects (Q-66) loses its tabs in all of them, because
 // tabs belong to directories. Per-project tabs would need a project key in dirState.
-func (a *app) closeProject() {
-	closing := a.projects[a.project]
+func (a *app) closeProject() { a.closeProjectThen(a.projects[a.project], a.finishCloseProject) }
+
+// deleteProject takes a project off the list, after closing its tabs. Its folders are never touched.
+func (a *app) deleteProject(p project.Project) {
+	switch {
+	case p.Unsaved:
+		a.message = "This folder isn't in a project, so there's nothing to delete."
+	case len(a.projects) == 1:
+		a.message = p.Name + " is the only project, so it stays."
+	default:
+		a.ask("Delete the project "+p.Name+"? Its folders and files stay as they are.",
+			choice{'d', "Delete", func() {
+				a.closeProjectThen(p, func(p project.Project) {
+					a.finishCloseProject(p)
+					a.editProjects(func(all []project.Project) ([]project.Project, string) {
+						return slices.DeleteFunc(all, func(o project.Project) bool { return o.Name == p.Name }), ""
+					})
+					a.message = "Deleted " + p.Name + ". Its folders are untouched."
+				})
+			}},
+			choice{'k', "Keep", func() {}})
+	}
+}
+
+// closeProjectThen asks what closing p would cost, and runs finish if it goes ahead.
+func (a *app) closeProjectThen(closing project.Project, finish func(project.Project)) {
 	inScope := func(dir string) bool { return slices.Contains(closing.Dirs, dir) }
 	var running []string
 	for dir, st := range a.dirs {
@@ -109,7 +135,7 @@ func (a *app) closeProject() {
 	}
 	slices.Sort(running)
 	proceed := func() {
-		a.askUnsaved(inScope, "before closing "+closing.Name, map[*buffer.File]bool{}, func() { a.finishCloseProject(closing) })
+		a.askUnsaved(inScope, "before closing "+closing.Name, map[*buffer.File]bool{}, func() { finish(closing) })
 	}
 	if len(running) == 0 {
 		proceed()
@@ -143,7 +169,9 @@ func (a *app) finishCloseProject(closed project.Project) {
 		a.message = "Closed the tabs of " + closed.Name + ". It's the only project, so it stays open."
 		return
 	}
-	a.project = (at + 1) % len(a.projects)
+	if at == a.project { // Closing another project from the list leaves this one where it is.
+		a.project = (at + 1) % len(a.projects)
+	}
 	a.afterSwitch()
 	a.message = "Closed " + closed.Name + ". It's still listed, and :project opens it again."
 }

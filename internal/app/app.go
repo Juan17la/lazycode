@@ -475,9 +475,15 @@ func (a *app) handleKey(ev *tcell.EventKey) {
 	}
 	if a.tabFocused && it.term != nil {
 		// Alt+ only, because the shell needs Ctrl+W for itself.
-		if name := keymap.Name(ev); strings.HasPrefix(name, "alt+") && a.keys.Lookup(keymap.Global, name) == "tab.close" {
-			a.closeTab()
-			return
+		if name := keymap.Name(ev); strings.HasPrefix(name, "alt+") {
+			switch a.keys.Lookup(keymap.Global, name) {
+			case "tab.close":
+				a.closeTab()
+				return
+			case "focus.next":
+				a.focusNext()
+				return
+			}
 		}
 		it.term.Key(ev)
 		return
