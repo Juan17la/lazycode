@@ -49,17 +49,26 @@ path = "~/code/microservice-facebook-auth"
 
 | Action | Linux, Windows | macOS |
 |---|---|---|
-| Switch project (or `:project`) | Alt+O | Ctrl+K then O |
+| Menus (or `:menu`) | Alt+M or F10 | Ctrl+K then M, or F10 |
+| Settings (or `:settings`) | Alt+S | Ctrl+K then S |
+| Shortcuts, which can also change them (or `:shortcuts`) | Alt+K or F1 | Ctrl+K then K, or F1 |
+| Switch project (or `:project`) | Alt+P | Ctrl+K then P |
 | Switch directory (or `:dir`) | Alt+D | Ctrl+K then D |
+| New project (or `:project new`) | Alt+Shift+P | Ctrl+K then Shift+P |
+| Add a directory (or `:dir add`) | Alt+Shift+F | Ctrl+K then Shift+F |
+| New file (or `:new`) | Ctrl+N | Ctrl+N |
 | Previous and next tab | Alt+, and Alt+. | Ctrl+K then , and . |
-| Split the view (or `:split`, `:split down`) | Alt+S | Ctrl+K then S |
-| Move to the next split | Alt+W | Ctrl+K then W |
+| Split right, split below (or `:split`, `:split down`) | Alt+Shift+S, Alt+Shift+B | Ctrl+K then Shift+S, Shift+B |
+| Move to the next split, and the dock | Alt+W | Ctrl+K then W |
 | Open or close the second panel | Ctrl+B | Ctrl+B |
-| Show AI sessions, or the files | Alt+I, Alt+E | Ctrl+K then I, E |
+| Show the files, or AI sessions | Alt+E, Alt+A | Ctrl+K then E, A |
+| Show or hide the terminal dock (or `:dock`) | Alt+T | Ctrl+K then T |
+| New terminal, new AI session | Alt+Shift+T, Alt+Shift+A | Ctrl+K then Shift+T, Shift+A |
 | Search this directory (or `:search`) | Alt+F | Ctrl+K then F |
 | Show Git (or `:git`) | Alt+G | Ctrl+K then G |
 | Open a file by name | Ctrl+P | Ctrl+P |
-| Run this directory's project (or `:play`) | Alt+P | Ctrl+K then P |
+| Run this directory's project (or `:play`) | Alt+R | Ctrl+K then R |
+| Word wrap (or `:wrap`) | Alt+Z | Ctrl+K then Z |
 | Move the Files view to the other panel (or `:view`) | Alt+V, in the tree | Ctrl+K then V |
 | Leave a tab for the file tree | Ctrl+\\ | Ctrl+\\ |
 | Enter the current tab | Tab | Tab |
@@ -88,11 +97,11 @@ In a file:
 | Move by word, go to the start or end of the file | Ctrl+Left and Right, Ctrl+Home and End |
 | Indent, or indent a selection. Remove an indent. | Tab, Shift+Tab |
 | Select the word, then add a cursor on its next match | Ctrl+D |
-| Put a cursor on every match (or `:selectall`) | Ctrl+F2, or Ctrl+K then A on macOS |
+| Put a cursor on every match (or `:selectall`) | Ctrl+F2, or Ctrl+K then O on macOS |
 | Go back to one cursor | Esc |
 | Find (exact text and case). Arrow keys move between matches. | Ctrl+F |
-| Replace. Enter replaces, and Alt+A replaces all. | Alt+H, or Ctrl+K then H on macOS |
-| Go to definition, rename, format. These need the language's server: `gopls`, `pyright` or `typescript-language-server`. | F12, F2, Alt+Shift+F or Ctrl+K then Shift+F |
+| Replace. Enter replaces, and Alt+A replaces all. | Ctrl+R |
+| Go to definition, rename, format. These need the language's server: `gopls`, `pyright` or `typescript-language-server`. | F12, F2, F3 |
 | Open the command bar | Esc, then `:` |
 
 ## Commands

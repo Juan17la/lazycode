@@ -8,6 +8,29 @@ The first release, v0.1.0, will contain:
 
 ### Added
 
+- GUI-style windows in the terminal: a menu bar (File, Edit, Selection, View, Go, Terminal, Git, Tools, Help), right-click menus, close buttons on tabs, buttons on tab bars, and a clickable status line.
+- A dock under the code holds terminal and AI tabs, which look different from file tabs. It can be hidden while its tools keep running.
+- Menus for settings, appearance, themes (with live preview), plugins and shortcuts, and forms for a new project, a new directory and a new file. Each has a command as well.
+- Mouse dragging: select text, move tabs, resize panels, the dock and splits, and drag a scroll bar. Double and triple clicks select a word and a line. Dragging in a terminal tab copies what's selected.
+- Word wrap (Alt+Z or `:wrap`), and `ui.text_style`.
+- A right-click menu in the file tree: new file, new folder, rename and delete.
+- Dragged sizes are remembered after quitting, and tabs can be dragged between splits.
+- A folder browser (File > Open Folder or `:dir open`) that reaches any folder on the device. The project and directory switchers offer new projects and other folders, and open from the names in the top bar.
+- Project, Directories, Terminal and Help in the menu bar open windows that list what's there, with × to remove a directory or close a terminal or AI session.
+- Clearer layout: the area with focus gets a tinted background and a solid title bar, code and dock areas show their name, panels have a rule under the title and an inset, and windows have padding, section rules and gaps between options when they fit.
+- Big pastes are quick and keep their line breaks. A paste with nowhere to go says so.
+- Easier to start with: one word for each thing (Files, Folder), hints that fit where you are and are never cut off, a clearer empty screen, `:messages` for what the status line said, shortcuts you can look up by key, forms a stray click can't close, and a real dialog before deleting.
+- Alt+Q closes a tab, even from inside a terminal. The status line of a terminal has Close and Leave buttons.
+- Tools that ask for the mouse now get the whole drag, so they can select text themselves.
+- More colour throughout: coloured borders that show focus, a colour per view, and a status line with a mode label.
+
+### Changed
+
+- Shortcuts now follow families: Alt+letter shows, Alt+Shift+letter makes, Ctrl+letter acts on the file. Project is now Alt+P (was Alt+O), run Alt+R (was Alt+P), AI sessions Alt+A (was Alt+I), split Alt+Shift+S (was Alt+S), replace Ctrl+R (was Alt+H), and format F3 (was Shift+Alt+F). `keys.toml` still overrides any of them.
+- Terminal and AI tabs always open in the dock, so a split can't hold a terminal any more.
+
+### Added in earlier work
+
 - A terminal editor: tabs, splits, two panels, a file tree, the mouse, and a command bar (`:`).
 - Editing with ordinary keys (no modes): undo and redo, copy, cut and paste, multi-cursor editing, find and replace, safe saves, crash recovery, and files up to 100 MB.
 - Projects made of several directories, with a project and directory switcher.

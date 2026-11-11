@@ -70,11 +70,32 @@ func TestCustomColourReplacesTheThemes(t *testing.T) {
 func TestBackgroundIsPaintedByRegion(t *testing.T) {
 	u, screen := launchStyled(t, map[string]string{"a.go": "package a\n", "b.go": "package b\n"})
 	u.wait("b.go") // The first row is selected, which has its own background.
-	want := tcell.GetColor(palettes[config.DefaultTheme]["panel"])
-	screen.waitStyle(u, "b.go", func(st tcell.Style) bool {
-		_, bg, _ := st.Decompose()
-		return bg == want
-	}, "the panel's background")
+	th := themeFor(config.DefaultTheme)
+	bgIs := func(want tcell.Color, name string) {
+		t.Helper()
+		screen.waitStyle(u, "b.go", func(st tcell.Style) bool { return bgOf(st) == want }, name)
+	}
+	bgIs(th.focus, "the tint of the area with focus")
+	u.open("a.go") // Focus goes to the tab, and the panel goes back to its own colour.
+	bgIs(tcell.GetColor(palettes[config.DefaultTheme]["panel"]), "the panel's background")
+	u.wait("Editor")
+}
+
+func TestModalSpacesItsOptions(t *testing.T) {
+	u := launch(t, t.TempDir())
+	u.run("appearance")
+	u.wait("Text style")
+	_, icons := u.find("Icons")
+	_, text := u.find("Text style")
+	if text-icons != 2 {
+		t.Fatalf("options are %d rows apart", text-icons)
+	}
+	u.key(tcell.KeyEsc)
+
+	u.run("settings") // Too tall for the screen: the gaps go, and it scrolls to the selection.
+	u.wait("Word wrap")
+	u.key(tcell.KeyUp) // Round to the last row.
+	u.wait("Open projects.toml")
 }
 
 func TestThemeCommandPreviewsCancelsAndSaves(t *testing.T) {

@@ -369,6 +369,18 @@ func (t *Tab) SetScrollback(lines int) {
 	t.emu.SetScrollbackSize(lines)
 }
 
+// WantsMouse reports whether the command turned mouse reporting on.
+func (t *Tab) WantsMouse() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, on := range t.mouseModes {
+		if on {
+			return true
+		}
+	}
+	return false
+}
+
 // Mouse sends a mouse event at a position in the tab if the command turned mouse reporting
 // on. Otherwise the wheel scrolls back through what the tab has kept.
 func (t *Tab) Mouse(x, y int, wheelUp, wheelDown, pressed bool) {
@@ -398,6 +410,14 @@ func (t *Tab) Mouse(x, y int, wheelUp, wheelDown, pressed bool) {
 	default:
 		t.emu.SendMouse(vt.MouseRelease{X: x, Y: y, Button: vt.MouseLeft})
 	}
+}
+
+// MouseDrag tells a command that asked for the mouse that the left button moved while held.
+func (t *Tab) MouseDrag(x, y int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	defer survive()
+	t.emu.SendMouse(vt.MouseMotion{X: x, Y: y, Button: vt.MouseLeft})
 }
 
 // scroll moves the view. A full-screen program's alternate screen has nothing to scroll to.

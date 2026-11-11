@@ -85,7 +85,7 @@ command = %q
 func (u *ui) startFake() {
 	u.t.Helper()
 	u.key(tcell.KeyCtrlBackslash)
-	u.alt('i')
+	u.alt('a')
 	u.press("n")
 	u.wait("Start a session")
 	u.press("Fake")
@@ -104,7 +104,7 @@ func (u *ui) sendLine(text string) {
 
 func TestStartingASession(t *testing.T) {
 	u := withTool(t, "stay", nil)
-	u.alt('i')
+	u.alt('a')
 	u.wait("No sessions yet")
 	u.press("n")
 	u.wait("Start a session")
@@ -131,7 +131,7 @@ func TestStartingASession(t *testing.T) {
 
 	// Now it's trusted, a second one doesn't ask. Several of one tool are fine (FR-5.5).
 	u.key(tcell.KeyCtrlBackslash)
-	u.alt('i')
+	u.alt('a')
 	u.press("n")
 	u.press("Fake")
 	u.key(tcell.KeyEnter)
@@ -154,7 +154,7 @@ func TestMissingToolIsMarkedAndSaysSo(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
 	t.Setenv("LocalAppData", filepath.Join(root, "cache"))
 	u := prepared(t, dir, map[string]string{"config.toml": "[[harness]]\nname = \"Ghost\"\ncommand = \"lazycode-no-such-tool\"\n"})
-	u.alt('i')
+	u.alt('a')
 	u.press("n")
 	u.wait("Ghost  (not installed)")
 	u.press("Ghost")
@@ -168,7 +168,7 @@ func TestRenameAndHide(t *testing.T) {
 	u := withTool(t, "stay", nil)
 	u.startFake()
 	u.key(tcell.KeyCtrlBackslash)
-	u.alt('i')
+	u.alt('a')
 	u.wait("Fake 1")
 	u.press("r")
 	u.wait("Rename to: Fake 1")
@@ -194,11 +194,11 @@ func TestClosingAndResumingASession(t *testing.T) {
 	u.key(tcell.KeyCtrlBackslash)
 	u.key(tcell.KeyCtrlW) // Stops the tool, and the entry stays.
 	u.waitGone("tool args")
-	u.alt('i')
+	u.alt('a')
 	u.wait("○ Fake 1")
 	u.key(tcell.KeyEnter) // The same chat comes back (FR-5.8).
 	u.wait("tool args: --resume " + id)
-	u.wait("◐ Fake 1")
+	u.wait("✻ Fake 1")
 }
 
 func TestSessionsComeBackAfterQuitting(t *testing.T) {
@@ -212,7 +212,7 @@ func TestSessionsComeBackAfterQuitting(t *testing.T) {
 	u.quit()
 
 	later := launch(t, u.dir)
-	later.alt('i')
+	later.alt('a')
 	later.wait("○ Fake 1") // Sleeping, as the doc says.
 	later.key(tcell.KeyEnter)
 	later.wait("tool args: --resume " + id)
@@ -237,7 +237,7 @@ func TestQuitWarnsAboutBusySessions(t *testing.T) {
 
 func TestToolWithoutResumeStartsAfresh(t *testing.T) {
 	u := withTool(t, "stay", nil)
-	u.alt('i')
+	u.alt('a')
 	u.press("n")
 	u.press("Plain")
 	u.key(tcell.KeyEnter)
@@ -245,11 +245,11 @@ func TestToolWithoutResumeStartsAfresh(t *testing.T) {
 	u.wait("tool args:")
 	u.key(tcell.KeyCtrlBackslash)
 	u.key(tcell.KeyCtrlW)
-	u.alt('i')
+	u.alt('a')
 	u.wait("○ Plain 1")
 	u.key(tcell.KeyEnter) // A new session (FR-5.13).
 	u.wait("tool args:")
-	u.wait("◐ Plain 1")
+	u.wait("✻ Plain 1")
 }
 
 func TestFailedResumeSaysSo(t *testing.T) {
@@ -257,12 +257,12 @@ func TestFailedResumeSaysSo(t *testing.T) {
 	u.startFake()
 	u.key(tcell.KeyCtrlBackslash)
 	u.key(tcell.KeyCtrlW)
-	u.alt('i')
+	u.alt('a')
 	u.wait("○ Fake 1")
 	u.key(tcell.KeyEnter)
 	u.wait("no such session") // The tool's error stays on screen.
 	u.wait("[exit 4]")
-	u.wait("× Fake 1")
+	u.wait("✗ Fake 1")
 }
 
 func TestExitedSessionKeepsItsTabThenSleeps(t *testing.T) {
@@ -270,12 +270,12 @@ func TestExitedSessionKeepsItsTabThenSleeps(t *testing.T) {
 	u.startFake()
 	u.wait("[exit 9]")
 	u.wait("exited with code 9")
-	u.alt('i')
-	u.wait("× Fake 1")
+	u.alt('a')
+	u.wait("✗ Fake 1")
 	u.alt('e')
 	u.key(tcell.KeyCtrlW)
 	u.wait("No tabs here.")
-	u.alt('i')
+	u.alt('a')
 	u.wait("○ Fake 1")
 }
 
@@ -286,23 +286,23 @@ func TestShellsAreListedAndGoWithTheirTab(t *testing.T) {
 	u.wait("tool args:")
 	name := strings.TrimSuffix(filepath.Base(tool), filepath.Ext(tool))
 	u.key(tcell.KeyCtrlBackslash)
-	u.alt('i')
-	u.wait("▷ " + name)
+	u.alt('a')
+	u.wait("❯ " + name)
 	u.alt('e')
 	u.key(tcell.KeyCtrlW)
-	u.alt('i')
+	u.alt('a')
 	u.wait("No sessions yet")
 }
 
 func TestViewsInPanels(t *testing.T) {
 	u := withTool(t, "stay", map[string]string{"a.txt": "x"})
 	u.wait("a.txt")
-	u.alt('i')
+	u.alt('a')
 	u.wait("No sessions yet")
 	u.waitGone("a.txt")
 	u.clickOn("▤") // A click on an icon brings the view forward.
 	u.wait("a.txt")
-	u.alt('i')
+	u.alt('a')
 	u.wait("No sessions yet")
 	u.alt('e')
 	u.wait("a.txt")
@@ -310,13 +310,13 @@ func TestViewsInPanels(t *testing.T) {
 	// With a window wide enough, the AI view can have its own panel, beside Files.
 	u.screen.SetSize(120, 30)
 	u.post(tcell.NewEventResize(120, 30))
-	u.alt('i')
+	u.alt('a')
 	u.run("view")
 	u.wait("a.txt")
 	u.wait("No sessions yet")
 	u.key(tcell.KeyCtrlB) // Closing the panel can't lose it.
 	u.wait("Files")
-	u.alt('i')
+	u.alt('a')
 	u.wait("No sessions yet")
 }
 
@@ -596,19 +596,19 @@ func echoCommand(text string) string {
 
 func TestPlayAsksThenRemembers(t *testing.T) {
 	u := prePlay(t, nil)
-	u.alt('p')
+	u.alt('r')
 	u.wait("Command to run here:")
 	u.sendLine(echoCommand("first-run"))
 	u.wait("Run echo first-run") // The command is shown first (doc 11).
 	u.wait("[t] Trust")
 	u.press("t")
 	u.wait("first-run")
-	u.wait("▶") // A terminal tab, and shows activity.
+	u.wait("⏵") // A terminal tab, and shows activity.
 
 	// Pressing it again goes to its tab, and doesn't start another (Q-57).
 	u.key(tcell.KeyCtrlBackslash)
 	u.waitGone(`Ctrl+\ leaves`)
-	u.alt('p')
+	u.alt('r')
 	u.wait(`Ctrl+\ leaves`)
 	if got := strings.Count(u.text(), "first-run"); got > 3 {
 		t.Fatalf("started twice:\n%s", u.text())
@@ -627,7 +627,7 @@ func TestPlayAsksThenRemembers(t *testing.T) {
 func TestTrustQuestionShowsAllOfALongCommand(t *testing.T) {
 	u := prePlay(t, nil)
 	long := "echo start" + strings.Repeat(" middle", 25) + " the-very-end"
-	u.alt('p')
+	u.alt('r')
 	u.wait("Command to run here:")
 	u.post(tcell.NewEventPaste(true))
 	u.press(long)
@@ -651,7 +651,7 @@ func TestWrapText(t *testing.T) {
 
 func TestPlayDetects(t *testing.T) {
 	u := prePlay(t, map[string]string{"go.mod": "module x\n", "main.go": "package main\n"})
-	u.alt('p')
+	u.alt('r')
 	u.wait("Run go run . in work?")
 	u.press("c")
 	u.waitGone("Run go run .")
@@ -665,7 +665,7 @@ func TestPlayWithACommandReplacesTheOldOne(t *testing.T) {
 	u.wait("one")
 	u.key(tcell.KeyCtrlBackslash)
 	u.waitGone(`Ctrl+\ leaves`)
-	u.alt('p') // Still running, so it goes there.
+	u.alt('r') // Still running, so it goes there.
 	u.wait(`Ctrl+\ leaves`)
 }
 
@@ -677,7 +677,7 @@ func TestPlayRunsAgainOnceFinished(t *testing.T) {
 	u.run("play echo ran-it")
 	u.press("t")
 	u.wait("[exit 0]")
-	u.alt('p')
+	u.alt('r')
 	u.wait("[exit 0]")
 	u.waitCount("[exit 0]", 1) // The finished tab was replaced.
 }
@@ -695,12 +695,12 @@ func TestTrustCommands(t *testing.T) {
 
 func TestCommandBarInputCancels(t *testing.T) {
 	u := prePlay(t, nil)
-	u.alt('p')
+	u.alt('r')
 	u.wait("Command to run here:")
 	u.press("nope")
 	u.key(tcell.KeyEsc)
 	u.waitGone("Command to run here:")
-	u.alt('p') // Not remembered.
+	u.alt('r') // Not remembered.
 	u.wait("Command to run here:")
 }
 

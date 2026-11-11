@@ -671,7 +671,7 @@ func (a *app) openText(root, name, text string) {
 	}, name)
 	path := filepath.Join(root, ".git", "lazycode-views", name)
 	st := a.dir()
-	for _, p := range st.root.panes() {
+	for _, p := range st.panes() {
 		for _, it := range slices.Clone(p.tabs) {
 			if it.ed != nil && it.ed.File.Path == path {
 				a.removeTab(st, p, it)
@@ -854,8 +854,8 @@ func (a *app) drawGit(r rect) {
 		button := "[Create one: git init]"
 		a.put(r.x+1, r.y+3, maxX, button, a.th.accent)
 		a.hits = append(a.hits, hit{area: rect{r.x + 1, r.y + 3, len(button), 1}, click: func(int, int, tcell.ModMask) { a.gitInit() }})
-		a.put(r.x+1, r.y+5, maxX, "Or press i. A GitHub copy:", a.th.muted)
-		a.put(r.x+1, r.y+6, maxX, ":repo create", a.th.muted)
+		a.put(r.x+1, r.y+5, maxX, "Or press i.", a.th.muted)
+		a.put(r.x+1, r.y+6, maxX, "On GitHub: :repo create", a.th.muted)
 		return
 	case g.err != nil:
 		lines := wrapText(shown(g.err.Error()), max(1, r.w-2))

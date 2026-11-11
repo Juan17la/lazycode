@@ -39,7 +39,7 @@ Your terminal gets every key first, and some it keeps for itself or can't pass o
 | Where | Clash |
 |---|---|
 | macOS | Option types special characters, so Alt shortcuts don't arrive. Use Ctrl+K, then the key. Alt+D is Ctrl+K, then D |
-| Windows Terminal | Alt+Left and Alt+Right move between panes, so tabs use Alt+, and Alt+. instead. Ctrl+V pastes, which does the same job |
+| Windows Terminal | Alt+Left and Alt+Right move between panes, so tabs use Alt+, and Alt+. instead. Alt+Shift+D is taken too, so adding a directory is Alt+Shift+F. Ctrl+V pastes, which does the same job |
 | Linux desktops | Alt+F2 often opens a run dialog. Some desktops use Alt+key for their own shortcuts |
 | tmux, screen, other terminal programs inside your terminal | They may take Alt or Ctrl+B (tmux's default prefix is Ctrl+B, which LazyCode uses for the second panel) |
 | Terminal tabs | Every key goes to the program there, except Ctrl+\\. Press Ctrl+\\ before a LazyCode key |

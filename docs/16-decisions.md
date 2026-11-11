@@ -48,6 +48,7 @@ Date for all entries: 2026-11-03.
 | D-41 | Keys: Ctrl+\\ leaves a terminal tab, Alt+D directories, Alt+O projects, Alt+P run, Alt+Left and Right tabs. `:dir` and `:project` as backups. | Tab keys and macOS replaced by D-43 | Q-74 |
 | D-42 | Priority terminals: Windows Terminal, macOS Terminal, Kitty. Others should work well enough. | Focuses testing | Q-75 |
 | D-43 | Linux and Windows share keys: Alt+D, Alt+O, Alt+P, Alt+, and Alt+. for tabs, Ctrl+F2 to select all occurrences. macOS uses Ctrl+K then the same key, and Ctrl+K then A to select all occurrences. | Replaces part of D-41. Chosen from documented shortcuts, and tested in `M0-07`. | Q-80 |
+| D-44 | The app behaves like a GUI: code tabs on top and a bottom dock for terminals and AI, a menu bar, windows for settings, appearance, themes, plugins, shortcuts and forms, dragging with the mouse, and shortcuts in families (Alt shows, Alt+Shift makes, Ctrl for the file) | Replaces Alt+O, Alt+I, Alt+H, Alt+S for split, Shift+Alt+F and Ctrl+K then A. A terminal app can't change its font or how much text fits, which is the terminal's zoom, so "fonts" are bold and italics plus the icon set | Owner's request, 2026-11-05 |
 
 Other details are recorded in [01-requirements.md](01-requirements.md).
 

@@ -72,7 +72,7 @@ func (a *app) stopLive() {
 func (a *app) openFiles() map[*buffer.File]*tabItem {
 	files := map[*buffer.File]*tabItem{}
 	for _, st := range a.dirs {
-		for _, p := range st.root.panes() {
+		for _, p := range st.panes() {
 			for _, it := range p.tabs {
 				if it.ed != nil {
 					files[it.ed.File] = it

@@ -738,10 +738,10 @@ func TestSelectAllOccurrencesEachWay(t *testing.T) {
 		})
 	}
 	check("Ctrl+F2", func(u *ui) { u.mod(tcell.KeyF2, tcell.ModCtrl) })
-	check("Ctrl+K then A", func(u *ui) { // macOS (Q-80).
+	check("Ctrl+K then O", func(u *ui) { // macOS (Q-80).
 		u.key(tcell.KeyCtrlK)
 		u.wait("Ctrl+K: press")
-		u.press("a")
+		u.press("o")
 	})
 	check(":selectall", func(u *ui) {
 		u.key(tcell.KeyEsc)
@@ -802,7 +802,7 @@ func TestReplaceBar(t *testing.T) {
 	u := start(t, map[string]string{"a.txt": "cat cat cat cat\n"})
 	u.key(tcell.KeyEnter)
 	u.wait("Ln 1, Col 1")
-	u.post(tcell.NewEventKey(tcell.KeyRune, 'h', tcell.ModAlt))
+	u.post(tcell.NewEventKey(tcell.KeyCtrlR, 0, tcell.ModCtrl))
 	u.wait("Replace:")
 	u.press("dog") // The replacement has focus first.
 	u.key(tcell.KeyTab)
@@ -832,7 +832,7 @@ func TestReplaceInAReadOnlyFile(t *testing.T) {
 	u.wait("over 100 MB")
 	u.press("x")
 	u.wait("big.log is read-only.")
-	u.post(tcell.NewEventKey(tcell.KeyRune, 'h', tcell.ModAlt))
+	u.post(tcell.NewEventKey(tcell.KeyCtrlR, 0, tcell.ModCtrl))
 	u.press("y")
 	u.key(tcell.KeyTab)
 	u.press("line")
@@ -847,7 +847,7 @@ func TestSplitsShowOneFileTwice(t *testing.T) {
 	u := start(t, map[string]string{"a.txt": "shared text\n"})
 	u.key(tcell.KeyEnter)
 	u.wait("Ln 1, Col 1")
-	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt))
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'S', tcell.ModAlt))
 	u.waitCount("shared text", 2)
 	u.press("new ") // Edits show in both views.
 	u.waitCount("new shared text", 2)
@@ -868,7 +868,7 @@ func TestClosingTheLastViewAsks(t *testing.T) {
 	u := start(t, map[string]string{"a.txt": "text\n"})
 	u.key(tcell.KeyEnter)
 	u.wait("Ln 1, Col 1")
-	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt))
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'S', tcell.ModAlt))
 	u.waitCount("text", 2)
 	u.press("x")
 	u.waitCount("xtext", 2)
@@ -884,7 +884,7 @@ func TestQuitAsksOnceForAFileInTwoViews(t *testing.T) {
 	u := start(t, map[string]string{"a.txt": "text\n"})
 	u.key(tcell.KeyEnter)
 	u.wait("Ln 1, Col 1")
-	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt))
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'S', tcell.ModAlt))
 	u.press("x")
 	u.waitCount("xtext", 2)
 	u.key(tcell.KeyCtrlBackslash)
@@ -912,13 +912,13 @@ func TestFileAndTerminalSideBySide(t *testing.T) {
 	u.key(tcell.KeyCtrlW) // Leaves an empty split, the other view having closed.
 	u.waitCount("file text", 1)
 
-	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt))
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'S', tcell.ModAlt))
 	u.waitCount("file text", 2)
 	u.key(tcell.KeyEsc)
 	u.press(":term " + tool)
 	u.key(tcell.KeyEnter)
 	u.wait("tool ran")
-	u.waitCount("file text", 1) // That pane now shows the tool.
+	u.waitCount("file text", 2) // Both views stay: the tool went to the dock, under them.
 
 	// Alt+W isn't seen by LazyCode inside a terminal, so leave first.
 	u.key(tcell.KeyCtrlBackslash)
@@ -928,7 +928,7 @@ func TestFileAndTerminalSideBySide(t *testing.T) {
 
 func TestEmptySplitTakesFilesAndCloses(t *testing.T) {
 	u := start(t, map[string]string{"a.txt": "one\n", "b.txt": "two\n"})
-	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt)) // Nothing open, so it's empty.
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'S', tcell.ModAlt)) // Nothing open, so it's empty.
 	u.wait("Empty split")
 	u.waitCount("No tabs here.", 2)
 	u.key(tcell.KeyEnter)
@@ -1158,11 +1158,11 @@ func TestMouseInASwitcher(t *testing.T) {
 	})
 	u.wait("p › one")
 	u.post(tcell.NewEventKey(tcell.KeyRune, 'd', tcell.ModAlt))
-	u.wait("Switch directory")
+	u.wait("Switch folder")
 	u.click(0, 0) // Outside cancels.
-	u.waitGone("Switch directory")
+	u.waitGone("Switch folder")
 	u.post(tcell.NewEventKey(tcell.KeyRune, 'd', tcell.ModAlt))
-	u.wait("Switch directory")
+	u.wait("Switch folder")
 	for y, line := range strings.Split(u.text(), "\n") {
 		if strings.Contains(line, "  two") {
 			u.click(len([]rune(line[:strings.Index(line, "two")])), y)
@@ -1478,9 +1478,9 @@ func TestSmallWindowsWithSplitsDontCrash(t *testing.T) {
 	u := start(t, map[string]string{"a.txt": "some text 世界\n"})
 	u.key(tcell.KeyEnter)
 	u.wait("some text")
-	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt))
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'S', tcell.ModAlt))
 	u.key(tcell.KeyCtrlB)
-	u.post(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt))
+	u.post(tcell.NewEventKey(tcell.KeyRune, 'S', tcell.ModAlt))
 	for _, size := range [][2]int{{10, 5}, {3, 3}, {1, 1}, {39, 4}, {2, 40}, {200, 2}, {80, 25}} {
 		u.screen.SetSize(size[0], size[1])
 		u.post(tcell.NewEventResize(size[0], size[1]))

@@ -28,6 +28,13 @@ type pane struct {
 	tabs []*tabItem
 	cur  int
 	area rect // Set by layout, including the tab bar.
+	// Where each tab was drawn, so that dragging one can tell what it's over.
+	spans []tabSpan
+}
+
+type tabSpan struct {
+	it   *tabItem
+	x, w int
 }
 
 func (p *pane) current() *tabItem {
@@ -42,12 +49,28 @@ func (p *pane) content() rect {
 	return rect{p.area.x, p.area.y + 1, max(1, p.area.w), max(1, p.area.h-1)}
 }
 
-// split is a node in the tree of editor areas (Q-15): a pane, or two children. Dragging
-// can set a ratio here later (Q-13). For now they share the space evenly.
+// split is a node in the tree of editor areas (Q-15): a pane, or two children. ratio is the first
+// child's share, set by dragging the divider, and 0 means an even split.
 type split struct {
 	pane          *pane
 	sideBySide    bool
 	first, second *split
+	ratio         float64
+}
+
+// divider is a line between two areas. drag moves it, if it can be moved.
+type divider struct {
+	r    rect
+	drag func(x, y int)
+}
+
+// firstShare is how much of size the first child gets, leaving room for the line.
+func (s *split) firstShare(size int) int {
+	ratio := s.ratio
+	if ratio <= 0 || ratio >= 1 { // Even, including anything odd from the saved state.
+		return max(0, (size-1)/2)
+	}
+	return max(1, min(int(ratio*float64(size)), size-2))
 }
 
 func (s *split) panes() []*pane {
@@ -87,22 +110,30 @@ func (s *split) without(p *pane) *split {
 }
 
 // place sets each pane's area, and reports the lines dividing them.
-func (s *split) place(r rect, divider func(rect)) {
+func (s *split) place(r rect, add func(divider)) {
 	if s.pane != nil {
 		s.pane.area = r
 		return
 	}
 	if s.sideBySide {
-		left := max(0, (r.w-1)/2)
-		divider(rect{r.x + left, r.y, 1, r.h})
-		s.first.place(rect{r.x, r.y, left, r.h}, divider)
-		s.second.place(rect{r.x + left + 1, r.y, r.w - left - 1, r.h}, divider)
+		left := s.firstShare(r.w)
+		add(divider{rect{r.x + left, r.y, 1, r.h}, func(x, _ int) { s.ratio = float64(x-r.x) / float64(max(1, r.w)) }})
+		s.first.place(rect{r.x, r.y, left, r.h}, add)
+		s.second.place(rect{r.x + left + 1, r.y, r.w - left - 1, r.h}, add)
 		return
 	}
-	top := max(0, (r.h-1)/2)
-	divider(rect{r.x, r.y + top, r.w, 1})
-	s.first.place(rect{r.x, r.y, r.w, top}, divider)
-	s.second.place(rect{r.x, r.y + top + 1, r.w, r.h - top - 1}, divider)
+	top := s.firstShare(r.h)
+	add(divider{rect{r.x, r.y + top, r.w, 1}, func(_, y int) { s.ratio = float64(y-r.y) / float64(max(1, r.h)) }})
+	s.first.place(rect{r.x, r.y, r.w, top}, add)
+	s.second.place(rect{r.x, r.y + top + 1, r.w, r.h - top - 1}, add)
+}
+
+// panelWidth is a panel's width: the one dragged to, or else the default.
+func (a *app) panelWidth(w int) int {
+	if a.panelW > 0 {
+		return max(10, min(a.panelW, w/2))
+	}
+	return min(maxPanelWidth, w/3) + 2 // The 2 is the inset around a view.
 }
 
 // regions returns the areas of the two panels, which are empty if hidden, and of the
@@ -113,7 +144,7 @@ func (a *app) regions() (first, second, tabs rect) {
 	if w < minWidthForPanel {
 		return first, second, tabs
 	}
-	width := min(maxPanelWidth, w/3)
+	width := a.panelWidth(w)
 	onLeft := a.cfg.UI.Sidebar != "right"
 	first = rect{0, 1, width, tabs.h}
 	if !onLeft {
@@ -134,17 +165,129 @@ func (a *app) regions() (first, second, tabs rect) {
 	return first, second, tabs
 }
 
+// dockArea cuts the tabs' area into code above and the dock below, with a line between them. With no
+// file open, the dock has nearly all of it, because the space above would only hold a hint.
+func (a *app) dockArea(st *dirState, tabs rect) (code, line, dock rect) {
+	height := tabs.h * 2 / 5
+	switch {
+	case a.dockH > 0:
+		height = a.dockH
+	case !slices.ContainsFunc(st.root.panes(), func(p *pane) bool { return len(p.tabs) > 0 }):
+		height = tabs.h - 4
+	}
+	height = max(min(3, tabs.h/2), min(height, tabs.h-3))
+	top := tabs.y + tabs.h - height
+	return rect{tabs.x, tabs.y, tabs.w, tabs.h - height - 1}, rect{tabs.x, top - 1, tabs.w, 1}, rect{tabs.x, top, tabs.w, height}
+}
+
 // layout places the panes of a directory for this frame.
-func (a *app) layout(st *dirState) (dividers []rect) {
+func (a *app) layout(st *dirState) (dividers []divider) {
 	_, _, tabs := a.regions()
-	st.root.place(tabs, func(r rect) { dividers = append(dividers, r) })
+	add := func(d divider) { dividers = append(dividers, d) }
+	if a.dockVisible(st) {
+		code, line, dock := a.dockArea(st, tabs)
+		tabs = code
+		st.dock.area = dock
+		bottom := dock.y + dock.h
+		add(divider{line, func(_, y int) { a.dockH = bottom - y - 1 }})
+	}
+	st.root.place(tabs, add)
 	return dividers
+}
+
+// The dock: terminal and AI tabs, under the code (a line away from the code's own tabs).
+
+// panes returns every pane of a directory, shown or not.
+func (st *dirState) panes() []*pane { return append(st.root.panes(), st.dock) }
+
+// dockVisible reports whether the dock is on screen. With no terminals, it takes no room.
+func (a *app) dockVisible(st *dirState) bool { return len(st.dock.tabs) > 0 && !a.dockHidden }
+
+// shownPanes returns the panes on screen.
+func (a *app) shownPanes(st *dirState) []*pane {
+	if a.dockVisible(st) {
+		return st.panes()
+	}
+	return st.root.panes()
+}
+
+// toggleDock shows or hides the dock. Tools keep running while it's hidden. With none yet, it starts a shell.
+func (a *app) toggleDock() {
+	st := a.dir()
+	switch {
+	case len(st.dock.tabs) == 0:
+		a.dockHidden = false
+		a.startTab(nil)
+	case a.dockHidden:
+		a.dockHidden = false
+		st.focus = st.dock
+		a.focusTab()
+	default:
+		a.dockHidden = true
+		a.leaveDock(st)
+	}
+}
+
+// leaveDock gives focus back to the code, if the dock has it.
+func (a *app) leaveDock(st *dirState) {
+	if st.focus == st.dock {
+		st.focus = st.root.panes()[0]
+		a.tabFocused = a.tabFocused && st.focus.current() != nil
+	}
+}
+
+// moveTabTo moves a dragged tab to where another tab is, in its own pane.
+func moveTabTo(p *pane, it *tabItem, x int) {
+	for _, span := range p.spans {
+		if x >= span.x && x < span.x+span.w && span.it != it {
+			from, to := slices.Index(p.tabs, it), slices.Index(p.tabs, span.it)
+			if from < 0 || to < 0 {
+				return
+			}
+			p.tabs = slices.Insert(slices.Delete(p.tabs, from, from+1), to, it)
+			p.cur = to
+			return
+		}
+	}
+}
+
+// dragTab follows a tab being dragged, along its bar or to another split's. It stays on its side of
+// the dock: code above and terminals below is the layout's rule (G1). It returns the tab's pane now.
+func (a *app) dragTab(st *dirState, from *pane, it *tabItem, x, y int) *pane {
+	if (rect{from.area.x, from.area.y, from.area.w, 1}).contains(x, y) || from == st.dock {
+		moveTabTo(from, it, x)
+		return from
+	}
+	for _, to := range st.root.panes() {
+		bar := rect{to.area.x, to.area.y, to.area.w, 1}
+		if to == from || !bar.contains(x, y) || holdsFile(to, it) {
+			continue
+		}
+		from.tabs = slices.DeleteFunc(from.tabs, func(other *tabItem) bool { return other == it })
+		from.spans = nil
+		from.cur = max(0, min(from.cur, len(from.tabs)-1))
+		to.tabs = append(to.tabs, it)
+		to.cur = len(to.tabs) - 1
+		st.focus = to
+		if len(from.tabs) == 0 {
+			st.root = st.root.without(from)
+		}
+		return to
+	}
+	return from
+}
+
+// holdsFile reports whether a pane already shows the tab's file, which one pane never does twice.
+func holdsFile(p *pane, it *tabItem) bool {
+	return slices.ContainsFunc(p.tabs, func(other *tabItem) bool {
+		return it.ed != nil && other.ed != nil && other.ed.File == it.ed.File
+	})
 }
 
 // resizeTabs tells terminal tabs in this directory about their pane's size. Tabs in
 // other directories catch up when they're next shown.
 func (a *app) resizeTabs(st *dirState) {
-	for _, p := range st.root.panes() {
+	for _, p := range a.shownPanes(st) {
 		size := p.content()
 		for _, it := range p.tabs {
 			if it.term != nil && (it.w != size.w || it.h != size.h) {
@@ -164,6 +307,7 @@ func (a *app) resizeTabs(st *dirState) {
 // VS Code. A terminal can only be shown in one place, so the new pane starts empty.
 func (a *app) splitPane(sideBySide bool) {
 	st := a.dir()
+	a.leaveDock(st) // The dock holds one row of tabs: only code splits.
 	node := st.root.find(st.focus)
 	fresh := &pane{}
 	if it := st.focus.current(); it != nil && it.ed != nil {
@@ -182,12 +326,12 @@ func (a *app) splitPane(sideBySide bool) {
 	st.focus = fresh
 }
 
-// nextPane moves focus to the next pane, going round.
+// nextPane moves focus to the next pane, going round, and through the dock.
 func (a *app) nextPane() {
 	st := a.dir()
-	panes := st.root.panes()
+	panes := a.shownPanes(st)
 	if len(panes) == 1 {
-		a.message = "There's only one split. Alt+S adds another."
+		a.message = "There's only one split. " + a.keyFor("split.right") + " adds another."
 		return
 	}
 	st.focus = panes[(slices.Index(panes, st.focus)+1)%len(panes)]
@@ -224,8 +368,11 @@ func (a *app) removeTab(st *dirState, p *pane, it *tabItem) {
 	}
 	a.tabClosed(st, it)
 	p.tabs = slices.Delete(p.tabs, i, i+1) // Clears the old slot, so the tab can be freed.
+	p.spans = nil                          // A hidden or empty pane isn't drawn again to clear them.
 	p.cur = max(0, min(p.cur, len(p.tabs)-1))
-	if len(p.tabs) == 0 && st.root.pane == nil {
+	if p == st.dock && len(p.tabs) == 0 {
+		a.leaveDock(st)
+	} else if len(p.tabs) == 0 && st.root.pane == nil {
 		st.root = st.root.without(p)
 		if st.focus == p {
 			st.focus = st.root.panes()[0]
@@ -303,6 +450,11 @@ func (a *app) showView(view string) {
 func (a *app) toggleSecondPanel() {
 	a.showSecond = !a.showSecond
 	if !a.showSecond {
+		// What's showing stays, unless the closing panel held Files, which comes back on top.
+		a.onTop[0] = a.viewIn(0)
+		if a.panelOf[viewFiles] == 1 {
+			a.onTop[0] = viewFiles
+		}
 		clear(a.panelOf) // Closing a panel can't lose what's in it.
 		a.focusPanel = 0
 	}
@@ -339,22 +491,47 @@ func (a *app) moveFilesView() {
 	}
 }
 
-// drawViewTitles draws the header row of a panel. A click on an icon brings that view forward.
+// panelFocused reports whether a panel is where the keys are going.
+func (a *app) panelFocused(panel int) bool {
+	return !a.tabFocused && a.viewIn(panel) == a.focusedView()
+}
+
+// focusedArea is the area that has the keys, which paintBackground tints.
+func (a *app) focusedArea(st *dirState) rect {
+	first, second, _ := a.regions()
+	switch {
+	case a.tabFocused:
+		return st.focus.area
+	case a.panelFocused(0):
+		return first
+	case a.panelFocused(1):
+		return second
+	}
+	return rect{}
+}
+
+// drawViewTitles draws the header row of a panel, a solid bar when it has focus. A click on an icon
+// brings that view forward.
 func (a *app) drawViewTitles(panel int, r rect) {
 	top := a.viewIn(panel)
-	focused := !a.tabFocused && a.focusedView() == top
+	focused := a.panelFocused(panel) && top != ""
+	if focused {
+		for x := r.x; x < r.x+r.w; x++ {
+			a.screen.SetContent(x, r.y, ' ', nil, a.pill(viewColour[top]))
+		}
+	}
 	x, maxX := r.x+1, r.x+r.w
 	for _, v := range a.viewsIn(panel) {
 		// The icon alone, except the view on top, which also says its name (the part that isn't colour).
-		label, style := " "+a.viewIcon(v)+" ", a.th.muted
+		label, style := " "+a.viewIcon(v)+" ", a.th.icon[viewColour[v]]
 		if v == top {
-			label, style = " "+a.viewIcon(v)+" "+v+" ", a.th.primary.Bold(true)
+			label, style = " "+a.viewIcon(v)+" "+v+" ", a.th.icon[viewColour[v]].Bold(true)
 			if v == viewFiles && a.showAll {
-				label = " " + a.viewIcon(v) + " Files, all directories "
+				label = " " + a.viewIcon(v) + " Files, all folders "
 			}
-			if focused {
-				style = a.th.accent
-			}
+		}
+		if focused {
+			style = a.pill(viewColour[top])
 		}
 		start := x
 		x = a.put(x, r.y, maxX, label, style)

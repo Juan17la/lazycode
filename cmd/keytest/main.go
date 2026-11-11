@@ -49,18 +49,19 @@ func checks(goos string) []check {
 	list := []check{
 		{label: `Ctrl+\`, match: term.IsLeaveKey},
 		ctrl(tcell.KeyCtrlA, "Ctrl+A"), ctrl(tcell.KeyCtrlB, "Ctrl+B"), ctrl(tcell.KeyCtrlC, "Ctrl+C"), ctrl(tcell.KeyCtrlD, "Ctrl+D"),
-		ctrl(tcell.KeyCtrlF, "Ctrl+F"), ctrl(tcell.KeyCtrlN, "Ctrl+N"),
+		ctrl(tcell.KeyCtrlF, "Ctrl+F"), ctrl(tcell.KeyCtrlN, "Ctrl+N"), ctrl(tcell.KeyCtrlQ, "Ctrl+Q"), ctrl(tcell.KeyCtrlR, "Ctrl+R"),
 		ctrl(tcell.KeyCtrlO, "Ctrl+O"), ctrl(tcell.KeyCtrlP, "Ctrl+P"), ctrl(tcell.KeyCtrlS, "Ctrl+S"),
 		ctrl(tcell.KeyCtrlV, "Ctrl+V"), ctrl(tcell.KeyCtrlW, "Ctrl+W"), ctrl(tcell.KeyCtrlX, "Ctrl+X"),
 		ctrl(tcell.KeyCtrlY, "Ctrl+Y"), ctrl(tcell.KeyCtrlZ, "Ctrl+Z"),
-		plain(tcell.KeyF2, "F2"), plain(tcell.KeyF12, "F12"), plain(tcell.KeyEsc, "Esc"),
+		plain(tcell.KeyF1, "F1"), plain(tcell.KeyF2, "F2"), plain(tcell.KeyF3, "F3"), plain(tcell.KeyF10, "F10"), plain(tcell.KeyF12, "F12"), plain(tcell.KeyEsc, "Esc"),
 	}
 	if goos == "darwin" { // Q-80: Ctrl+K then the same key replaces Alt here.
 		return append(list, ctrl(tcell.KeyCtrlK, "Ctrl+K"))
 	}
 	return append(list,
-		alt('d', "Alt+D"), alt('o', "Alt+O"), alt('p', "Alt+P"), alt('f', "Alt+F"), alt('g', "Alt+G"),
-		alt('h', "Alt+H"), alt('s', "Alt+S"), alt('w', "Alt+W"), alt('v', "Alt+V"), alt('i', "Alt+I"), alt('e', "Alt+E"), alt(',', "Alt+,"), alt('.', "Alt+."), shiftAlt('F', "Shift+Alt+F"),
+		alt('d', "Alt+D"), alt('p', "Alt+P"), alt('r', "Alt+R"), alt('f', "Alt+F"), alt('g', "Alt+G"), alt('a', "Alt+A"), alt('e', "Alt+E"),
+		alt('t', "Alt+T"), alt('m', "Alt+M"), alt('x', "Alt+X"), alt('z', "Alt+Z"), alt('v', "Alt+V"), alt('s', "Alt+S"), alt('k', "Alt+K"), alt('w', "Alt+W"), alt(',', "Alt+,"), alt('.', "Alt+."),
+		shiftAlt('P', "Shift+Alt+P"), shiftAlt('F', "Shift+Alt+F"), shiftAlt('T', "Shift+Alt+T"), shiftAlt('A', "Shift+Alt+A"), shiftAlt('S', "Shift+Alt+S"), shiftAlt('B', "Shift+Alt+B"),
 		check{label: "Ctrl+F2", match: func(e *tcell.EventKey) bool {
 			return e.Key() == tcell.KeyF2 && e.Modifiers()&tcell.ModCtrl != 0
 		}},

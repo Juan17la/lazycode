@@ -192,7 +192,7 @@ func TestUntrustedFolderStartsNoServer(t *testing.T) {
 	u.key(tcell.KeyEnter)
 	u.wait("Run gopls in work?")
 	u.press("c")
-	u.post(tcell.NewEventKey(tcell.KeyRune, 'F', tcell.ModAlt))
+	u.post(tcell.NewEventKey(tcell.KeyF3, 0, 0))
 	u.wait("Run gopls in work?")
 	u.press("c")
 	if _, err := os.Stat(log); err == nil {
@@ -274,16 +274,12 @@ func TestFormatIsOneUndoStep(t *testing.T) {
 		{"range":{"start":{"line":2,"character":11},"end":{"line":2,"character":12}},"newText":""}]`)
 	u.trustFolder()
 	u.open("main.go")
-	u.post(tcell.NewEventKey(tcell.KeyRune, 'F', tcell.ModAlt))
+	u.post(tcell.NewEventKey(tcell.KeyF3, 0, 0))
 	u.wait("func main() {")
 	u.wait("Formatted with gopls")
 	waitLog(t, log, "textDocument/formatting")
 	u.key(tcell.KeyCtrlZ) // One step brings back both edits.
 	u.wait("func  main( ) {")
-	// The second form of the same key, for terminals where Alt types characters.
-	u.post(tcell.NewEventKey(tcell.KeyCtrlK, 0, 0))
-	u.press("F")
-	u.wait("func main() {")
 }
 
 func TestRenameShowsTheChangeThenApplies(t *testing.T) {
@@ -465,13 +461,10 @@ func TestEditsAreSentWholeBeforeARequest(t *testing.T) {
 
 func TestDefaultKeysAndCommands(t *testing.T) {
 	m := keymap.Default()
-	for key, want := range map[string]string{"f12": "lsp.definition", "f2": "lsp.rename", "alt+shift+f": "lsp.format"} {
+	for key, want := range map[string]string{"f12": "lsp.definition", "f2": "lsp.rename", "f3": "lsp.format"} {
 		if got := m.Lookup(keymap.Editor, key); got != want {
 			t.Errorf("%s is %q, want %q", key, got, want)
 		}
-	}
-	if got := m.LookupChord(keymap.Editor, "F"); got != "lsp.format" {
-		t.Errorf("Ctrl+K then Shift+F is %q", got)
 	}
 	u := start(t, map[string]string{"notes.txt": "x"})
 	u.open("notes.txt")
@@ -519,7 +512,7 @@ func TestRealGoplsThroughTheUI(t *testing.T) {
 	u.key(tcell.KeyEnter)
 	u.waitFile("main.go", strings.ReplaceAll(src, "Greet", "GreetHello"))
 
-	u.post(tcell.NewEventKey(tcell.KeyRune, 'F', tcell.ModAlt))
+	u.post(tcell.NewEventKey(tcell.KeyF3, 0, 0))
 	u.wait("Formatted with gopls")
 	u.key(tcell.KeyCtrlS)
 	u.waitFile("main.go", strings.ReplaceAll(strings.ReplaceAll(src, "Greet", "GreetHello"), "Greet()  \n", "Greet()\n"))

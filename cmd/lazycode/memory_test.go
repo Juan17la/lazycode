@@ -104,7 +104,7 @@ func TestMemoryStaysUnderLimit(t *testing.T) {
 			d.enter()
 			d.wait("stream done")
 			d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-			d.wait("Tab enter tab")
+			d.wait("Tab go to editor")
 			tabs++
 		}
 		time.Sleep(3 * time.Second) // Let the Go runtime settle.

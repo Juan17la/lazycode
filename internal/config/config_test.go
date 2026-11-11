@@ -192,3 +192,26 @@ func TestColourAndIconSettingsAreChecked(t *testing.T) {
 		}
 	}
 }
+
+func TestSetValueStaysInItsTable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte(Template), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, set := range [][3]string{{"editor", "word_wrap", "true"}, {"ui", "text_style", `"plain"`}, {"updates", "check", "false"}} {
+		if err := SetValue(path, set[0], set[1], set[2]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Editor.WordWrap || c.UI.TextStyle != "plain" || c.Updates.Check {
+		t.Errorf("got %+v", c)
+	}
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), "# Long lines continue") {
+		t.Error("the comment was lost")
+	}
+}

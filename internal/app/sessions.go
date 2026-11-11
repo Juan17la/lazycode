@@ -108,19 +108,22 @@ func (a *app) inProject(hidden bool) []*sessionEntry {
 
 // Starting.
 
-// openTerminal starts a command in a new tab in the focused pane.
+// openTerminal starts a command in a new tab in the dock, under the code.
 func (a *app) openTerminal(dir string, args []string) (*tabItem, error) {
 	st := a.dir()
-	a.layout(st)
-	size := st.focus.content()
+	_, _, tabs := a.regions()
+	_, _, dock := a.dockArea(st, tabs)
+	size := (&pane{area: dock}).content()
 	t, err := term.Start(dir, args, size.w, size.h, a.requestRedraw)
 	if err != nil {
 		return nil, err
 	}
 	t.SetScrollback(a.cfg.Terminal.Scrollback)
 	it := &tabItem{term: t, w: size.w, h: size.h}
-	st.focus.tabs = append(st.focus.tabs, it)
-	st.focus.cur = len(st.focus.tabs) - 1
+	st.dock.tabs = append(st.dock.tabs, it)
+	st.dock.cur = len(st.dock.tabs) - 1
+	st.focus = st.dock
+	a.dockHidden = false
 	a.tabFocused = true
 	return it, nil
 }
@@ -217,7 +220,7 @@ func (a *app) launch(e *sessionEntry, h session.Harness, resume bool) bool {
 		return false
 	}
 	if _, err := os.Stat(e.Dir); err != nil {
-		a.message = e.Name + "'s directory is missing: " + e.Dir // Q-66: the entry stays.
+		a.message = e.Name + "'s folder is missing: " + e.Dir // Q-66: the entry stays.
 		return false
 	}
 	it, err := a.openTerminal(e.Dir, h.Args(e.ID, resume))
@@ -262,7 +265,7 @@ func (a *app) openEntry(e *sessionEntry) {
 
 func (a *app) findTab(it *tabItem) (*dirState, *pane) {
 	for _, st := range a.dirs {
-		for _, p := range st.root.panes() {
+		for _, p := range st.panes() {
 			if slices.Contains(p.tabs, it) {
 				return st, p
 			}
@@ -344,13 +347,13 @@ func (e *sessionEntry) marker() string {
 	switch e.status {
 	case session.Running:
 		if e.isShell {
-			return "▷"
+			return "❯"
 		}
-		return "◐"
+		return "✻"
 	case session.Attention:
 		return "●"
 	case session.Exited:
-		return "×"
+		return "✗"
 	}
 	return "○"
 }
@@ -401,7 +404,7 @@ func (a *app) isViewing(it *tabItem) bool { return a.tabFocused && a.tab() == it
 
 // isVisible reports whether a tab is on screen, even if another has focus.
 func (a *app) isVisible(it *tabItem) bool {
-	return slices.ContainsFunc(a.dir().root.panes(), func(p *pane) bool { return p.current() == it })
+	return slices.ContainsFunc(a.shownPanes(a.dir()), func(p *pane) bool { return p.current() == it })
 }
 
 // housekeeping runs once a second, keeping each session's status up to date (doc 10). Detection is

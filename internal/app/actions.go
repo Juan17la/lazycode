@@ -33,7 +33,7 @@ func (a *app) do(action string) bool {
 	case "session.new":
 		a.openSessionPicker()
 	case "session.hide":
-		a.message = "Alt+I shows the sessions, where this removes one from the list."
+		a.message = a.keyFor("view.sessions") + " shows the sessions, where this removes one from the list."
 	case "project.switch":
 		a.openProjectSwitcher()
 	case "directory.switch":
@@ -52,8 +52,40 @@ func (a *app) do(action string) bool {
 		}
 	case "split.right":
 		a.splitPane(true)
+	case "split.down":
+		a.splitPane(false)
 	case "split.next":
 		a.nextPane()
+	case "view.terminal":
+		a.toggleDock()
+	case "view.wrap":
+		a.toggleWrap()
+	case "terminal.new":
+		a.startTab(nil)
+	case "file.new":
+		a.openNewFile()
+	case "project.new":
+		a.openNewProject()
+	case "directory.add":
+		a.openAddDir()
+	case "app.menu":
+		a.openMenuBar(0)
+	case "app.settings":
+		a.openSettingsMenu()
+	case "app.appearance":
+		a.openAppearance()
+	case "app.themes":
+		a.openThemes()
+	case "app.plugins":
+		a.openPlugins()
+	case "app.store":
+		a.storeCommand()
+	case "app.shortcuts":
+		a.openShortcuts()
+	case "app.onboarding":
+		a.openOnboarding()
+	case "app.quit":
+		a.quitCommand()
 	case "panel.toggle_second":
 		a.toggleSecondPanel()
 	case "view.move":

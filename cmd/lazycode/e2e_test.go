@@ -204,32 +204,32 @@ path = %q
 	if runtime.GOOS != "windows" {
 		d.key(tcell.KeyHome, 0)
 		d.wait("Ln 1, Col 1")
-		// 33 columns of tree and divider, then 3 of line numbers, so this is column 2.
-		d.tab.Mouse(38, 2, false, false, true)
-		d.tab.Mouse(38, 2, false, false, false)
+		// 35 columns of tree and divider, then 3 of line numbers, so this is column 2.
+		d.tab.Mouse(40, 2, false, false, true)
+		d.tab.Mouse(40, 2, false, false, false)
 		d.wait("Ln 1, Col 3")
 	}
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-	d.wait("Tab enter tab")
+	d.wait("Tab go to editor")
 
 	// Alt+D switches directory.
 	d.alt('d')
-	d.wait("Switch directory")
+	d.wait("Switch folder")
 	d.typeText("two")
 	d.enter()
 	d.wait("alpha › two")
 
-	// Ctrl+K then O is the macOS form of Alt+O (Q-80), and switches project.
+	// Ctrl+K then P is the macOS form of Alt+P (Q-80), and switches project.
 	d.key(tcell.KeyCtrlK, tcell.ModCtrl)
 	d.wait("Ctrl+K: press")
-	d.typeText("o")
+	d.typeText("p")
 	d.wait("Switch project")
 	d.typeText("beta")
 	d.enter()
 	d.wait("beta › three")
 
 	// Escape cancels a switcher, and a filter with no match says so.
-	d.alt('o')
+	d.alt('p')
 	d.typeText("nothing-matches")
 	d.wait("No matches")
 	d.key(tcell.KeyEsc, 0)
@@ -251,19 +251,19 @@ path = %q
 	// Ctrl+\ leaves the tab. The same keys now reach LazyCode, not the tool.
 	d.wait(`Ctrl+\ leaves`)
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-	d.wait("Tab enter tab")
+	d.wait("Tab go to editor")
 	d.typeText(":")
 	d.typeText("nope")
 	d.enter()
 	d.wait("Unknown command: nope")
 
 	// Tabs belong to their directory, and keep running while hidden.
-	d.alt('o')
+	d.alt('p')
 	d.typeText("alpha")
 	d.enter()
 	d.wait("alpha › two")
 	d.waitGone("got: hello")
-	d.alt('o')
+	d.alt('p')
 	d.typeText("beta")
 	d.enter()
 	d.wait("got: hello")
@@ -277,7 +277,7 @@ path = %q
 
 	// :close removes the finished tab.
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-	d.wait("Tab enter tab")
+	d.wait("Tab go to editor")
 	d.typeText(":close")
 	d.enter()
 	d.wait("No tabs here.")
@@ -287,7 +287,7 @@ path = %q
 	d.enter()
 	d.wait("tool ready")
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-	d.wait("Tab enter tab")
+	d.wait("Tab go to editor")
 	d.typeText(":q")
 	d.enter()
 	select {

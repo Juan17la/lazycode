@@ -8,12 +8,12 @@ Typing works the way you expect: arrow keys, Shift to select, Ctrl+C, X and V, C
 |---|---|---|
 | Ctrl+P, open by name | Ctrl+P | |
 | Ctrl+D, next occurrence | Ctrl+D | Select the word, then add a cursor on its next match |
-| Ctrl+Shift+L, all occurrences | Ctrl+F2 | `:selectall`. On macOS, Ctrl+K then A |
+| Ctrl+Shift+L, all occurrences | Ctrl+F2 | `:selectall`. On macOS, Ctrl+K then O |
 | Ctrl+Shift+Z, redo | Ctrl+Shift+Z or Ctrl+Y | |
 | Ctrl+W, close tab | Ctrl+W | |
 | F12, go to definition | F12 | Needs the language server |
 | F2, rename | F2 | Needs the language server |
-| Shift+Alt+F, format | Alt+Shift+F | Needs the language server |
+| Shift+Alt+F, format | F3 | Needs the language server |
 | Ctrl+Left and Right, by word | Ctrl+Left and Right | |
 | Ctrl+Home and End | Ctrl+Home and End | |
 | Ctrl+C with nothing selected copies the line | The same, and so does Ctrl+X | |
@@ -24,13 +24,13 @@ Typing works the way you expect: arrow keys, Shift to select, Ctrl+C, X and V, C
 |---|---|
 | Ctrl+Shift+P, command palette | Press `:` in the tree, or Esc then `:` in a file, and type a command such as `:save` |
 | Ctrl+Shift+F, search in files | Alt+F, or `:search` |
-| Ctrl+H, replace | Alt+H, or `:replace` (Enter replaces, Alt+A replaces all). Replacing across files, from Alt+F, shows every change before making it |
+| Ctrl+H, replace | Ctrl+R, or `:replace` (Enter replaces, Alt+A replaces all). Replacing across files, from Alt+F, shows every change before making it |
 | Ctrl+B, show or hide the side bar | Ctrl+B opens or closes a second panel. Alt+E shows the files |
-| Ctrl+\\ or Ctrl+Alt+Right, split | Alt+S, or `:split`. Alt+W moves between splits |
+| Ctrl+\\ or Ctrl+Alt+Right, split | Alt+Shift+S, or `:split`. Alt+W moves between splits |
 | Ctrl+Shift+`, new terminal | `:term` opens a shell in a tab. Ctrl+\\ leaves a terminal tab |
 | Ctrl+Shift+G, source control | Alt+G, or `:git` |
-| Workspaces with several folders | Projects: `:project new NAME`, `:dir add PATH`. Alt+O and Alt+D switch |
-| Run button, tasks | Alt+P, or `:play`, runs the directory's project |
+| Workspaces with several folders | Projects: Alt+Shift+P and Alt+Shift+F, or `:project new NAME`, `:dir add PATH`. Alt+P and Alt+D switch |
+| Run button, tasks | Alt+R, or `:play`, runs the directory's project |
 | Extensions | None yet. Plugins are planned |
 | Settings UI, settings.json | `:config` opens `config.toml`. `:config keys` opens `keys.toml` |
 

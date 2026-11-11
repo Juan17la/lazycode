@@ -58,7 +58,7 @@ func (a *app) syncHighlight() {
 		hl.files, hl.all = map[*buffer.File]*highlightState{}, map[*highlightState]bool{}
 	}
 	shown := map[*buffer.File]bool{}
-	for _, p := range a.dir().root.panes() {
+	for _, p := range a.dir().panes() {
 		if it := p.current(); it != nil && it.ed != nil {
 			shown[it.ed.File] = true
 		}

@@ -51,6 +51,7 @@ type mark struct {
 type Editor struct {
 	File       *buffer.File
 	TabSize    int
+	WrapWidth  int    // The text width under word wrap, where Up and Down go by row. 0 means off.
 	ScrollLine int    // First line on screen.
 	ScrollCol  int    // First column on screen.
 	Highlight  string // Text to mark wherever it's on screen, for find.
@@ -249,7 +250,62 @@ func (e *Editor) PageDown(extend bool) {
 	e.ScrollLine = min(e.File.LineCount()-1, e.ScrollLine+e.height)
 }
 
+// moveRows is moveLines under word wrap, where a move goes by what's on screen. goal is the place along the row.
+func (e *Editor) moveRows(delta int, extend bool) {
+	step := 1
+	if delta < 0 {
+		step, delta = -1, -delta
+	}
+	for i, c := range e.cursors {
+		line := e.File.LineOf(c.pos)
+		col := e.columnOf(e.File.LineStart(line), c.pos)
+		breaks := e.WrapBreaks(line, e.WrapWidth)
+		row := WrapRowOf(breaks, col)
+		goal := c.goal
+		if goal < 0 {
+			goal = col - breaks[row]
+		}
+		pos := -1
+		for range delta {
+			row += step
+			if row < 0 || row >= len(breaks) {
+				line += step
+				if line < 0 {
+					pos = 0
+					break
+				}
+				if line >= e.File.LineCount() {
+					pos = e.File.Len()
+					break
+				}
+				breaks = e.WrapBreaks(line, e.WrapWidth)
+				row = 0
+				if step < 0 {
+					row = len(breaks) - 1
+				}
+			}
+		}
+		if pos < 0 {
+			col = breaks[row] + goal
+			if row+1 < len(breaks) {
+				col = min(col, breaks[row+1]-1)
+			}
+			pos = e.offsetAtColumn(line, col)
+		}
+		e.cursors[i].pos, e.cursors[i].goal = pos, goal
+		if !extend {
+			e.cursors[i].anchor = pos
+		}
+	}
+	e.tidy()
+	e.last = editOther
+}
+
 func (e *Editor) moveLines(delta int, extend bool) {
+	if e.WrapWidth > 0 {
+		e.moveRows(delta, extend)
+		return
+	}
 	for i, c := range e.cursors {
 		line := e.File.LineOf(c.pos)
 		goal := c.goal

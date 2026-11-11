@@ -66,7 +66,7 @@ func TestWorkspaceSurvivesARestart(t *testing.T) {
 
 	// Back to the first directory, with a file open and the cursor moved.
 	command(d, "dir")
-	d.wait("Switch directory")
+	d.wait("Switch folder")
 	d.typeText("one")
 	d.enter()
 	d.wait("Demo › one")
@@ -75,7 +75,7 @@ func TestWorkspaceSurvivesARestart(t *testing.T) {
 	d.key(tcell.KeyDown, 0)
 	d.wait("Ln 2, Col 1")
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
-	d.wait("Tab enter tab")
+	d.wait("Tab go to editor")
 	command(d, "q")
 	deadline := time.Now().Add(30 * time.Second)
 	for done, _ := d.tab.Exited(); !done; done, _ = d.tab.Exited() {

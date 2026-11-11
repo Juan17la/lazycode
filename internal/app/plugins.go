@@ -193,7 +193,7 @@ func (a *app) emitPlugins(event string, it *tabItem) {
 
 func (a *app) tabOf(f *buffer.File) *tabItem {
 	for _, st := range a.dirs {
-		for _, p := range st.root.panes() {
+		for _, p := range st.panes() {
 			for _, it := range p.tabs {
 				if it.ed != nil && it.ed.File == f {
 					return it
