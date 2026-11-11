@@ -15,7 +15,7 @@ func TestPanelHeaderListsAllViewsAndClicksSwitch(t *testing.T) {
 	u.wait("▤ Files  ⎇  ⌕  ✻")
 	u.clickOn("⎇")
 	u.wait("⎇ Git")
-	u.wait("▤  ⎇ Git") // Files is now only its icon.
+	u.wait("▤ Files  ⎇ Git") // Every view says its name when there is room.
 	u.alt('f')
 	u.wait("⌕ Search")
 	u.wait("Find:")
