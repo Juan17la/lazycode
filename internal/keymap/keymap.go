@@ -82,6 +82,11 @@ var defaults = map[Context]map[string]string{
 		"ctrl+z": "edit.undo", "ctrl+y": "edit.redo", "ctrl+shift+z": "edit.redo",
 		"ctrl+s": "file.save", "ctrl+f": "find.open", "ctrl+r": "find.replace",
 		"f12": "lsp.definition", "f2": "lsp.rename", "f3": "lsp.format",
+		"alt+up": "cursor.add_above", "alt+down": "cursor.add_below", "ctrl+alt+up": "cursor.add_above", "ctrl+alt+down": "cursor.add_below",
+		"ctrl+shift+up": "line.move_up", "ctrl+shift+down": "line.move_down", "alt+shift+up": "line.copy_up", "alt+shift+down": "line.copy_down",
+		"ctrl+shift+k": "line.delete", "ctrl+enter": "line.insert_below", "ctrl+j": "line.insert_below", "ctrl+shift+enter": "line.insert_above",
+		"ctrl+l": "select.line", "ctrl+shift+l": "select.all_occurrences", "ctrl+/": "edit.toggle_comment", "ctrl+g": "file.go_to_line",
+		"ctrl+backspace": "edit.delete_word_left", "alt+backspace": "edit.delete_word_left", "ctrl+delete": "edit.delete_word_right",
 	},
 	Panel: {
 		"up": "tree.up", "down": "tree.down", "left": "tree.close", "right": "tree.open",
@@ -130,6 +135,20 @@ var Catalog = []Entry{
 	{"This file (Ctrl+letter)", "edit.paste", "Paste"},
 	{"This file (Ctrl+letter)", "select.all", "Select all"},
 	{"This file (Ctrl+letter)", "select.next_occurrence", "Add the next match"},
+	{"Lines and cursors", "cursor.add_above", "Add a cursor above"},
+	{"Lines and cursors", "cursor.add_below", "Add a cursor below"},
+	{"Lines and cursors", "line.move_up", "Move the line up"},
+	{"Lines and cursors", "line.move_down", "Move the line down"},
+	{"Lines and cursors", "line.copy_up", "Copy the line up"},
+	{"Lines and cursors", "line.copy_down", "Copy the line down"},
+	{"Lines and cursors", "line.delete", "Delete the line"},
+	{"Lines and cursors", "line.insert_below", "New line below"},
+	{"Lines and cursors", "line.insert_above", "New line above"},
+	{"Lines and cursors", "select.line", "Select the line"},
+	{"Lines and cursors", "edit.toggle_comment", "Comment or uncomment"},
+	{"Lines and cursors", "edit.delete_word_left", "Delete the word before"},
+	{"Lines and cursors", "edit.delete_word_right", "Delete the word after"},
+	{"Lines and cursors", "file.go_to_line", "Go to line"},
 	{"This file (Ctrl+letter)", "panel.toggle_second", "Second panel, open or close"},
 	{"This file (Ctrl+letter)", "app.quit", "Quit"},
 	{"Language (F-key)", "lsp.rename", "Rename the symbol"},
@@ -366,6 +385,8 @@ func Name(ev *tcell.EventKey) string {
 			mods &^= tcell.ModShift // The character already says so.
 		}
 		base = string(r)
+	case key == tcell.KeyCtrlUnderscore: // What terminals send for Ctrl+/.
+		base, mods = "/", mods|tcell.ModCtrl
 	case key >= tcell.KeyCtrlA && key <= tcell.KeyCtrlZ:
 		base, mods = string('a'+rune(key-tcell.KeyCtrlA)), mods|tcell.ModCtrl
 	default:

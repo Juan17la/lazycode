@@ -520,20 +520,41 @@ func (e *Editor) hasSelection() bool {
 func (e *Editor) Type(text string) error {
 	space := strings.TrimSpace(text) == ""
 	join := e.last == editTyping && !e.hasSelection() && (space || !e.lastWasSpace)
-	if err := e.replaceSelections(join, func(int, cursor) string { return text }); err != nil {
+	paired := false
+	var err error
+	if len(text) == 1 {
+		paired, err = e.typePaired(text[0], join)
+	}
+	if !paired {
+		err = e.replaceSelections(join, func(int, cursor) string { return text })
+	}
+	if err != nil {
 		return err
 	}
 	e.last, e.lastWasSpace = editTyping, space
 	return nil
 }
 
-// Newline starts a new line with this line's indent and line ending.
+// Newline starts a new line with this line's indent and line ending, one level in after an opening
+// bracket. Between a bracket and its closer, the closer goes on a line of its own.
 func (e *Editor) Newline() error {
-	return e.replaceSelections(false, func(_ int, c cursor) string {
+	return e.editBack(false, func(_ int, c cursor) (buffer.Edit, int, int) {
 		lineStart, lineEnd, _ := e.lineSpan(e.File.LineOf(c.start()))
 		text := e.File.Slice(lineStart, min(c.start(), lineEnd))
-		indent := text[:len(text)-len(bytes.TrimLeft(text, " \t"))]
-		return e.lineEnding(c.pos) + string(indent)
+		indent := string(text[:len(text)-len(bytes.TrimLeft(text, " \t"))])
+		ending := e.lineEnding(c.pos)
+		edit := buffer.Edit{Start: c.start(), End: c.end(), Text: ending + indent}
+		before := e.byteAt(c.start() - 1)
+		if before != '(' && before != '[' && before != '{' {
+			return edit, 0, 0
+		}
+		edit.Text += e.indentUnit(len(indent))
+		if e.byteAt(c.end()) != closerOf[before] {
+			return edit, 0, 0
+		}
+		tail := ending + indent
+		edit.Text += tail
+		return edit, len(tail), 0
 	})
 }
 
@@ -577,7 +598,13 @@ func (e *Editor) Paste(text string) error {
 
 // Backspace removes each selection, or the character before each cursor.
 func (e *Editor) Backspace() error {
-	return e.erase(func(c cursor) (int, int) { return e.previous(c.pos), c.pos })
+	return e.erase(func(c cursor) (int, int) {
+		// An empty pair goes together.
+		if closer, ok := closerOf[e.byteAt(c.pos-1)]; ok && c.pos > 0 && e.byteAt(c.pos) == closer {
+			return c.pos - 1, c.pos + 1
+		}
+		return e.previous(c.pos), c.pos
+	})
 }
 
 // Delete removes each selection, or the character after each cursor.

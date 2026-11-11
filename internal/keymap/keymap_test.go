@@ -271,3 +271,17 @@ func TestCatalogHoldsOnlyRealActions(t *testing.T) {
 		}
 	}
 }
+
+func TestNewEditorKeysAreBound(t *testing.T) {
+	if got := Name(tcell.NewEventKey(tcell.KeyCtrlUnderscore, 0, tcell.ModCtrl)); got != "ctrl+/" {
+		t.Fatalf("ctrl+/ is named %q", got)
+	}
+	if got := Name(tcell.NewEventKey(tcell.KeyUp, 0, tcell.ModAlt)); got != "alt+up" {
+		t.Fatalf("alt+up is named %q", got)
+	}
+	for key, want := range map[string]string{"ctrl+/": "edit.toggle_comment", "alt+up": "cursor.add_above", "alt+down": "cursor.add_below", "ctrl+shift+up": "line.move_up"} {
+		if got := defaults[Editor][key]; got != want {
+			t.Errorf("%s does %q, want %q", key, got, want)
+		}
+	}
+}

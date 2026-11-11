@@ -14,6 +14,7 @@ The first release, v0.1.0, will contain:
 - Mouse dragging: select text, move tabs, resize panels, the dock and splits, and drag a scroll bar. Double and triple clicks select a word and a line. Dragging in a terminal tab copies what's selected.
 - Word wrap (Alt+Z or `:wrap`), and `ui.text_style`.
 - A right-click menu in the file tree: new file, new folder, rename and delete.
+- VS Code style editing: closing pairs, surrounding a selection, adding cursors with Alt+Up and Alt+Down or Alt+click, moving, copying and deleting lines, commenting, and deleting by word.
 - Delete in the file tree removes a file or folder without asking, and Ctrl+Z brings it back until you quit.
 - Dragged sizes are remembered after quitting, and tabs can be dragged between splits.
 - A folder browser (File > Open Folder or `:dir open`) that reaches any folder on the device. The project and directory switchers offer new projects and other folders, and are also a key away (Alt+P, Alt+D).
