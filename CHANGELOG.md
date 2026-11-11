@@ -10,6 +10,8 @@ The first release, v0.1.0, will contain:
 
 - Switching is a key away from anywhere. Ctrl+Space goes out of a tab and back in (Ctrl+\\ still leaves), and Alt+P, Alt+D, Alt+W and Alt+V work inside terminal and AI tabs. The project and folder lists open on the previous one, so Alt+P then Enter goes back, 1–9 pick, the same key again moves down, and Esc closes in one press.
 - A Project menu in the menu bar, and F2 to rename a file in Files or a session in AI. N in Files makes a file. `:move` moves a terminal between the editor area and the dock.
+- Alt+Tab moves focus between areas. Projects and AI sessions can be deleted, and panel tabs show their names.
+- The Git view has two sections, shows changes as a tree in groups, and has quick stage, icons and scrolling.
 - The shortcuts list is grouped by task: Move around, Show, Make and run, This file, Lines and cursors, Language, App.
 - GUI-style windows in the terminal: a menu bar (File, Edit, View, Go, Terminal, Git, Help), right-click menus, close buttons on tabs, buttons on tab bars, and a clickable status line.
 - A dock under the code holds terminal and AI tabs, which look different from file tabs. It can be hidden while its tools keep running.
@@ -22,7 +24,7 @@ The first release, v0.1.0, will contain:
 - Dragged sizes are remembered after quitting, and tabs can be dragged between splits.
 - A folder browser (File > Open Folder or `:dir open`) that reaches any folder on the device. The project and directory switchers offer new projects and other folders, and are also a key away (Alt+P, Alt+D).
 - The project and folder names in the top bar, and Terminal and Help in the menu bar, open windows that list what's there, with × to remove a folder or close a terminal or AI session.
-- Clearer layout: the area with focus gets a tinted background and a solid title bar, code and dock areas show their name, panels have a rule under the title and an inset, and windows have padding, section rules and gaps between options when they fit.
+- Clearer layout: the area with focus gets a thick border and a solid title bar, code and dock areas show their name, panels have a rule under the title and an inset, and windows have padding, section rules and gaps between options when they fit.
 - Big pastes are quick and keep their line breaks. A paste with nowhere to go says so.
 - Easier to start with: one word for each thing (Files, Folder), hints that fit where you are and are never cut off, a clearer empty screen, `:messages` for what the status line said, shortcuts you can look up by key, forms a stray click can't close, and a real dialog before deleting.
 - Alt+Q closes a tab, even from inside a terminal. The status line of a terminal has Close and Leave buttons.
