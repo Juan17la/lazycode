@@ -28,6 +28,8 @@ type modal struct {
 	sel, top  int
 	filter    string
 	filtered  bool                     // Typing narrows the rows.
+	compact   bool                     // No blank rows between options.
+	bar       int                      // 1 + the menu bar name that opened it, so that Left and Right go on along the bar.
 	escCloses bool                     // Esc closes even with something typed, where it would first clear it.
 	labelOnly bool                     // The filter reads the labels alone, not the values beside them.
 	again     string                   // An action whose key, pressed again, goes to the next numbered row.
@@ -136,13 +138,17 @@ func (a *app) handleModalKey(ev *tcell.EventKey) {
 		move(-1)
 	case tcell.KeyDown, tcell.KeyTab:
 		move(1)
-	case tcell.KeyLeft:
-		if row.change != nil {
-			row.change(-1)
+	case tcell.KeyLeft, tcell.KeyRight:
+		delta := 1
+		if ev.Key() == tcell.KeyLeft {
+			delta = -1
 		}
-	case tcell.KeyRight:
-		if row.change != nil {
-			row.change(1)
+		switch {
+		case row.change != nil:
+			row.change(delta)
+		case m.bar > 0:
+			a.closeModal(false)
+			a.stepMenuBar(m.bar-1, delta)
 		}
 	case tcell.KeyEnter:
 		switch {
@@ -289,6 +295,9 @@ func (a *app) drawModals(w, h int) {
 		}
 	}
 	gap := 1
+	if m.compact {
+		gap = 0
+	}
 	if rowsHeight(rows, 0, len(rows)-1, gap) > h-2-extra {
 		gap = 0
 	}
