@@ -961,7 +961,7 @@ func (a *app) drawGit(r rect) {
 	if st.Merging {
 		line += "  MERGING"
 	}
-	a.put(r.x+1, r.y, maxX, a.gitIcon("branch")+" "+line, a.th.accent)
+	a.put(r.x+1, r.y+1, maxX, a.gitIcon("branch")+" "+line, a.th.accent)
 
 	buttons := func(y int, list ...gitButton) {
 		x := r.x + 1
@@ -972,14 +972,14 @@ func (a *app) drawGit(r rect) {
 			a.hits = append(a.hits, hit{area: rect{start, y, x - start - 2, 1}, click: func(int, int, tcell.ModMask) { do() }})
 		}
 	}
-	buttons(r.y+1,
+	buttons(r.y+2,
 		gitButton{a.gitIcon("push"), "Push", "green", a.gitPush},
 		gitButton{a.gitIcon("pull"), "Pull", "blue", a.gitPull},
 		gitButton{a.gitIcon("fetch"), "Fetch", "cyan", a.gitFetch})
-	buttons(r.y+2,
+	buttons(r.y+3,
 		gitButton{a.gitIcon("branches"), "Branches", "purple", func() { a.gitBranches(false) }},
 		gitButton{a.gitIcon("tree"), either(g.tree, "List", "Tree"), "yellow", func() { g.tree = !g.tree; g.rebuild() }})
-	buttons(r.y+3, gitButton{a.gitIcon("commit"), "Commit…", "green", a.gitCommit}, gitButton{a.gitIcon("stage"), "Stage all", "orange", a.stageAll})
+	buttons(r.y+4, gitButton{a.gitIcon("commit"), "Commit…", "green", a.gitCommit}, gitButton{a.gitIcon("stage"), "Stage all", "orange", a.stageAll})
 
 	footer := g.last
 	if g.busy != "" {
@@ -990,7 +990,7 @@ func (a *app) drawGit(r rect) {
 	a.put(r.x+1, r.y+r.h-1, maxX, footer, a.th.muted)
 
 	// Changes above, History below, each scrolling by itself, so that neither hides the other.
-	y0, body := r.y+4, r.h-5
+	y0, body := r.y+5, r.h-6
 	if body < 4 || len(g.rows) == 0 {
 		return
 	}
