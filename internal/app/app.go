@@ -24,7 +24,6 @@ import (
 	"github.com/Juan17la/lazycode/internal/store"
 	"github.com/Juan17la/lazycode/internal/term"
 	"github.com/Juan17la/lazycode/internal/tree"
-	"github.com/Juan17la/lazycode/internal/trust"
 	"github.com/Juan17la/lazycode/internal/update"
 	"github.com/gdamore/tcell/v2"
 )
@@ -42,6 +41,8 @@ type dirState struct {
 }
 
 type app struct {
+	trashDir string        // Made by the first delete.
+	trashed  []trashedFile // Newest last.
 	screen   tcell.Screen
 	redraw   chan struct{}
 	projects []project.Project
@@ -69,7 +70,6 @@ type app struct {
 	onboard    *onboarding // The first-run screen, while it's open.
 	srch       searchState
 	git        gitState
-	trust      *trust.Store
 	playSaved  *run.Saved
 	live       liveUpdates
 	hl         highlighting
@@ -136,7 +136,6 @@ func newApp(screen tcell.Screen, projects []project.Project, dir, startup string
 	}
 	a.dirOf[p] = d
 	a.setTheme(a.cfg.UI.Theme)
-	a.trust = trust.New(a.settingsPath("trust.toml"))
 	a.playSaved = run.NewSaved(a.settingsPath("directories.toml"))
 	a.sessions.send = func(title, body string) { go notify.Send(title, body) } //nolint:errcheck // The green detail still shows.
 	a.sessions.cpuOf = session.TreeCPU
@@ -166,6 +165,7 @@ func runApp(screen tcell.Screen, projects []project.Project, dir, startup string
 	a.loadSettings()
 	defer a.closePlugins()
 	a.loadPlugins()
+	cleanOldTrash()
 	update.CleanOld()                        // Whether or not this start checks for a new version.
 	go a.checkForUpdate(a.cfg.Updates.Check) // Off the UI goroutine, so it never delays the first frame.
 	a.loadState()
@@ -173,6 +173,7 @@ func runApp(screen tcell.Screen, projects []project.Project, dir, startup string
 	defer a.saveSessions()
 	a.startLive()
 	defer a.stopLive()
+	defer a.emptyTrash()
 	defer a.saveState() // Before the tabs close, or there'd be nothing to save.
 
 	// If the folder can't be found, writes fail and report it through this message.
@@ -569,10 +570,6 @@ func (a *app) run(line string) {
 		a.sessionCommand(fields[1:])
 	case "update":
 		a.updateCommand()
-	case "trust":
-		a.setTrust(true)
-	case "untrust":
-		a.setTrust(false)
 	case "w", "save":
 		if it != nil && it.ed != nil {
 			a.save(it, func() {})
@@ -772,7 +769,6 @@ func (a *app) afterSwitch() {
 	a.searchDirChanged()
 	a.saveState() // So that a crash later only loses what changed since switching.
 	a.askAboutMissingDir()
-	a.askToTrust()
 }
 
 func (a *app) handleSwitcherKey(ev *tcell.EventKey) {

@@ -84,24 +84,16 @@ func (d *driver) typeText(text string) {
 
 func (d *driver) enter() { d.key(tcell.KeyEnter, 0) }
 
-// answerFirstQuestions saves what onboarding and the trust question would, for tests about other
-// things. The folders count as answered no, so anything that runs in them still asks.
-func answerFirstQuestions(t *testing.T, dirs ...string) {
+// answerFirstQuestions saves what onboarding would, for tests about other things.
+func answerFirstQuestions(t *testing.T) {
 	t.Helper()
 	config, err := os.UserConfigDir()
 	if err != nil {
 		t.Fatal(err)
 	}
 	mkdirs(t, filepath.Join(config, "lazycode"))
-	declined := "declined = [\n"
-	for _, dir := range dirs {
-		declined += fmt.Sprintf("%q,\n", dir)
-	}
-	declined += "]\n"
-	for name, content := range map[string]string{"config.toml": "version = 1\n", "trust.toml": declined} {
-		if err := os.WriteFile(filepath.Join(config, "lazycode", name), []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+	if err := os.WriteFile(filepath.Join(config, "lazycode", "config.toml"), []byte("version = 1\n"), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -137,7 +129,7 @@ func TestPrototypeEndToEnd(t *testing.T) {
 
 	one, two, three := filepath.Join(root, "one"), filepath.Join(root, "two"), filepath.Join(root, "three")
 	mkdirs(t, filepath.Join(one, "sub"), two, three)
-	answerFirstQuestions(t, one, two, three)
+	answerFirstQuestions(t)
 	if err := os.WriteFile(filepath.Join(one, "a.txt"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}

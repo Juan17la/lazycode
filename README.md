@@ -30,7 +30,7 @@ go run ./cmd/lazycode
 
 This is a free-time project. There is no guaranteed response time for issues or questions.
 
-The first run asks for a theme and auto-save, and offers to install language tools, showing each command before it runs. Each folder is asked about once: trusted, or asking before anything runs there. All of this can be skipped.
+The first run asks for a theme and auto-save, and offers to install language tools, showing each command before it runs. All of this can be skipped.
 
 LazyCode opens on the current folder. To group folders into projects, create `projects.toml` in your config folder: `~/.config/lazycode/` on Linux, `~/Library/Application Support/lazycode/` on macOS, or `%AppData%\lazycode\` on Windows.
 
@@ -82,7 +82,7 @@ The mouse works too: click files, tabs, cursor positions and question answers, a
 
 In the AI sessions view: Enter goes to a session or resumes it, N starts one, R renames it, and Delete takes it off the list without touching the tool's data.
 
-In the Git view: P pushes, L pulls, F fetches, S stages, U unstages, C commits, B switches branch, N makes a branch, M merges, X aborts a merge, O opens the file, and Enter opens a diff or commit. Anything that writes asks first in a folder you haven't trusted.
+In the Git view: P pushes, L pulls, F fetches, S stages, U unstages, C commits, B switches branch, N makes a branch, M merges, X aborts a merge, O opens the file, and Enter opens a diff or commit.
 
 In the Search view: Tab moves between Find and With, Enter opens a result, and Enter in With shows every change before making it.
 
@@ -118,7 +118,6 @@ Press `:` in the file tree, or Esc then `:` in a file.
 | `:definition`, `:rename`, `:format` | Language server actions |
 | `:project close` | Close this project's tabs and move to the next project |
 | `:play`, `:p` | Run this directory's project, or go to its tab if it's running. `:play cargo build` sets and remembers the command. |
-| `:trust`, `:untrust` | Let this directory run code without asking, or stop |
 | `:term claude` | Run a command in a new terminal tab, here an AI tool |
 | `:term` | Open your shell in a new terminal tab |
 | `:project`, `:dir` | Switch project or directory |

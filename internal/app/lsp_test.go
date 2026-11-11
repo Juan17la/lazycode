@@ -158,8 +158,6 @@ func waitGone(t *testing.T, pid int) {
 	t.Fatalf("process %d is still running", pid)
 }
 
-func (u *ui) trustFolder() { u.run("trust") }
-
 const lspMain = "package main\n\nfunc main() { Hello() }\n"
 
 func lspUI(t *testing.T, cfg fakeLSPConfig, files map[string]string) (*ui, string) {
@@ -171,49 +169,12 @@ func lspUI(t *testing.T, cfg fakeLSPConfig, files map[string]string) (*ui, strin
 	return start(t, files), log
 }
 
-func TestUntrustedFolderStartsNoServer(t *testing.T) {
+func TestServerIsStartedByRequests(t *testing.T) {
 	u, log := lspUI(t, fakeLSPConfig{}, nil)
-	u.open("main.go")
-	time.Sleep(200 * time.Millisecond)
-	if _, err := os.Stat(log); err == nil {
-		t.Fatal("opening a file started a server")
-	}
-	u.post(tcell.NewEventKey(tcell.KeyF12, 0, 0))
-	u.wait("Run gopls in work?")
-	u.press("c")
-	time.Sleep(200 * time.Millisecond)
-	if _, err := os.Stat(log); err == nil {
-		t.Fatal("a server started after the question was refused")
-	}
-	// Format and rename ask too.
-	u.key(tcell.KeyF2)
-	u.wait("Rename to:")
-	u.press("X")
-	u.key(tcell.KeyEnter)
-	u.wait("Run gopls in work?")
-	u.press("c")
-	u.post(tcell.NewEventKey(tcell.KeyF3, 0, 0))
-	u.wait("Run gopls in work?")
-	u.press("c")
-	if _, err := os.Stat(log); err == nil {
-		t.Fatal("a server started without trust")
-	}
-	// Once starts it, in the project's folder, and the answer comes back.
-	u.post(tcell.NewEventKey(tcell.KeyF12, 0, 0))
-	u.wait("Run gopls in work?")
-	u.press("o")
-	waitLog(t, log, "textDocument/definition")
-	waitLog(t, log, "cwd "+u.dir)
-	u.wait("No definition found")
-}
-
-func TestServerIsStartedByRequestsOnlyInTrustedFolders(t *testing.T) {
-	u, log := lspUI(t, fakeLSPConfig{}, nil)
-	u.trustFolder()
 	u.open("main.go")
 	time.Sleep(150 * time.Millisecond)
 	if _, err := os.Stat(log); err == nil {
-		t.Fatal("a server started on opening a file, even in a trusted folder")
+		t.Fatal("a server started on opening a file")
 	}
 	u.post(tcell.NewEventKey(tcell.KeyF12, 0, 0))
 	waitLog(t, log, "textDocument/didOpen")
@@ -229,7 +190,6 @@ func TestDefinitionOpensTheFileAtTheRightColumn(t *testing.T) {
 	other := filepath.Join(u.dir, "other.go")
 	// The server counts UTF-16: the emoji is 2 units, é 1, 你 1, so X is at 4. On screen it's column 6.
 	withFakeGoplsResult(t, u, "definition", lspLocation(other, 2, 4))
-	u.trustFolder()
 	u.open("main.go")
 	u.post(tcell.NewEventKey(tcell.KeyF12, 0, 0))
 	u.wait("Ln 3, Col 6")
@@ -260,7 +220,6 @@ func TestDefinitionOutsideTheDirectoryOpens(t *testing.T) {
 		t.Fatal(err)
 	}
 	withFakeGoplsResult(t, u, "definition", "["+lspLocation(outside, 2, 5)+"]")
-	u.trustFolder()
 	u.open("main.go")
 	u.post(tcell.NewEventKey(tcell.KeyF12, 0, 0))
 	u.wait("Ln 3, Col 6")
@@ -272,7 +231,6 @@ func TestFormatIsOneUndoStep(t *testing.T) {
 	withFakeGoplsResult(t, u, "formatting", `[
 		{"range":{"start":{"line":2,"character":4},"end":{"line":2,"character":6}},"newText":" "},
 		{"range":{"start":{"line":2,"character":11},"end":{"line":2,"character":12}},"newText":""}]`)
-	u.trustFolder()
 	u.open("main.go")
 	u.post(tcell.NewEventKey(tcell.KeyF3, 0, 0))
 	u.wait("func main() {")
@@ -291,7 +249,6 @@ func TestRenameShowsTheChangeThenApplies(t *testing.T) {
 	withFakeGoplsResult(t, u, "rename", fmt.Sprintf(`{"documentChanges":[
 		{"textDocument":{"uri":%q,"version":1},"edits":[%s]},
 		{"textDocument":{"uri":%q,"version":null},"edits":[%s]}]}`, "file://"+main, edit(2, 14), "file://"+other, edit(2, 5)))
-	u.trustFolder()
 	u.open("main.go")
 	u.press("") // Put the cursor on Hello.
 	for range len("package main\n\nfunc main() { ") {
@@ -320,7 +277,6 @@ func TestRenameWithFileOperationsAppliesNothing(t *testing.T) {
 	withFakeGoplsResult(t, u, "rename", fmt.Sprintf(`{"documentChanges":[
 		{"textDocument":{"uri":%q,"version":1},"edits":[{"range":{"start":{"line":2,"character":14},"end":{"line":2,"character":19}},"newText":"Hi"}]},
 		{"kind":"rename","oldUri":%q,"newUri":%q}]}`, "file://"+main, "file://"+main, "file://"+main+".bak"))
-	u.trustFolder()
 	u.open("main.go")
 	for range len("package main\n\nfunc main() { ") {
 		u.key(tcell.KeyRight)
@@ -337,7 +293,6 @@ func TestRenameWithFileOperationsAppliesNothing(t *testing.T) {
 
 func TestRenameOfAnEditedFileAsksToSaveFirst(t *testing.T) {
 	u, log := lspUI(t, fakeLSPConfig{}, nil)
-	u.trustFolder()
 	u.open("main.go")
 	u.press("x")
 	u.key(tcell.KeyF2)
@@ -350,7 +305,6 @@ func TestRenameOfAnEditedFileAsksToSaveFirst(t *testing.T) {
 func TestAnswerToAChangedBufferIsRefused(t *testing.T) {
 	u, log := lspUI(t, fakeLSPConfig{DelayMS: 500}, map[string]string{"main.go": lspMain, "other.go": "package main\n\nvar X = 1\n"})
 	withFakeGoplsResult(t, u, "definition", lspLocation(filepath.Join(u.dir, "other.go"), 2, 4))
-	u.trustFolder()
 	u.open("main.go")
 	u.post(tcell.NewEventKey(tcell.KeyF12, 0, 0))
 	for start := time.Now(); !strings.Contains(readLog(log), "textDocument/definition"); time.Sleep(5 * time.Millisecond) {
@@ -384,7 +338,6 @@ func TestUnknownLanguageHasNoServer(t *testing.T) {
 
 func TestACrashingServerIsRestartedUpToALimit(t *testing.T) {
 	u, log := lspUI(t, fakeLSPConfig{CrashOn: "definition"}, nil)
-	u.trustFolder()
 	u.open("main.go")
 	for i := range maxServerCrashes {
 		u.post(tcell.NewEventKey(tcell.KeyF12, 0, 0))
@@ -405,7 +358,6 @@ func TestACrashingServerIsRestartedUpToALimit(t *testing.T) {
 
 func TestServersStopWithTheProjectAndTheApp(t *testing.T) {
 	u, log := lspUI(t, fakeLSPConfig{}, nil)
-	u.trustFolder()
 	u.open("main.go")
 	u.post(tcell.NewEventKey(tcell.KeyF12, 0, 0))
 	waitLog(t, log, "textDocument/definition")
@@ -437,7 +389,6 @@ func TestServersStopWithTheProjectAndTheApp(t *testing.T) {
 
 func TestClosedFilesAreClosedOnTheServer(t *testing.T) {
 	u, log := lspUI(t, fakeLSPConfig{}, nil)
-	u.trustFolder()
 	u.open("main.go")
 	u.post(tcell.NewEventKey(tcell.KeyF12, 0, 0))
 	waitLog(t, log, "textDocument/didOpen")
@@ -447,7 +398,6 @@ func TestClosedFilesAreClosedOnTheServer(t *testing.T) {
 
 func TestEditsAreSentWholeBeforeARequest(t *testing.T) {
 	u, log := lspUI(t, fakeLSPConfig{}, map[string]string{"main.go": "a\r\nb\r\n"})
-	u.trustFolder()
 	u.open("main.go")
 	u.post(tcell.NewEventKey(tcell.KeyF12, 0, 0))
 	waitLog(t, log, "didOpen")
@@ -493,7 +443,6 @@ func TestRealGoplsThroughTheUI(t *testing.T) {
 	t.Setenv("GOTOOLCHAIN", "local")
 	src := "package main\n\nfunc Greet() string { return \"héllo 😀\" }\n\nfunc main() {\n\tx := Greet()  \n\t_ = x\n}\n"
 	u := start(t, map[string]string{"go.mod": "module example.com/t\n\ngo 1.21\n", "main.go": src})
-	u.trustFolder()
 	u.open("main.go")
 	for range 5 { // Down to the line of the call, then onto Greet.
 		u.key(tcell.KeyDown)

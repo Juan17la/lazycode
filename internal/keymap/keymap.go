@@ -86,7 +86,7 @@ var defaults = map[Context]map[string]string{
 	Panel: {
 		"up": "tree.up", "down": "tree.down", "left": "tree.close", "right": "tree.open",
 		"enter": "tree.select", "tab": "tab.enter", "r": "tree.refresh", ":": "command.open",
-		"alt+v": "view.move", "n": "session.new", "delete": "session.hide",
+		"alt+v": "view.move", "n": "session.new", "delete": "session.hide", "ctrl+z": "tree.undo_delete",
 	},
 }
 

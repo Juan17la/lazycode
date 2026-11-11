@@ -15,7 +15,6 @@ import (
 	"github.com/Juan17la/lazycode/internal/project"
 	"github.com/Juan17la/lazycode/internal/session"
 	"github.com/Juan17la/lazycode/internal/term"
-	"github.com/Juan17la/lazycode/internal/trust"
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -81,7 +80,7 @@ command = %q
 `, tool, tool)})
 }
 
-// startFake picks the fake tool in the session list, answering the trust question.
+// startFake picks the fake tool in the session list.
 func (u *ui) startFake() {
 	u.t.Helper()
 	u.key(tcell.KeyCtrlBackslash)
@@ -90,8 +89,6 @@ func (u *ui) startFake() {
 	u.wait("Start a session")
 	u.press("Fake")
 	u.key(tcell.KeyEnter)
-	u.wait("Run Fake in work?")
-	u.press("t")
 	u.wait("tool args: --session-id")
 }
 
@@ -113,23 +110,13 @@ func TestStartingASession(t *testing.T) {
 	u.press("Fake")
 	u.key(tcell.KeyEnter)
 
-	// Nothing runs until the folder is trusted (doc 11).
-	u.wait("Run Fake in work?")
-	u.key(tcell.KeyEsc)
-	u.waitGone("Run Fake in work?")
-	u.wait("No sessions yet")
-
-	u.press("n")
-	u.press("Fake")
-	u.key(tcell.KeyEnter)
-	u.press("t")
 	u.wait("tool args: --session-id")
 	u.wait("cwd: work")
 	u.wait("Fake 1")
 	u.sendLine("hello")
 	u.wait("got: hello")
 
-	// Now it's trusted, a second one doesn't ask. Several of one tool are fine (FR-5.5).
+	// Several of one tool are fine (FR-5.5).
 	u.key(tcell.KeyCtrlBackslash)
 	u.alt('a')
 	u.press("n")
@@ -159,7 +146,6 @@ func TestMissingToolIsMarkedAndSaysSo(t *testing.T) {
 	u.wait("Ghost  (not installed)")
 	u.press("Ghost")
 	u.key(tcell.KeyEnter)
-	u.press("o")
 	u.wait("can't find lazycode-no-such-tool")
 	u.wait("No sessions yet") // It isn't added to the list.
 }
@@ -241,7 +227,6 @@ func TestToolWithoutResumeStartsAfresh(t *testing.T) {
 	u.press("n")
 	u.press("Plain")
 	u.key(tcell.KeyEnter)
-	u.press("t")
 	u.wait("tool args:")
 	u.key(tcell.KeyCtrlBackslash)
 	u.key(tcell.KeyCtrlW)
@@ -356,7 +341,6 @@ func sessionApp(t *testing.T) (*app, *sessionEntry, *sent) {
 	a := newApp(screen, []project.Project{{Name: "p", Dirs: []string{dir}}}, dir, "")
 	t.Cleanup(func() { close(a.done); a.closeAllTabs() })
 	a.cfg.Harness = []session.Harness{{Name: "Fake", Command: tool, ResumeArgs: []string{"--resume", "{id}"}}}
-	a.trust = trust.New(filepath.Join(filepath.Dir(dir), "trust.toml"))
 	notices := &sent{}
 	a.sessions.send = notices.add
 	a.sessions.cpuOf = func(int) (time.Duration, error) { return 0, nil }
@@ -594,14 +578,11 @@ func echoCommand(text string) string {
 	return "echo " + text + "; sleep 60"
 }
 
-func TestPlayAsksThenRemembers(t *testing.T) {
+func TestPlayRunsThenRemembers(t *testing.T) {
 	u := prePlay(t, nil)
 	u.alt('r')
 	u.wait("Command to run here:")
 	u.sendLine(echoCommand("first-run"))
-	u.wait("Run echo first-run") // The command is shown first (doc 11).
-	u.wait("[t] Trust")
-	u.press("t")
 	u.wait("first-run")
 	u.wait("⏵") // A terminal tab, and shows activity.
 
@@ -617,27 +598,10 @@ func TestPlayAsksThenRemembers(t *testing.T) {
 	u.run("q")
 	u.quit()
 
-	// Remembered for next time, and trusted, so it just runs.
+	// Remembered for next time.
 	later := launch(t, u.dir)
 	later.run("play")
 	later.wait("first-run")
-}
-
-// A regression test: a long command was cut off, so the question hid what would really run.
-func TestTrustQuestionShowsAllOfALongCommand(t *testing.T) {
-	u := prePlay(t, nil)
-	long := "echo start" + strings.Repeat(" middle", 25) + " the-very-end"
-	u.alt('r')
-	u.wait("Command to run here:")
-	u.post(tcell.NewEventPaste(true))
-	u.press(long)
-	u.post(tcell.NewEventPaste(false))
-	u.key(tcell.KeyEnter)
-	u.wait("the-very-end")
-	u.wait("Run echo start")
-	u.wait("[c] Cancel")
-	u.press("c")
-	u.waitGone("the-very-end")
 }
 
 func TestWrapText(t *testing.T) {
@@ -652,16 +616,12 @@ func TestWrapText(t *testing.T) {
 func TestPlayDetects(t *testing.T) {
 	u := prePlay(t, map[string]string{"go.mod": "module x\n", "main.go": "package main\n"})
 	u.alt('r')
-	u.wait("Run go run . in work?")
-	u.press("c")
-	u.waitGone("Run go run .")
-	u.wait("No tabs here.") // Cancelling runs nothing.
+	u.wait("go run .")
 }
 
 func TestPlayWithACommandReplacesTheOldOne(t *testing.T) {
 	u := prePlay(t, nil)
 	u.run("play " + echoCommand("one"))
-	u.press("t")
 	u.wait("one")
 	u.key(tcell.KeyCtrlBackslash)
 	u.waitGone(`Ctrl+\ leaves`)
@@ -675,22 +635,10 @@ func TestPlayRunsAgainOnceFinished(t *testing.T) {
 	}
 	u := prePlay(t, nil)
 	u.run("play echo ran-it")
-	u.press("t")
 	u.wait("[exit 0]")
 	u.alt('r')
 	u.wait("[exit 0]")
 	u.waitCount("[exit 0]", 1) // The finished tab was replaced.
-}
-
-func TestTrustCommands(t *testing.T) {
-	u := prePlay(t, nil)
-	u.run("trust")
-	u.wait("work is trusted.")
-	u.run("play " + echoCommand("no-question"))
-	u.wait("no-question") // No question this time.
-	u.key(tcell.KeyCtrlBackslash)
-	u.run("untrust")
-	u.wait("no longer trusted")
 }
 
 func TestCommandBarInputCancels(t *testing.T) {

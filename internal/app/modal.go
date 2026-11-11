@@ -480,8 +480,6 @@ func (a *app) openSettingsMenu() {
 			{label: "Plugin store…", run: open("app.store")},
 			{label: "Advanced", header: true},
 			toggle("Check for updates", "updates", "check", a.cfg.Updates.Check),
-			{label: "Trust this folder", run: command("trust")},
-			{label: "Stop trusting this folder", run: command("untrust")},
 			{label: "Open config.toml", run: file("")},
 			{label: "Open keys.toml", run: file("keys")},
 			{label: "Open projects.toml", run: file("projects")},
@@ -714,7 +712,7 @@ func (a *app) treeMenu(row tree.Row, onRow bool) []menuItem {
 	if onRow && !slices.Contains(a.projects[a.project].Dirs, row.Path) {
 		items = append(items, menuItem{},
 			menuItem{label: "Rename…", run: func() { a.openRename(row.Path) }},
-			menuItem{label: "Delete…", run: func() { a.askDelete(row.Path, row.IsDir) }})
+			menuItem{label: "Delete", run: func() { a.deleteToTrash(row.Path) }})
 	}
 	return append(items, menuItem{}, menuItem{label: "Refresh", action: "tree.refresh"})
 }
@@ -789,32 +787,6 @@ func (a *app) openRename(path string) {
 	}
 	a.openModal(&modal{title: "✎ Rename " + filepath.Base(path), hint: "Enter rename   Esc cancel", submit: submit, build: func() []modalRow {
 		return []modalRow{{label: "Name", input: &name}}
-	}})
-}
-
-// askDelete always asks, and a folder's question says everything in it goes too. It can't be undone.
-func (a *app) askDelete(path string, isDir bool) {
-	if a.openInside(path) {
-		a.message = "Close the tabs in " + filepath.Base(path) + " first."
-		return
-	}
-	text := "Delete " + filepath.Base(path) + " for good?"
-	if isDir {
-		text = "Delete the folder " + filepath.Base(path) + " and everything in it, for good?"
-	}
-	// Cancel comes first, so that a stray Enter loses nothing.
-	a.openModal(&modal{title: "Delete", hint: "↑↓ move   Enter choose   Esc cancel", build: func() []modalRow {
-		return []modalRow{
-			{label: text},
-			{label: "Cancel", run: func() { a.closeModal(true) }},
-			{label: "Delete", danger: true, run: func() {
-				a.closeModal(false)
-				if err := os.RemoveAll(path); err != nil {
-					a.message = "Can't delete: " + err.Error()
-				}
-				a.tree().Refresh()
-			}},
-		}
 	}})
 }
 

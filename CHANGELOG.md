@@ -14,6 +14,7 @@ The first release, v0.1.0, will contain:
 - Mouse dragging: select text, move tabs, resize panels, the dock and splits, and drag a scroll bar. Double and triple clicks select a word and a line. Dragging in a terminal tab copies what's selected.
 - Word wrap (Alt+Z or `:wrap`), and `ui.text_style`.
 - A right-click menu in the file tree: new file, new folder, rename and delete.
+- Delete in the file tree removes a file or folder without asking, and Ctrl+Z brings it back until you quit.
 - Dragged sizes are remembered after quitting, and tabs can be dragged between splits.
 - A folder browser (File > Open Folder or `:dir open`) that reaches any folder on the device. The project and directory switchers offer new projects and other folders, and are also a key away (Alt+P, Alt+D).
 - The project and folder names in the top bar, and Terminal and Help in the menu bar, open windows that list what's there, with × to remove a folder or close a terminal or AI session.
@@ -40,7 +41,7 @@ The first release, v0.1.0, will contain:
 - Git view (status, stage, commit, branches, merge, diffs) and GitHub through `gh`.
 - Syntax highlighting for Go, Python, JavaScript, TypeScript, Rust, C, JSON, shell, HTML and CSS.
 - Language server actions (go to definition, rename, format) for `gopls`, `pyright` and `typescript-language-server`.
-- First-run onboarding, and a trust choice for each folder before anything runs there.
+- First-run onboarding.
 - Settings in `config.toml` and key bindings in `keys.toml`, applied on save.
 - A daily update check against GitHub's latest release (it can be turned off) and `:update` to install a new version. `lazycode --version` prints the version.
 - Install scripts for Linux, macOS and Windows that verify a SHA-256 checksum, and an app icon that opens LazyCode in your default terminal.

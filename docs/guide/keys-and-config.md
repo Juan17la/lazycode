@@ -81,7 +81,6 @@ Other views: in AI sessions, Enter resumes, N starts, R renames. In Git, S stage
 | `:term`, `:term COMMAND` | Open a shell, or run a command, in a new tab |
 | `:session`, `:session hidden` | Start an AI session or shell, or bring back a hidden one |
 | `:play`, `:p`, `:play COMMAND` | Run the project. With a command, set and remember it |
-| `:trust`, `:untrust` | Let this directory run code without asking, or stop |
 | `:split`, `:split down` | Split beside or below |
 | `:find`, `:replace`, `:selectall` | Find, replace, a cursor on every match |
 | `:search`, `:git` | Show those views |

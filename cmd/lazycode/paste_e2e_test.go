@@ -32,7 +32,7 @@ func TestBigPasteIsQuick(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
 	dir := filepath.Join(root, "work")
 	mkdirs(t, dir)
-	answerFirstQuestions(t, dir)
+	answerFirstQuestions(t)
 	if err := os.WriteFile(filepath.Join(dir, "a.go"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}

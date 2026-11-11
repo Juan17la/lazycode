@@ -121,6 +121,7 @@ These were proposed on the basis that they'd become decisions when M0 started, u
 | P-61 | Backgrounds are painted in one pass at the end of each frame, by region, over cells still on default colours | Drawing code stays unaware of regions, and terminal tabs match the theme | An explicit background in every style |
 | P-62 | The default icon set uses plain Unicode symbols, and Nerd Font icons are a setting | A terminal app can't bring a font, and missing glyphs show as boxes | Nerd Font icons by default |
 | P-63 | Language packs colour with regular expression rules, and more grammars are built in | Packs stay readable for review, and linear-time matching can't hang | Compiled grammars per OS, or WASM |
+| P-64 | No trust prompt, and deleting from the file tree needs no question. A delete moves files to a per-run trash in the cache folder, and Ctrl+Z in the tree restores them until quit | The owner found both questions in the way, and an undo protects files without interrupting | Keeping the prompts |
 
 ## Replaced decisions
 

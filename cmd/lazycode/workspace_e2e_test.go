@@ -36,7 +36,7 @@ func TestWorkspaceSurvivesARestart(t *testing.T) {
 
 	one, two := filepath.Join(root, "one"), filepath.Join(root, "two")
 	mkdirs(t, one, two)
-	answerFirstQuestions(t, one, two)
+	answerFirstQuestions(t)
 	if err := os.WriteFile(filepath.Join(one, "a.txt"), []byte("first\nsecond\nthird\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -138,17 +138,5 @@ func TestFirstRunInARealTerminal(t *testing.T) {
 	d.typeText(" ")
 	d.wait("[Light]")
 	d.enter()
-	d.wait("Trust one?")
-	d.typeText("t")
-	d.wait("one is trusted.")
-
-	// A directory added later gets its own question (UC-09).
-	d.typeText(":project new Demo")
-	d.enter()
-	d.wait("Demo › one")
-	d.typeText(":dir add ../two")
-	d.enter()
-	d.wait("Trust two?")
-	d.typeText("n")
-	d.wait("Not trusted.")
+	d.wait("Files")
 }

@@ -78,7 +78,7 @@ func untrackedDiff(root, path string) string {
 	return sanitizeText(b.String())
 }
 
-// The functions below can run what the repository configures: hooks, clean filters. Ask for trust first.
+// The functions below can run what the repository configures: hooks, clean filters.
 
 func write(ctx context.Context, root string, args ...string) (string, error) {
 	out, _, err := run(ctx, root, true, writeTimeout, args...)

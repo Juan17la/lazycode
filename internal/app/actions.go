@@ -32,7 +32,11 @@ func (a *app) do(action string) bool {
 		a.openFilePicker()
 	case "session.new":
 		a.openSessionPicker()
-	case "session.hide":
+	case "session.hide": // Delete, which means something else in each view.
+		if a.focusedView() == viewFiles {
+			a.deleteSelected()
+			return true
+		}
 		a.message = a.keyFor("view.sessions") + " shows the sessions, where this removes one from the list."
 	case "project.switch":
 		a.openProjectSwitcher()
@@ -104,6 +108,8 @@ func (a *app) do(action string) bool {
 		a.openSelected()
 	case "tree.refresh":
 		a.tree().Refresh()
+	case "tree.undo_delete":
+		a.undoDelete()
 	default:
 		return a.doInEditor(action)
 	}

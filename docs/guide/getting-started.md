@@ -13,7 +13,7 @@ lazycode
 
 A first-run screen asks for a theme and whether to auto-save, and offers to install language tools (`gopls`, `pyright`, `typescript-language-server`). It shows the exact command before anything runs, and you can skip all of it. It also tells you about the daily update check, which you can turn off.
 
-The first time you open a folder, LazyCode asks whether to trust it. Trusted means it may run things there (language servers, your run command) without asking each time. Otherwise it asks before running anything. `:trust` and `:untrust` change your mind later.
+In the file tree, Delete removes the selected file or folder straight away, and Ctrl+Z brings it back until you quit LazyCode.
 
 ## Moving around
 
@@ -54,7 +54,7 @@ Alt+R (or `:play`) runs the project in the current directory. `:play cargo build
 
 ## Git and language tools
 
-Alt+G shows Git: S stages, U unstages, C commits, P pushes, L pulls, F fetches, B switches branch. Anything that writes asks first in a folder you haven't trusted. In a Go, Python, JavaScript or TypeScript file, F12 goes to a definition, F2 renames, and Alt+Shift+F formats, if the language's server is installed.
+Alt+G shows Git: S stages, U unstages, C commits, P pushes, L pulls, F fetches, B switches branch. In a Go, Python, JavaScript or TypeScript file, F12 goes to a definition, F2 renames, and Alt+Shift+F formats, if the language's server is installed.
 
 ## Where next
 
