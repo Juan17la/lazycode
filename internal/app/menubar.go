@@ -43,41 +43,43 @@ func gitThen(job func(a *app)) func(a *app) {
 // menuBar is filled in by init, because its items call code that opens the menus.
 var menuBar []menuGroup
 
+// What the project and folder names in the bar offer under their lists.
+var projectItems, folderItems []menuItem
+
 func init() {
+	projectItems = []menuItem{
+		{label: "New Project…", action: "project.new"},
+		{label: "Open Folder…", command: "dir open"},
+		{label: "Close Project", command: "project close"},
+	}
+	folderItems = []menuItem{
+		{label: "Add Folder to Project…", action: "directory.add"},
+		{label: "Open Folder…", command: "dir open"},
+	}
 	menuBar = []menuGroup{
 		{"File", []menuItem{
 			{label: "New File…", action: "file.new"},
-			{label: "New Project…", action: "project.new"},
-			{},
 			{label: "Open File by Name…", action: "file.open_by_name"},
-			{label: "Open Folder…", command: "dir open"},
-			{label: "Add Folder to Project…", action: "directory.add"},
-			{label: "Switch Project…", action: "project.switch"},
-			{label: "Switch Folder…", action: "directory.switch"},
 			{},
 			{label: "Save", action: "file.save"},
 			{label: "Save All", do: (*app).saveAll},
 			{},
-			{label: "Close Tab", action: "tab.close"},
-			{label: "Close Saved Tabs", do: (*app).closeSavedTabs},
+			{label: "Open Folder…", command: "dir open"},
+			{label: "Switch Folder…", action: "directory.switch"},
+			{label: "Add Folder to Project…", action: "directory.add"},
+			{},
+			{label: "New Project…", action: "project.new"},
+			{label: "Switch Project…", action: "project.switch"},
 			{label: "Close Project", command: "project close"},
 			{},
+			{label: "Close Tab", action: "tab.close"},
+			{label: "Close Saved Tabs", do: (*app).closeSavedTabs},
+			{},
 			{label: "Settings…", action: "app.settings"},
+			{label: "Plugins…", action: "app.plugins"},
+			{},
 			{label: "Quit", action: "app.quit"},
 		}, nil},
-		{"Project", []menuItem{
-			{label: "New Project…", action: "project.new"},
-			{label: "Open Folder…", command: "dir open"},
-			{label: "Close Project", command: "project close"},
-			{label: "Open projects.toml", command: "config projects"},
-		}, (*app).openProjectHub},
-		{"Folders", []menuItem{
-			{label: "Add Folder to Project…", action: "directory.add"},
-			{label: "Open Folder…", command: "dir open"},
-			{label: "All Folders in Files", command: "tree", checked: func(a *app) bool { return a.showAll }},
-			{label: "Find in Folder", action: "view.search"},
-			{label: "Run This Folder", action: "run.play"},
-		}, (*app).openDirHub},
 		{"Edit", []menuItem{
 			{label: "Undo", action: "edit.undo"},
 			{label: "Redo", action: "edit.redo"},
@@ -90,18 +92,15 @@ func init() {
 			{label: "Replace", action: "find.replace"},
 			{label: "Find in Folder", action: "view.search"},
 			{},
-			{label: "Format File", action: "lsp.format"},
-			{label: "Rename Symbol", action: "lsp.rename"},
-		}, nil},
-		{"Selection", []menuItem{
 			{label: "Select All", action: "select.all"},
 			{label: "Select Line", do: (*app).selectLine},
-			{},
 			{label: "Add Next Match", action: "select.next_occurrence"},
 			{label: "Select All Matches", action: "select.all_occurrences"},
-			{},
 			{label: "Select to Start of File", action: "select.file_start"},
 			{label: "Select to End of File", action: "select.file_end"},
+			{},
+			{label: "Format File", action: "lsp.format"},
+			{label: "Rename Symbol", action: "lsp.rename"},
 		}, nil},
 		{"View", []menuItem{
 			{label: "Command Bar", action: "command.open"},
@@ -124,7 +123,6 @@ func init() {
 			{label: "Themes…", action: "app.themes"},
 		}, nil},
 		{"Go", []menuItem{
-			{label: "Go to File…", action: "file.open_by_name"},
 			{label: "Go to Line…", do: (*app).openGoToLine},
 			{label: "Go to Definition", action: "lsp.definition"},
 			{},
@@ -143,7 +141,6 @@ func init() {
 			{label: "Run This Folder", action: "run.play"},
 			{},
 			{label: "Show or Hide Dock", action: "view.terminal"},
-			{label: "Close Current Tab", action: "tab.close"},
 		}, (*app).openTerminalHub},
 		{"Git", []menuItem{
 			{label: "Show Changes", action: "view.git"},
@@ -159,27 +156,12 @@ func init() {
 			{},
 			{label: "Create GitHub Repository", command: "repo create"},
 		}, nil},
-		{"Tools", []menuItem{
-			{label: "Settings…", action: "app.settings"},
-			{label: "Shortcuts…", action: "app.shortcuts"},
-			{},
-			{label: "Plugins…", action: "app.plugins"},
-			{label: "Plugin Store…", action: "app.store"},
-			{},
-			{label: "Open config.toml", command: "config"},
-			{label: "Open keys.toml", command: "config keys"},
-			{label: "Open projects.toml", command: "config projects"},
-			{},
-			{label: "Trust This Folder", command: "trust"},
-			{label: "Stop Trusting This Folder", command: "untrust"},
-		}, nil},
 		{"Help", []menuItem{
 			{label: "Welcome Screen…", action: "app.onboarding"},
 			{label: "Shortcuts…", action: "app.shortcuts"},
 			{label: "All Commands…", do: (*app).openCommandList},
 			{},
-			{label: "Documentation…", do: (*app).openLinks},
-			{label: "Report a Problem…", do: (*app).openLinks},
+			{label: "Documentation and Support…", do: (*app).openLinks},
 			{},
 			{label: "Install Latest Version", command: "update"},
 			{label: "About LazyCode…", do: (*app).openAbout},
@@ -232,23 +214,6 @@ func allMenus() []menuItem {
 	return items
 }
 
-// barName is a menu's name in the bar. Under 110 columns the long ones shrink, to leave room for where we are.
-func barName(group menuGroup, w int) string {
-	if w < 110 {
-		switch group.name {
-		case "Project":
-			return "Proj"
-		case "Folders":
-			return "Dirs"
-		case "Terminal":
-			return "Term"
-		case "Selection":
-			return "Sel"
-		}
-	}
-	return group.name
-}
-
 // stepMenuBar goes to the next drop-down along. The arrows pass over names that open a window.
 func (a *app) stepMenuBar(group, direction int) {
 	group = (group + direction + len(menuBar)) % len(menuBar)
@@ -273,7 +238,7 @@ func (a *app) openMenuBar(group int) {
 	}
 	x := 1
 	for _, g := range menuBar[:group] {
-		x += runewidth.StringWidth(barName(g, w)) + 1
+		x += runewidth.StringWidth(g.name) + 1
 	}
 	a.menu = &openMenu{group: group, x: x, y: 1, items: menuBar[group].items}
 }
@@ -330,7 +295,7 @@ func (a *app) drawMenuBar(w int) {
 				style = a.pill("accent")
 			}
 			start := x
-			x = a.put(x, 0, w, barName(group, w), style)
+			x = a.put(x, 0, w, group.name, style)
 			at := i
 			a.hits = append(a.hits, hit{area: rect{start, 0, x - start, 1}, click: func(int, int, tcell.ModMask) {
 				if a.menu != nil && a.menu.group == at {
@@ -355,16 +320,14 @@ func (a *app) drawMenuBar(w int) {
 	button("? ", a.th.icon["green"], "app.shortcuts")
 	button("⚙ ", a.th.icon["cyan"], "app.settings")
 	maxX := max(0, right)
-	if w >= 100 { // Where the names are tight, the room goes to where we are.
-		x = a.put(x+1, 0, maxX, "✻ ", a.th.icon["orange"])
-	}
+	x = a.put(x+1, 0, maxX, "✻ ", a.th.icon["orange"])
 	start := x
 	x = a.put(x, 0, maxX, a.projects[a.project].Name, a.th.accent)
-	a.hits = append(a.hits, hit{area: rect{start, 0, x - start, 1}, click: func(int, int, tcell.ModMask) { a.do("project.switch") }})
+	a.hits = append(a.hits, hit{area: rect{start, 0, x - start, 1}, click: func(int, int, tcell.ModMask) { a.openProjectHub(projectItems) }})
 	x = a.put(x, 0, maxX, " › ", a.th.muted)
 	start = x
 	x = a.put(x, 0, maxX, filepath.Base(a.dirPath()), a.th.primary)
-	a.hits = append(a.hits, hit{area: rect{start, 0, x - start, 1}, click: func(int, int, tcell.ModMask) { a.do("directory.switch") }})
+	a.hits = append(a.hits, hit{area: rect{start, 0, x - start, 1}, click: func(int, int, tcell.ModMask) { a.openDirHub(folderItems) }})
 	if branch := a.branchLabel(); branch != "" {
 		a.put(max(x+2, maxX-runewidth.StringWidth(branch)-1), 0, maxX, branch, a.th.icon["purple"])
 	}

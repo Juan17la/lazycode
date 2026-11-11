@@ -323,6 +323,7 @@ func (a *app) drawModals(w, h int) {
 	if len(rows) == 0 {
 		a.put(x0+2, y, maxX, "No matches", a.th.muted)
 	}
+	last := m.top - 1
 	for i := m.top; i < len(rows); i++ {
 		if i > m.top {
 			y += gapBefore(rows, i, gap)
@@ -332,6 +333,11 @@ func (a *app) drawModals(w, h int) {
 		}
 		a.drawModalRow(m, rows[i], i, rect{x0 + 1, y, bw - 2, 1})
 		y++
+		last = i
+	}
+	if roomy && (m.top > 0 || last < len(rows)-1) { // Say that there's more, on the rule under the list.
+		more := either(m.top > 0, fmt.Sprintf(" ↑ %d", m.top), "") + either(last < len(rows)-1, fmt.Sprintf(" ↓ %d", len(rows)-1-last), "") + " more "
+		a.put(x0+bw-2-runewidth.StringWidth(more), bottom, x0+bw-1, more, a.th.accent)
 	}
 	a.put(x0+2, y0+bh-2, maxX, m.hint, a.th.muted)
 }
@@ -444,12 +450,13 @@ const modalHint = "↑↓ move   Enter open   ←→ change   Esc close"
 
 func (a *app) openSettingsMenu() {
 	open := func(action string) func() { return func() { a.do(action) } }
-	file := func(name string) func() {
+	command := func(text string) func() {
 		return func() {
 			a.closeModal(false)
-			a.run("config " + name)
+			a.run(text)
 		}
 	}
+	file := func(name string) func() { return command("config " + name) }
 	a.openModal(&modal{title: "⚙ Settings", hint: modalHint, build: func() []modalRow {
 		toggle := func(label, table, key string, on bool) modalRow {
 			flip := func(int) { a.setConfig(table, key, fmt.Sprint(!on)) }
@@ -458,28 +465,31 @@ func (a *app) openSettingsMenu() {
 		sizes := []string{"2", "4", "8"}
 		tab := fmt.Sprint(a.cfg.Editor.TabSize)
 		return []modalRow{
-			{label: "Look", header: true},
-			{label: "Appearance…", run: open("app.appearance")},
-			{label: "Themes…", value: a.cfg.UI.Theme, run: open("app.themes")},
-			{label: "Extend", header: true},
-			{label: "Plugins…", run: open("app.plugins")},
-			{label: "Shortcuts…", value: a.keyFor("app.shortcuts"), run: open("app.shortcuts")},
 			{label: "Editor", header: true},
 			toggle("Word wrap", "editor", "word_wrap", a.cfg.Editor.WordWrap),
 			toggle("Auto-save", "editor", "auto_save", a.cfg.Editor.AutoSave),
 			{label: "Tab size", value: "‹ " + tab + " ›", change: func(delta int) {
 				a.setConfig("editor", "tab_size", cycle(sizes, tab, delta))
 			}},
+			{label: "Appearance", header: true},
+			{label: "Themes…", value: a.cfg.UI.Theme, run: open("app.themes")},
+			{label: "Icons, sidebar and text…", run: open("app.appearance")},
+			{label: "Keys and plugins", header: true},
+			{label: "Shortcuts…", value: a.keyFor("app.shortcuts"), run: open("app.shortcuts")},
+			{label: "Plugins…", run: open("app.plugins")},
+			{label: "Plugin store…", run: open("app.store")},
+			{label: "Advanced", header: true},
 			toggle("Check for updates", "updates", "check", a.cfg.Updates.Check),
+			{label: "Trust this folder", run: command("trust")},
+			{label: "Stop trusting this folder", run: command("untrust")},
+			{label: "Open config.toml", run: file("")},
+			{label: "Open keys.toml", run: file("keys")},
+			{label: "Open projects.toml", run: file("projects")},
 			{label: "Help", header: true},
 			{label: "Show the welcome screen again…", run: func() {
 				a.closeModal(false)
 				a.do("app.onboarding")
 			}},
-			{label: "Files", header: true},
-			{label: "Open config.toml", run: file("")},
-			{label: "Open keys.toml", run: file("keys")},
-			{label: "Open projects.toml", run: file("projects")},
 		}
 	}})
 }

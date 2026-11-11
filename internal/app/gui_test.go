@@ -190,8 +190,8 @@ func TestTopBarNamesOpenTheSwitchers(t *testing.T) {
 	u.wait("a.txt")
 	x, y := u.find(" › ")
 	u.click(x-1, y) // The last letter of the project's name.
-	u.wait("New project")
-	u.clickOn("New project")
+	u.wait("New Project")
+	u.clickOn("New Project")
 	u.wait("Browse for a folder")
 }
 
@@ -383,16 +383,45 @@ func TestGoToLineAndAbout(t *testing.T) {
 	u.wait("Version")
 }
 
+func TestBarHasSevenMenus(t *testing.T) {
+	var names []string
+	for _, group := range menuBar {
+		names = append(names, group.name)
+	}
+	if got := strings.Join(names, " "); got != "File Edit View Go Terminal Git Help" {
+		t.Error(got)
+	}
+}
+
 func TestHubsOpenFromTheBar(t *testing.T) {
 	u := start(t, map[string]string{"a.txt": "one\n"})
 	u.wait("a.txt")
-	for name, inside := range map[string]string{"Proj": "New Project", "Dirs": "Add Folder", "Term": "Running here", "Help": "Good to know"} {
+	for name, inside := range map[string]string{"Terminal": "Running here", "Help": "Good to know"} {
 		x, y := u.find(name)
 		u.click(x, y)
 		u.wait(inside)
 		u.key(tcell.KeyEsc)
 		u.waitGone(inside)
 	}
+	x, y := u.find("›") // The names either side of it are the project and the folder.
+	u.click(x-2, y)
+	u.wait("Switch to")
+	u.key(tcell.KeyEsc)
+	u.waitGone("Switch to")
+	u.click(x+3, y)
+	u.wait("Add Folder to Project")
+	u.key(tcell.KeyEsc)
+}
+
+func TestLongWindowSaysThereIsMore(t *testing.T) {
+	u := start(t, map[string]string{"a.txt": "one\n"})
+	u.wait("a.txt")
+	u.run("settings")
+	u.wait(" ↓ ")
+	u.wait(" more ")
+	u.key(tcell.KeyUp) // Round to the last row, so only rows above are hidden.
+	u.wait(" ↑ ")
+	u.waitGone(" ↓ ")
 }
 
 func TestArrowsPassOverHubs(t *testing.T) {
@@ -402,7 +431,7 @@ func TestArrowsPassOverHubs(t *testing.T) {
 	u.click(x, y)
 	u.wait("Save All")
 	u.key(tcell.KeyRight)
-	u.wait("Undo") // Edit, past Project and Directories.
+	u.wait("Undo") // Edit.
 }
 
 func TestAltQClosesATerminalFromInside(t *testing.T) {
