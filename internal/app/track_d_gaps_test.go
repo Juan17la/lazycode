@@ -12,7 +12,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-func TestHiddenSessionsComeBack(t *testing.T) {
+func TestDeletedSessionsStayDeleted(t *testing.T) {
 	u := withTool(t, "stay", nil)
 	u.run("session hidden")
 	u.wait("No hidden sessions in this project")
@@ -24,14 +24,8 @@ func TestHiddenSessionsComeBack(t *testing.T) {
 	u.key(tcell.KeyDelete)
 	u.wait("No sessions yet")
 
-	u.run("session hidden")
-	u.wait("Bring back a session")
-	u.wait("Fake 1  (Fake)")
-	u.key(tcell.KeyEnter)
-	u.wait("Fake 1 is back on the list")
-	u.alt('a')
-	u.waitGone("No sessions yet")
-	u.wait("Fake 1")
+	u.run("session hidden") // Delete removes it for good, so there's nothing to bring back.
+	u.wait("No hidden sessions in this project")
 }
 
 // twoProjects starts with "test" and a second project whose tabs aren't touched.
