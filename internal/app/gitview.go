@@ -77,11 +77,11 @@ type gitState struct {
 	commits int    // Entries in log that are commits.
 	rows    []gitRow
 	sel     int
-	tree    bool // Changes are shown as folders, not a flat list.
+	tree    bool   // Changes are shown as folders, not a flat list.
 	msg     string // The commit message being typed in the box under the toolbar.
 	typing  bool   // The box has the keyboard.
-	histAt  int  // Where History starts in rows. What's before it is the Changes section.
-	topA    int  // First row showing in Changes, and in History.
+	histAt  int    // Where History starts in rows. What's before it is the Changes section.
+	topA    int    // First row showing in Changes, and in History.
 	topB    int
 	histH   int    // Rows History has on screen.
 	busy    string // What's running, for the status line.

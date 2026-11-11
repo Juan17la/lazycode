@@ -190,7 +190,7 @@ func (o *onboarding) detail() []string {
 // onboardNotes are what the screen discloses or explains (Q-79, Q-80).
 func onboardNotes(goos string) []string {
 	notes := []string{
-		"Shortcuts come in families: Alt+letter shows, Alt+Shift+letter makes. F1 or Alt+K lists them, F10 or Alt+M opens the menus.",
+		"Shortcuts come in families: Alt+letter goes or shows, Alt+Shift+letter makes, Ctrl+Space goes in and out of a tab. Alt+P and Alt+D switch project and folder from anywhere. F1 or Alt+K lists them, F10 or Alt+M opens the menus.",
 		"LazyCode looks on GitHub for a new version once a day. Set check = false under [updates] in :config to stop that.",
 	}
 	if goos == "darwin" {

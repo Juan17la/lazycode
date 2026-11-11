@@ -2,9 +2,9 @@
 
 Everything here comes from what's built. If you find a mismatch, it's a bug in this page: please open an issue.
 
-The keys come in families, so that most can be guessed: **Alt+letter** shows something, **Alt+Shift+letter** makes something, **Ctrl+letter** acts on this file, and **F-keys** ask the language server.
+The keys come in families, so that most can be guessed: **Ctrl+Space** goes in and out of a tab, **Alt+letter** goes somewhere or shows something, **Alt+Shift+letter** makes something, **Ctrl+letter** acts on this file, and **F-keys** act on the selected thing (rename, format, definition).
 
-**On macOS, every Alt shortcut is Ctrl+K, then the key.** Alt+D is Ctrl+K, then D. Ctrl+F2 (all occurrences) is Ctrl+K, then O. An Alt+Shift shortcut is Ctrl+K, then the capital. Inside a terminal tab every key goes to the program there, except Ctrl+\\ and Alt+Q, which closes the tab.
+**On macOS, every Alt shortcut is Ctrl+K, then the key.** Alt+D is Ctrl+K, then D. Ctrl+F2 (all occurrences) is Ctrl+K, then O. An Alt+Shift shortcut is Ctrl+K, then the capital. Inside a terminal tab every key goes to the program there, except Ctrl+Space (or Ctrl+\\) to leave, Alt+Q to close the tab, and the switching keys Alt+P, Alt+D, Alt+W and Alt+V.
 
 ## Keys everywhere
 
@@ -22,7 +22,7 @@ The keys come in families, so that most can be guessed: **Alt+letter** shows som
 | Previous, next tab | Alt+, and Alt+. | |
 | Close the tab | Ctrl+W | `:close` |
 | Split right, split below | Alt+Shift+S, Alt+Shift+B | `:split`, `:split down` |
-| Next split, and the dock | Alt+W | |
+| Next area: panels, splits, the dock | Alt+W, Alt+Tab | |
 | Open or close the second panel | Ctrl+B | |
 | Show the files | Alt+E | |
 | Show AI sessions | Alt+A | `:session` |
@@ -34,7 +34,7 @@ The keys come in families, so that most can be guessed: **Alt+letter** shows som
 | Run the directory's project | Alt+R | `:play`, `:p` |
 | Word wrap | Alt+Z | `:wrap` |
 | Quit | Ctrl+Q | `:q` |
-| Leave a terminal tab for the file tree | Ctrl+\\ | |
+| Leave a tab for the file tree, and go back in | Ctrl+Space | |
 
 ## In the file tree
 
@@ -152,7 +152,7 @@ resume_args = ["--resume", "{id}"]
 "ctrl+d" = "none"
 ```
 
-Key names are lower case, joined with `+`: `ctrl+`, `alt+`, `shift+`, then the key (`left`, `pgup`, `f2`, `enter`, a letter or a symbol such as `,`). Ctrl+\\ can't be changed, because it's the way out of a terminal tab.
+Key names are lower case, joined with `+`: `ctrl+`, `alt+`, `shift+`, then the key (`left`, `pgup`, `f2`, `enter`, a letter or a symbol such as `,`). Ctrl+Space and Ctrl+\\ can't be changed, because they're the way out of a terminal tab.
 
 | Group | Actions |
 |---|---|

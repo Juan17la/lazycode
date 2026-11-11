@@ -306,7 +306,7 @@ func (a *app) moveTabToArea(st *dirState, from *pane, it *tabItem, toDock bool) 
 	st.focus = to
 	a.dockHidden = a.dockHidden && !toDock
 	a.tabFocused = true
-	a.message = it.name() + " is in the " + either(toDock, "bottom panel", "editor area") + ". The tab's menu or :tab.move moves it back."
+	a.message = it.name() + " is in the " + either(toDock, "bottom panel", "editor area") + ". " + a.keyFor("view.move") + " or :move moves it back."
 }
 
 // moveCurrentTab sends the focused tab to the other area.
@@ -368,23 +368,6 @@ func (a *app) splitPane(sideBySide bool) {
 	st.focus = fresh
 }
 
-// nextPane moves focus to the next pane, going round, and through the dock.
-func (a *app) nextPane() {
-	st := a.dir()
-	panes := a.shownPanes(st)
-	if len(panes) == 1 {
-		a.message = "There's only one split. " + a.keyFor("split.right") + " adds another."
-		return
-	}
-	st.focus = panes[(slices.Index(panes, st.focus)+1)%len(panes)]
-	if st.focus.current() != nil {
-		a.focusTab()
-	} else {
-		a.tabFocused = false
-		a.message = "Empty split. Enter opens a file here, and :term starts a tool."
-	}
-}
-
 // focusNext moves focus to the next area, going round: the side panels and every split, in the order
 // they are on screen. Alt+Tab, as in a window manager.
 func (a *app) focusNext() {
@@ -439,6 +422,7 @@ func (a *app) focusNext() {
 		a.focusTab()
 	} else {
 		a.tabFocused = false
+		a.message = "Empty split. Enter opens a file here, and :term starts a tool."
 	}
 }
 

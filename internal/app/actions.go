@@ -32,6 +32,12 @@ func (a *app) do(action string) bool {
 		a.openFilePicker()
 	case "session.new":
 		a.openSessionPicker()
+	case "panel.new": // n in a panel: new in this view.
+		if a.focusedView() == viewAI {
+			a.openSessionPicker()
+		} else {
+			a.openNewFile()
+		}
 	case "session.hide": // Delete, which means something else in each view.
 		if a.focusedView() == viewFiles {
 			a.deleteSelected()
@@ -39,9 +45,9 @@ func (a *app) do(action string) bool {
 		}
 		a.message = a.keyFor("view.sessions") + " shows the sessions, where this removes one from the list."
 	case "project.switch":
-		a.openProjectSwitcher()
+		a.openProjectHub(projectItems)
 	case "directory.switch":
-		a.openDirSwitcher()
+		a.openDirHub(folderItems)
 	case "tab.previous":
 		a.moveTab(-1)
 	case "tab.next":
@@ -58,8 +64,6 @@ func (a *app) do(action string) bool {
 		a.splitPane(true)
 	case "split.down":
 		a.splitPane(false)
-	case "split.next":
-		a.nextPane()
 	case "tab.move":
 		a.moveCurrentTab()
 	case "focus.next":
@@ -96,8 +100,17 @@ func (a *app) do(action string) bool {
 		a.quitCommand()
 	case "panel.toggle_second":
 		a.toggleSecondPanel()
-	case "view.move":
-		a.moveFilesView()
+	case "view.move": // A terminal goes between the editor area and the dock; anything else moves the views.
+		if it := a.tab(); a.tabFocused && it != nil && it.term != nil {
+			a.moveCurrentTab()
+		} else {
+			a.moveFilesView()
+		}
+	case "lsp.rename":
+		if !a.tabFocused && a.renameInPanel() {
+			return true
+		}
+		return a.doInEditor(action)
 	case "command.open":
 		a.openCommand()
 	case "tree.up":

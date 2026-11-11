@@ -5,7 +5,7 @@ LazyCode is not modal and doesn't have Vim keys. You are always typing: arrow ke
 ## What is familiar
 
 - **`:` commands.** Press `:` in the file tree, or Esc, then `:` in a file. Commands have short forms: `:w` saves, `:q` quits, `:p` runs the project, `:split` splits.
-- **Splits and tabs.** `:split` and `:split down`, Alt+W to move between them. Alt+, and Alt+. for tabs.
+- **Splits and tabs.** `:split` and `:split down`, Alt+W to move between them, the panels and the dock. Alt+, and Alt+. for tabs.
 - **Plain-text config.** `config.toml` and `keys.toml`, applied when you save. `:config` and `:config keys` open them.
 - **Language servers.** `gopls`, `pyright` and `typescript-language-server`: F12 definition, F2 rename, F3 format. Install them yourself or from the first-run screen, which shows each command before it runs.
 - **Treesitter highlighting** for Go, Python, JavaScript and TypeScript.
@@ -31,7 +31,7 @@ LazyCode is not modal and doesn't have Vim keys. You are always typing: arrow ke
 ## Different things to know
 
 - Keys are rebound one at a time in `keys.toml`, to a named action such as `"edit.cut"`. There's no mapping language. The list is in [Keys and config](keys-and-config.md).
-- Inside a terminal tab every key goes to the program there. Ctrl+\\ is how you leave, and it can't be rebound.
+- Inside a terminal tab every key goes to the program there. Ctrl+Space (or Ctrl+\\) is how you leave, and it can't be rebound. Alt+P and Alt+D still switch project and folder from there.
 - Esc in a file returns to one cursor. Esc then `:` opens the command bar.
 - On macOS, Alt shortcuts are Ctrl+K, then the key.
 - LazyCode takes the mouse. Hold Shift to select text the terminal's way.

@@ -156,7 +156,7 @@ func TestRenameAndHide(t *testing.T) {
 	u.key(tcell.KeyCtrlBackslash)
 	u.alt('a')
 	u.wait("Fake 1")
-	u.press("r")
+	u.key(tcell.KeyF2)
 	u.wait("Rename to: Fake 1")
 	for range len("Fake 1") {
 		u.key(tcell.KeyBackspace2)
@@ -588,9 +588,9 @@ func TestPlayRunsThenRemembers(t *testing.T) {
 
 	// Pressing it again goes to its tab, and doesn't start another (Q-57).
 	u.key(tcell.KeyCtrlBackslash)
-	u.waitGone(`Ctrl+\ leaves`)
+	u.waitGone(`Ctrl+Space leaves`)
 	u.alt('r')
-	u.wait(`Ctrl+\ leaves`)
+	u.wait(`Ctrl+Space leaves`)
 	if got := strings.Count(u.text(), "first-run"); got > 3 {
 		t.Fatalf("started twice:\n%s", u.text())
 	}
@@ -624,9 +624,9 @@ func TestPlayWithACommandReplacesTheOldOne(t *testing.T) {
 	u.run("play " + echoCommand("one"))
 	u.wait("one")
 	u.key(tcell.KeyCtrlBackslash)
-	u.waitGone(`Ctrl+\ leaves`)
+	u.waitGone(`Ctrl+Space leaves`)
 	u.alt('r') // Still running, so it goes there.
-	u.wait(`Ctrl+\ leaves`)
+	u.wait(`Ctrl+Space leaves`)
 }
 
 func TestPlayRunsAgainOnceFinished(t *testing.T) {

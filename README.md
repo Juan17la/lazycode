@@ -52,14 +52,14 @@ path = "~/code/microservice-facebook-auth"
 | Menus (or `:menu`) | Alt+M or F10 | Ctrl+K then M, or F10 |
 | Settings (or `:settings`) | Alt+S | Ctrl+K then S |
 | Shortcuts, which can also change them (or `:shortcuts`) | Alt+K or F1 | Ctrl+K then K, or F1 |
-| Switch project (or `:project`) | Alt+P | Ctrl+K then P |
-| Switch directory (or `:dir`) | Alt+D | Ctrl+K then D |
+| Switch project (or `:project`). Starts on the last one, so Alt+P then Enter goes back. 1–9 pick. | Alt+P, also inside a terminal | Ctrl+K then P |
+| Switch directory (or `:dir`), the same way | Alt+D, also inside a terminal | Ctrl+K then D |
 | New project (or `:project new`) | Alt+Shift+P | Ctrl+K then Shift+P |
 | Add a directory (or `:dir add`) | Alt+Shift+F | Ctrl+K then Shift+F |
 | New file (or `:new`) | Ctrl+N | Ctrl+N |
 | Previous and next tab | Alt+, and Alt+. | Ctrl+K then , and . |
 | Split right, split below (or `:split`, `:split down`) | Alt+Shift+S, Alt+Shift+B | Ctrl+K then Shift+S, Shift+B |
-| Move to the next split, and the dock | Alt+W | Ctrl+K then W |
+| Move to the next area: panels, splits and the dock | Alt+W or Alt+Tab, also inside a terminal | Ctrl+K then W |
 | Open or close the second panel | Ctrl+B | Ctrl+B |
 | Show the files, or AI sessions | Alt+E, Alt+A | Ctrl+K then E, A |
 | Show or hide the terminal dock (or `:dock`) | Alt+T | Ctrl+K then T |
@@ -69,18 +69,18 @@ path = "~/code/microservice-facebook-auth"
 | Open a file by name | Ctrl+P | Ctrl+P |
 | Run this directory's project (or `:play`) | Alt+R | Ctrl+K then R |
 | Word wrap (or `:wrap`) | Alt+Z | Ctrl+K then Z |
-| Move the Files view to the other panel (or `:view`) | Alt+V, in the tree | Ctrl+K then V |
-| Leave a tab for the file tree | Ctrl+\\ | Ctrl+\\ |
+| Move the views to the other panel, or a terminal between the editor area and the dock (or `:view`, `:move`) | Alt+V, also inside a terminal | Ctrl+K then V |
+| Leave a tab for the file tree, and go back in | Ctrl+Space (Ctrl+\\ only leaves) | Ctrl+Space |
 | Enter the current tab | Tab | Tab |
 | Move in the file tree, open files and folders | Arrow keys, Enter | Arrow keys, Enter |
 | Reload the file tree | R | R |
 | Close the current tab (or `:close`) | Ctrl+W | Ctrl+W |
 
-Inside a terminal tab, every key except Ctrl+\\ goes to the tool, so press Ctrl+\\ first.
+Inside a terminal tab, every key goes to the tool except Ctrl+Space and Ctrl+\\ (leave), and the Alt keys for closing the tab, switching project or folder, moving between areas and moving the tab (Alt+Q, Alt+P, Alt+D, Alt+W, Alt+V).
 
 The mouse works too: click files, tabs, cursor positions and question answers, and scroll with the wheel. LazyCode takes the mouse to do this, so hold Shift to select text the terminal's own way.
 
-In the AI sessions view: Enter goes to a session or resumes it, N starts one, R renames it, and Delete takes it off the list without touching the tool's data.
+In the AI sessions view: Enter goes to a session or resumes it, N starts one, F2 renames it, and Delete takes it off the list without touching the tool's data.
 
 In the Git view: P pushes, L pulls, F fetches, S stages, U unstages, C commits, B switches branch, N makes a branch, M merges, X aborts a merge, O opens the file, and Enter opens a diff or commit.
 
@@ -144,7 +144,7 @@ LazyCode has no telemetry. Its one automatic network connection is a check of Gi
 "ctrl+d" = "none"
 ```
 
-A setting or key that can't be used is reported, and the rest keep working. Ctrl+\\ can't be changed, because it's the way out of a terminal tab.
+A setting or key that can't be used is reported, and the rest keep working. Ctrl+Space and Ctrl+\\ can't be changed, because they're the way out of a terminal tab.
 
 The actions:
 

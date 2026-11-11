@@ -241,7 +241,7 @@ path = %q
 	d.wait("got: hello")
 
 	// Ctrl+\ leaves the tab. The same keys now reach LazyCode, not the tool.
-	d.wait(`Ctrl+\ leaves`)
+	d.wait(`Ctrl+Space leaves`)
 	d.key(tcell.KeyCtrlBackslash, tcell.ModCtrl)
 	d.wait("Tab go to editor")
 	d.typeText(":")
@@ -262,7 +262,7 @@ path = %q
 
 	// Alt+. focuses the tab again. The tool exits, and the tab stays with its code.
 	d.alt('.')
-	d.wait(`Ctrl+\ leaves`)
+	d.wait(`Ctrl+Space leaves`)
 	d.typeText("bye")
 	d.enter()
 	d.wait("[exit 7]")

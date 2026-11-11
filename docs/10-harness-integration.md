@@ -143,7 +143,7 @@ Testing with each default tool is needed before promising more than this.
 ## Focus and key handling
 
 - A focused terminal tab receives all keys, including Escape.
-- **Reserved key (Q-74):** Ctrl+\\ always returns focus to LazyCode, and it's never sent to the tool.
+- **Reserved key (Q-74):** Ctrl+Space and Ctrl+\\ always return focus to LazyCode, and are never sent to the tool. Alt+P, Alt+D, Alt+W, Alt+V and Alt+Q work from inside a tool too (D-45).
 - **Terminal keyboard modes:** Some tools ask for mouse or keyboard modes. The emulator must track them for each tab, and restore them when switching tabs.
 - **Pasted text:** Forwarded using bracketed paste when the tool asks for it.
 

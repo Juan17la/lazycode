@@ -48,6 +48,7 @@ func shiftAlt(r rune, label string) check {
 func checks(goos string) []check {
 	list := []check{
 		{label: `Ctrl+\`, match: term.IsLeaveKey},
+		{label: "Ctrl+Space", match: func(e *tcell.EventKey) bool { return keymap.Name(e) == keymap.Toggle }},
 		ctrl(tcell.KeyCtrlA, "Ctrl+A"), ctrl(tcell.KeyCtrlB, "Ctrl+B"), ctrl(tcell.KeyCtrlC, "Ctrl+C"), ctrl(tcell.KeyCtrlD, "Ctrl+D"),
 		ctrl(tcell.KeyCtrlF, "Ctrl+F"), ctrl(tcell.KeyCtrlN, "Ctrl+N"), ctrl(tcell.KeyCtrlQ, "Ctrl+Q"), ctrl(tcell.KeyCtrlR, "Ctrl+R"),
 		ctrl(tcell.KeyCtrlO, "Ctrl+O"), ctrl(tcell.KeyCtrlP, "Ctrl+P"), ctrl(tcell.KeyCtrlS, "Ctrl+S"),

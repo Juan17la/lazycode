@@ -303,17 +303,7 @@ func (a *app) doInSessionsView(action string) bool {
 		if len(list) > 0 {
 			a.openEntry(list[s.sel])
 		}
-	case "tree.refresh": // r renames here.
-		if len(list) > 0 {
-			e := list[s.sel]
-			a.ask1Line("Rename to:", e.Name, func(name string) {
-				e.Name = name
-				if e.tab != nil && e.tab.term != nil {
-					e.tab.term.Name = name
-				}
-				a.saveSessions()
-			})
-		}
+	case "tree.refresh": // Nothing to refresh here, and r is refresh everywhere else. F2 renames.
 	case "session.hide":
 		if len(list) > 0 {
 			a.hideEntry(list[s.sel])
@@ -323,6 +313,40 @@ func (a *app) doInSessionsView(action string) bool {
 		return false
 	}
 	return true
+}
+
+// renameInPanel is F2 in a side panel: rename the selected file or folder in Files, or the selected
+// session in AI. It reports whether this view had something to rename.
+func (a *app) renameInPanel() bool {
+	switch a.focusedView() {
+	case viewFiles:
+		t := a.tree()
+		if t.Sel < 0 || t.Sel >= len(t.Rows) {
+			return false
+		}
+		path := t.Rows[t.Sel].Path
+		if slices.Contains(a.projects[a.project].Dirs, path) {
+			a.message = "Take this folder out of the project with :dir remove."
+			return true
+		}
+		a.openRename(path)
+		return true
+	case viewAI:
+		list := a.listed()
+		if len(list) == 0 {
+			return true
+		}
+		e := list[max(0, min(a.sessions.sel, len(list)-1))]
+		a.ask1Line("Rename to:", e.Name, func(name string) {
+			e.Name = name
+			if e.tab != nil && e.tab.term != nil {
+				e.tab.term.Name = name
+			}
+			a.saveSessions()
+		})
+		return true
+	}
+	return false
 }
 
 // hideEntry removes an entry from the list for good, stopping it if it's running. It never touches a

@@ -22,7 +22,8 @@ The screen has a file tree on the left and tabs on the right. Everything has two
 | Do this | Key | Command |
 |---|---|---|
 | Move in the tree, open a file or folder | Arrow keys, Enter | |
-| Go into the current tab, or back to the tree | Tab, and Ctrl+\\ back | |
+| Go into the current tab, or back to the tree | Tab, and Ctrl+Space both ways | |
+| Switch project, switch folder | Alt+P, Alt+D (Enter goes back to the last one, 1–9 pick) | `:project`, `:dir` |
 | Open a file by name | Ctrl+P | |
 | Save | Ctrl+S | `:save` or `:w` |
 | Previous or next tab | Alt+, and Alt+. | |
@@ -44,7 +45,7 @@ LazyCode opens on the current folder. To go to another one, use File > Open Fold
 
 ## Terminals and AI tools
 
-`:term` opens your shell in a tab, and `:term claude` runs a command, here an AI tool. Inside a terminal tab every key goes to the tool, except Ctrl+\\, which takes you back out, and Alt+Q, which closes the tab.
+`:term` opens your shell in a tab, and `:term claude` runs a command, here an AI tool. Inside a terminal tab every key goes to the tool, except Ctrl+Space, which takes you back out (and in again), Alt+Q, which closes the tab, and Alt+P and Alt+D, which switch project and folder.
 
 Alt+A shows AI sessions: Enter goes to one or resumes it, N starts a new one, R renames it. An idle session stops after 30 minutes to free memory, and resumes the same chat when you select it. Alt+E goes back to the files. When the tool changes a file you have open, it updates on screen, and changed lines are marked. If you have unsaved edits in it, LazyCode never replaces them.
 
