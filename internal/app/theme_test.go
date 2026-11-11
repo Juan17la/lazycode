@@ -70,13 +70,13 @@ func TestCustomColourReplacesTheThemes(t *testing.T) {
 func TestBackgroundIsPaintedByRegion(t *testing.T) {
 	u, screen := launchStyled(t, map[string]string{"a.go": "package a\n", "b.go": "package b\n"})
 	u.wait("b.go") // The first row is selected, which has its own background.
-	th := themeFor(config.DefaultTheme)
 	bgIs := func(want tcell.Color, name string) {
 		t.Helper()
 		screen.waitStyle(u, "b.go", func(st tcell.Style) bool { return bgOf(st) == want }, name)
 	}
-	bgIs(th.focus, "the tint of the area with focus")
-	u.open("a.go") // Focus goes to the tab, and the panel goes back to its own colour.
+	panel := tcell.GetColor(palettes[config.DefaultTheme]["panel"])
+	bgIs(panel, "the panel's background, with focus too") // Focus shows in the border, not a tint.
+	u.open("a.go")
 	bgIs(tcell.GetColor(palettes[config.DefaultTheme]["panel"]), "the panel's background")
 	u.wait("Editor")
 }

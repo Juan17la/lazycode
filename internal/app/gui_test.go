@@ -37,7 +37,7 @@ func (u *ui) find(text string) (x, y int) {
 // dividerAt returns the column of the first vertical line on a row.
 func (u *ui) dividerAt(row int) int {
 	line := strings.Split(u.text(), "\n")[row]
-	return len([]rune(line[:max(0, strings.Index(line, "│"))]))
+	return len([]rune(line[:max(0, strings.IndexAny(line, "│┃"))]))
 }
 
 // until waits for something that doesn't show as text.

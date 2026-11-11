@@ -370,6 +370,17 @@ func (a *app) drawSessions(r rect) {
 	}
 	top := max(0, s.sel-rows+1)
 	focused := !a.tabFocused && a.focusedView() == viewAI
+	// First, because the last hit under the mouse wins, and each row's × is added after.
+	a.hits = append(a.hits, hit{
+		area: rect{r.x, y0, r.w, rows},
+		click: func(_, y int, _ tcell.ModMask) {
+			if i := top + y - y0; i >= 0 && i < len(list) {
+				s.sel = i
+				a.openEntry(list[i])
+			}
+		},
+		wheel: func(delta int) { s.sel = max(0, min(s.sel+delta, len(list)-1)) },
+	})
 	for i := top; i < len(list) && i < top+rows; i++ {
 		e := list[i]
 		style := a.th.primary
@@ -387,16 +398,6 @@ func (a *app) drawSessions(r rect) {
 		a.put(maxX-3, row, maxX, " × ", a.th.err)
 		a.hits = append(a.hits, hit{area: rect{maxX - 3, row, 3, 1}, click: func(int, int, tcell.ModMask) { a.hideEntry(e) }})
 	}
-	a.hits = append(a.hits, hit{
-		area: rect{r.x, y0, r.w, rows},
-		click: func(_, y int, _ tcell.ModMask) {
-			if i := top + y - y0; i >= 0 && i < len(list) {
-				s.sel = i
-				a.openEntry(list[i])
-			}
-		},
-		wheel: func(delta int) { s.sel = max(0, min(s.sel+delta, len(list)-1)) },
-	})
 }
 
 // Time.

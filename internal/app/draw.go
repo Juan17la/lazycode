@@ -60,7 +60,7 @@ func (a *app) draw() {
 		a.drawPane(st, p)
 	}
 	for _, d := range dividers {
-		a.fillLine(d.r, a.dividerStyle(st, d.r))
+		a.fillBorder(d.r, a.dividerStyle(st, d.r))
 		a.hits = append(a.hits, hit{area: d.r, click: func(int, int, tcell.ModMask) {}, drag: d.drag})
 	}
 	a.hits = append(a.hits, a.deferred...)
@@ -114,6 +114,23 @@ func (a *app) fillLine(r rect, style tcell.Style) {
 	}
 }
 
+// fillBorder is fillLine, but the border of what has focus is drawn thick.
+func (a *app) fillBorder(r rect, style tcell.Style) {
+	if style != a.th.borderFocus {
+		a.fillLine(r, style)
+		return
+	}
+	char := '┃'
+	if r.w > 1 {
+		char = '━'
+	}
+	for y := r.y; y < r.y+r.h; y++ {
+		for x := r.x; x < r.x+r.w; x++ {
+			a.screen.SetContent(x, y, char, nil, style)
+		}
+	}
+}
+
 // drawPanel draws one panel and its divider. r is empty if it's hidden.
 func (a *app) drawPanel(st *dirState, index int, r rect) {
 	if r.w == 0 {
@@ -129,7 +146,7 @@ func (a *app) drawPanel(st *dirState, index int, r rect) {
 		line.x = r.x + r.w
 	}
 	if line.x >= 0 && line.x < w {
-		a.fillLine(line, style)
+		a.fillBorder(line, style)
 		a.deferred = append(a.deferred, hit{area: line, click: func(int, int, tcell.ModMask) {}, drag: func(x, _ int) {
 			if r.x == 0 {
 				a.panelW = x
@@ -142,7 +159,7 @@ func (a *app) drawPanel(st *dirState, index int, r rect) {
 	body := r
 	if r.h >= 6 && r.w >= 20 {
 		body = rect{r.x + 1, r.y + 1, r.w - 2, r.h - 1}
-		a.fillLine(rect{r.x, r.y + 1, r.w, 1}, a.th.muted)
+		a.fillBorder(rect{r.x, r.y + 1, r.w, 1}, style)
 	}
 	switch a.viewIn(index) {
 	case viewFiles:
