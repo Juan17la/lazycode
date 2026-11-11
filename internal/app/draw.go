@@ -756,7 +756,7 @@ func (a *app) drawStatusBar(it *tabItem, w, y int) {
 		wrap := either(a.cfg.Editor.WordWrap, " ↵ Wrap ", " → NoWrap ")
 		segments = append(segments, statusSegment{wrap, a.th.icon["green"], a.toggleWrap})
 	case a.tabFocused:
-		hints = a.hints("tab.close", "close") + `   Ctrl+\ leaves`
+		hints = "Ctrl+Space leaves   " + a.hints("project.switch", "projects", "directory.switch", "folders", "tab.close", "close")
 		segments = append(segments,
 			statusSegment{" ‹ Leave ", a.th.icon["green"], func() { a.tabFocused = false }},
 			statusSegment{" × Close ", a.th.icon["red"], a.closeTab})
@@ -765,7 +765,7 @@ func (a *app) drawStatusBar(it *tabItem, w, y int) {
 	case a.focusedView() == viewSearch:
 		hints = "Enter open   Tab next field   Esc back"
 	case a.focusedView() == viewAI:
-		hints = "Enter open   n new   Del hide"
+		hints = "Enter open   n new   F2 rename   Del hide"
 	default:
 		hints = "Enter open   Tab go to editor   : commands   " + a.hints("app.menu", "menu", "project.switch", "projects", "directory.switch", "folders", "view.terminal", "terminal", "app.shortcuts", "keys")
 	}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Juan17la/lazycode/internal/buffer"
+	"github.com/Juan17la/lazycode/internal/project"
 	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-runewidth"
 )
@@ -65,15 +67,6 @@ func init() {
 			{label: "Save", action: "file.save"},
 			{label: "Save All", do: (*app).saveAll},
 			{},
-			{label: "Open Folder…", command: "dir open"},
-			{label: "Switch Folder…", action: "directory.switch"},
-			{label: "Add Folder to Project…", action: "directory.add"},
-			{},
-			{label: "New Project…", action: "project.new"},
-			{label: "Switch Project…", action: "project.switch"},
-			{label: "Close Project", command: "project close"},
-			{label: "Delete Project…", command: "project delete"},
-			{},
 			{label: "Close Tab", action: "tab.close"},
 			{label: "Close Saved Tabs", do: (*app).closeSavedTabs},
 			{},
@@ -81,6 +74,20 @@ func init() {
 			{label: "Plugins…", action: "app.plugins"},
 			{},
 			{label: "Quit", action: "app.quit"},
+		}, nil},
+		{"Project", []menuItem{
+			{label: "Switch Project…", action: "project.switch"},
+			{label: "Switch Folder…", action: "directory.switch"},
+			{},
+			{label: "New Project…", action: "project.new"},
+			{label: "Close Project", command: "project close"},
+			{label: "Delete Project…", command: "project delete"},
+			{},
+			{label: "Add Folder to Project…", action: "directory.add"},
+			{label: "Open Folder…", command: "dir open"},
+			{label: "Remove Folder from Project", command: "dir remove"},
+			{},
+			{label: "All Folders in Files", command: "tree", checked: func(a *app) bool { return a.showAll }},
 		}, nil},
 		{"Edit", []menuItem{
 			{label: "Undo", action: "edit.undo"},
@@ -103,7 +110,7 @@ func init() {
 			{label: "Add Cursor Above", action: "cursor.add_above"},
 			{label: "Add Cursor Below", action: "cursor.add_below"},
 			{label: "Select All", action: "select.all"},
-			{label: "Select Line", do: (*app).selectLine},
+			{label: "Select Line", action: "select.line"},
 			{label: "Add Next Match", action: "select.next_occurrence"},
 			{label: "Select All Matches", action: "select.all_occurrences"},
 			{label: "Select to Start of File", action: "select.file_start"},
@@ -133,7 +140,8 @@ func init() {
 			{label: "Themes…", action: "app.themes"},
 		}, nil},
 		{"Go", []menuItem{
-			{label: "Go to Line…", do: (*app).openGoToLine},
+			{label: "Go to File…", action: "file.open_by_name"},
+			{label: "Go to Line…", action: "file.go_to_line"},
 			{label: "Go to Definition", action: "lsp.definition"},
 			{},
 			{label: "Start of File", action: "move.file_start"},
@@ -141,7 +149,7 @@ func init() {
 			{},
 			{label: "Next Tab", action: "tab.next"},
 			{label: "Previous Tab", action: "tab.previous"},
-			{label: "Next Split", action: "split.next"},
+			{label: "Next Area", action: "focus.next"},
 		}, nil},
 		{"Terminal", []menuItem{
 			{label: "New Terminal", action: "terminal.new"},
@@ -181,7 +189,7 @@ func init() {
 
 // needsFile reports whether an item can only work with a file showing, so it can look that way.
 func (item menuItem) needsFile() bool {
-	for _, prefix := range []string{"edit.", "select.", "find.", "lsp.", "move.", "file.save"} {
+	for _, prefix := range []string{"edit.", "select.", "find.", "lsp.", "move.", "file.save", "file.go_to_line"} {
 		if strings.HasPrefix(item.action, prefix) {
 			return true
 		}
@@ -412,7 +420,7 @@ func (a *app) drawMenu(w, h int) {
 
 // The windows that open from the bar.
 
-const hubHint = "↑↓ move   Enter choose   Del or × remove   Esc close"
+const hubHint = "↑↓ move   1-9 pick   Enter choose   Del or × remove   Esc close"
 
 // itemRows shows menu items in a window. Separators have no place in a list under a header.
 func (a *app) itemRows(items []menuItem) []modalRow {
@@ -433,29 +441,56 @@ func (a *app) itemRows(items []menuItem) []modalRow {
 	return rows
 }
 
+// hotkeyFor numbers the first nine things to switch to.
+func hotkeyFor(i int) rune {
+	if i < 9 {
+		return rune('1' + i)
+	}
+	return 0
+}
+
+// openProjectHub is Alt+P, a click on the project's name, and :project. It starts on the project before
+// this one, so that Alt+P and Enter go back, and the same key again goes on down the list.
 func (a *app) openProjectHub(items []menuItem) {
-	a.openModal(&modal{title: "✻ Projects", hint: hubHint, sel: a.project + 1, build: func() []modalRow {
+	start := a.project
+	if i := slices.IndexFunc(a.projects, func(p project.Project) bool { return p.Name == a.prevProject }); i >= 0 && i != a.project {
+		start = i
+	}
+	a.openModal(&modal{title: "✻ Switch project", hint: hubHint, filtered: true, labelOnly: true, escCloses: true, again: "project.switch", sel: start + 1, build: func() []modalRow {
 		rows := []modalRow{{label: "Switch to", header: true}}
 		for i, p := range a.projects {
-			rows = append(rows, modalRow{label: either(i == a.project, "✓ ", "  ") + p.Name, value: fmt.Sprintf("%d dirs", len(p.Dirs)), run: func() {
+			rows = append(rows, modalRow{label: either(i == a.project, "✓ ", "  ") + p.Name, hotkey: hotkeyFor(i), value: fmt.Sprintf("%d dirs", len(p.Dirs)), run: func() {
 				a.closeModal(false)
-				a.project = i
-				a.afterSwitch()
+				a.switchTo(i, -1)
 			}, remove: func() { a.deleteProject(p) }})
 		}
 		return append(append(rows, modalRow{label: "Manage", header: true}), a.itemRows(items)...)
 	}})
 }
 
+// openDirHub is the same for the folders of this project: Alt+D, a click on the folder's name, and :dir.
 func (a *app) openDirHub(items []menuItem) {
-	a.openModal(&modal{title: "▸ Folders", hint: hubHint, width: 72, sel: a.dirOf[a.project] + 1, build: func() []modalRow {
+	dirs := a.projects[a.project].Dirs
+	missing := make([]bool, len(dirs)) // Looked at once, so that drawing doesn't touch the disk.
+	for i, d := range dirs {
+		_, err := os.Stat(d)
+		missing[i] = err != nil
+	}
+	start := a.dirOf[a.project]
+	if i := slices.Index(dirs, a.prevDir); i >= 0 && i != start {
+		start = i
+	}
+	a.openModal(&modal{title: "▸ Switch folder", hint: hubHint, width: 72, filtered: true, labelOnly: true, escCloses: true, again: "directory.switch", sel: start + 1, build: func() []modalRow {
 		current := a.projects[a.project]
 		rows := []modalRow{{label: "In " + current.Name, header: true}}
 		for i, dir := range current.Dirs {
-			rows = append(rows, modalRow{label: either(i == a.dirOf[a.project], "✓ ", "  ") + filepath.Base(dir), value: dir, run: func() {
+			label := either(i == a.dirOf[a.project], "✓ ", "  ") + filepath.Base(dir)
+			if i < len(missing) && missing[i] {
+				label += "  (missing)" // Q-66: marked, never removed silently.
+			}
+			rows = append(rows, modalRow{label: label, hotkey: hotkeyFor(i), value: dir, run: func() {
 				a.closeModal(false)
-				a.dirOf[a.project] = i
-				a.afterSwitch()
+				a.switchTo(a.project, i)
 			}, remove: func() { a.removeDir(current.Name, dir) }}) // It says so if it refuses.
 		}
 		return append(append(rows, modalRow{label: "Manage", header: true}), a.itemRows(items)...)
@@ -498,7 +533,8 @@ func (a *app) openHelpHub(items []menuItem) {
 			modalRow{label: "Drag selects text. Double click takes a word, triple a line."},
 			modalRow{label: "In a terminal, dragging copies what you select."},
 			modalRow{label: "Close a tab: its ×, the middle button, or " + a.keyFor("tab.close") + "."},
-			modalRow{label: `Leave a terminal: click elsewhere, or Ctrl+\.`},
+			modalRow{label: "Leave a terminal: click elsewhere, or Ctrl+Space, which goes back in too."},
+			modalRow{label: a.keyFor("project.switch") + " and " + a.keyFor("directory.switch") + " switch project and folder, even from a terminal."},
 			modalRow{label: "The right button opens a menu on tabs, files and code."})
 	}})
 }
@@ -538,15 +574,6 @@ func (a *app) closeSavedTabs() {
 	}
 }
 
-func (a *app) selectLine() {
-	if it := a.tab(); it != nil && it.ed != nil {
-		line, _ := it.ed.Position()
-		it.ed.SelectLine(line)
-		return
-	}
-	a.message = "That needs a file."
-}
-
 func (a *app) openGoToLine() {
 	it := a.tab()
 	if it == nil || it.ed == nil {
@@ -575,7 +602,7 @@ var allCommands = [][2]string{
 	{"project", "Switch project"}, {"project new", "New project"}, {"project close", "Close this project"}, {"project delete", "Delete this project from the list"},
 	{"dir", "Switch folder"}, {"dir open", "Open any folder"}, {"dir add", "Add a folder"}, {"dir remove", "Take this folder out of the project"},
 	{"tree", "Show all folders in Files"}, {"view", "Move a view to the other panel"},
-	{"tab.move", "Move this terminal between the editor area and the bottom panel"}, {"term", "New terminal"}, {"dock", "Show or hide the dock"}, {"session", "New AI session"}, {"session hidden", "Hidden AI sessions"},
+	{"move", "Move a terminal between the editor area and the bottom panel, or the views to the other panel"}, {"term", "New terminal"}, {"dock", "Show or hide the dock"}, {"session", "New AI session"}, {"session hidden", "Hidden AI sessions"},
 	{"play", "Run this folder"}, {"split", "Split right"}, {"split down", "Split below"}, {"wrap", "Word wrap"},
 	{"find", "Find"}, {"replace", "Replace"}, {"search", "Find in folder"}, {"selectall", "Select all matches"},
 	{"definition", "Go to definition"}, {"rename", "Rename the symbol"}, {"format", "Format the file"},

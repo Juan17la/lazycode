@@ -159,8 +159,8 @@ func TestOpenAnyFolderFromOutsideAProject(t *testing.T) {
 	u := launchWith(t, first.dir, nil)
 	u.wait("Current folder")
 	u.post(tcell.NewEventKey(tcell.KeyRune, 'd', tcell.ModAlt))
-	u.wait("Open another folder")
-	u.clickOn("Open another folder")
+	u.wait("Open Folder")
+	u.clickOn("Open Folder")
 	u.wait("Open this folder")
 	u.press("sub")
 	u.wait("▸ sub")
@@ -181,7 +181,7 @@ func TestOpenAnyFolderFromOutsideAProject(t *testing.T) {
 	u.wait("› sub")
 	u.post(tcell.NewEventKey(tcell.KeyRune, 'd', tcell.ModAlt))
 	u.wait(filepath.Base(u.dir)) // The folder it started in is still on the list.
-	u.wait("Open another folder")
+	u.wait("Open Folder")
 	u.key(tcell.KeyEsc)
 }
 
@@ -416,12 +416,12 @@ func TestGoToLineAndAbout(t *testing.T) {
 	u.wait("Version")
 }
 
-func TestBarHasSevenMenus(t *testing.T) {
+func TestBarHasEightMenus(t *testing.T) {
 	var names []string
 	for _, group := range menuBar {
 		names = append(names, group.name)
 	}
-	if got := strings.Join(names, " "); got != "File Edit View Go Terminal Git Help" {
+	if got := strings.Join(names, " "); got != "File Project Edit View Go Terminal Git Help" {
 		t.Error(got)
 	}
 }
@@ -463,6 +463,8 @@ func TestArrowsPassOverHubs(t *testing.T) {
 	x, y := u.find("File")
 	u.click(x, y)
 	u.wait("Save All")
+	u.key(tcell.KeyRight)
+	u.wait("Remove Folder") // Project.
 	u.key(tcell.KeyRight)
 	u.wait("Undo") // Edit.
 }

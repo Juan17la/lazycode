@@ -18,14 +18,15 @@ import (
 // doesn't replace running keytest by hand.
 func press(tab *term.Tab, label string) {
 	keys := map[string]*tcell.EventKey{
-		`Ctrl+\`:  tcell.NewEventKey(tcell.KeyCtrlBackslash, 0, tcell.ModCtrl),
-		"F1":      tcell.NewEventKey(tcell.KeyF1, 0, 0),
-		"F2":      tcell.NewEventKey(tcell.KeyF2, 0, 0),
-		"F3":      tcell.NewEventKey(tcell.KeyF3, 0, 0),
-		"F10":     tcell.NewEventKey(tcell.KeyF10, 0, 0),
-		"F12":     tcell.NewEventKey(tcell.KeyF12, 0, 0),
-		"Esc":     tcell.NewEventKey(tcell.KeyEsc, 0, 0),
-		"Ctrl+F2": tcell.NewEventKey(tcell.KeyF2, 0, tcell.ModCtrl),
+		`Ctrl+\`:     tcell.NewEventKey(tcell.KeyCtrlBackslash, 0, tcell.ModCtrl),
+		"Ctrl+Space": tcell.NewEventKey(tcell.KeyCtrlSpace, 0, tcell.ModCtrl),
+		"F1":         tcell.NewEventKey(tcell.KeyF1, 0, 0),
+		"F2":         tcell.NewEventKey(tcell.KeyF2, 0, 0),
+		"F3":         tcell.NewEventKey(tcell.KeyF3, 0, 0),
+		"F10":        tcell.NewEventKey(tcell.KeyF10, 0, 0),
+		"F12":        tcell.NewEventKey(tcell.KeyF12, 0, 0),
+		"Esc":        tcell.NewEventKey(tcell.KeyEsc, 0, 0),
+		"Ctrl+F2":    tcell.NewEventKey(tcell.KeyF2, 0, tcell.ModCtrl),
 	}
 	// A capital letter with Alt held, which is how a terminal sends Shift+Alt+letter.
 	if letter, ok := strings.CutPrefix(label, "Shift+Alt+"); ok {

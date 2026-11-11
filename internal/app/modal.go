@@ -21,16 +21,19 @@ import (
 // modal is a window over everything else. Its rows are rebuilt for every key and frame, so that a
 // setting shows its new value with nothing to keep in step.
 type modal struct {
-	title    string
-	hint     string
-	width    int
-	build    func() []modalRow
-	sel, top int
-	filter   string
-	filtered bool                     // Typing narrows the rows.
-	capture  func(ev *tcell.EventKey) // Takes every key, to learn a new shortcut.
-	submit   func()                   // What Enter does in a text field.
-	closed   func()                   // Runs if it's dismissed, to undo a preview.
+	title     string
+	hint      string
+	width     int
+	build     func() []modalRow
+	sel, top  int
+	filter    string
+	filtered  bool                     // Typing narrows the rows.
+	escCloses bool                     // Esc closes even with something typed, where it would first clear it.
+	labelOnly bool                     // The filter reads the labels alone, not the values beside them.
+	again     string                   // An action whose key, pressed again, goes to the next numbered row.
+	capture   func(ev *tcell.EventKey) // Takes every key, to learn a new shortcut.
+	submit    func()                   // What Enter does in a text field.
+	closed    func()                   // Runs if it's dismissed, to undo a preview.
 }
 
 type modalRow struct {
@@ -39,6 +42,7 @@ type modalRow struct {
 	action   bool   // Does something, rather than being one of the things listed: its own colour.
 	value    string // Right-aligned.
 	header   bool
+	hotkey   rune    // A digit that picks the row when nothing has been typed.
 	input    *string // A text field.
 	swatches []tcell.Color
 	run      func()          // Enter or a click.
@@ -58,7 +62,7 @@ func (m *modal) rows() []modalRow {
 	}
 	needle := strings.ToLower(m.filter)
 	return slices.DeleteFunc(rows, func(r modalRow) bool {
-		return !strings.Contains(strings.ToLower(r.label), needle) && !strings.Contains(strings.ToLower(r.value), needle) // So a key can be looked up.
+		return !strings.Contains(strings.ToLower(r.label), needle) && (m.labelOnly || !strings.Contains(strings.ToLower(r.value), needle)) // So a key can be looked up.
 	})
 }
 
@@ -112,9 +116,18 @@ func (a *app) handleModalKey(ev *tcell.EventKey) {
 			rows[m.sel].moved()
 		}
 	}
+	if m.again != "" && a.keys.Lookup(keymap.Global, keymap.Name(ev)) == m.again {
+		for step := 1; step <= len(rows); step++ { // The same key again: on to the next numbered row.
+			if i := (m.sel + step) % len(rows); rows[i].hotkey != 0 {
+				m.sel = i
+				break
+			}
+		}
+		return
+	}
 	switch ev.Key() {
 	case tcell.KeyEsc:
-		if m.filter != "" {
+		if m.filter != "" && !m.escCloses {
 			m.filter = ""
 			return
 		}
@@ -167,12 +180,23 @@ func (a *app) handleModalKey(ev *tcell.EventKey) {
 			row.change(1)
 		case ev.Rune() == ' ' && row.run != nil:
 			row.run()
+		case m.filter == "" && hotRow(rows, ev.Rune()) != nil:
+			hotRow(rows, ev.Rune()).run()
 		case m.filtered:
 			m.filter += string(ev.Rune())
 			m.sel = 0
 			m.settle(m.rows(), 1)
 		}
 	}
+}
+
+func hotRow(rows []modalRow, r rune) *modalRow {
+	for i := range rows {
+		if rows[i].hotkey == r && rows[i].run != nil {
+			return &rows[i]
+		}
+	}
+	return nil
 }
 
 func (a *app) modalPaste(text string) {
@@ -394,6 +418,13 @@ func (a *app) drawModalRow(m *modal, row modalRow, i int, r rect) {
 	if row.remove != nil {
 		maxX -= 3
 		a.put(maxX, y, maxX+3, " × ", a.th.err)
+	}
+	if row.hotkey != 0 {
+		hotStyle := a.th.muted
+		if selected {
+			hotStyle = a.th.active
+		}
+		x = a.put(x, y, maxX, string(row.hotkey)+" ", hotStyle)
 	}
 	x = a.put(x, y, maxX, row.label, style)
 	if len(row.swatches) > 0 {

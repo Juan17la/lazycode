@@ -8,6 +8,9 @@ The first release, v0.1.0, will contain:
 
 ### Added
 
+- Switching is a key away from anywhere. Ctrl+Space goes out of a tab and back in (Ctrl+\\ still leaves), and Alt+P, Alt+D, Alt+W and Alt+V work inside terminal and AI tabs. The project and folder lists open on the previous one, so Alt+P then Enter goes back, 1–9 pick, the same key again moves down, and Esc closes in one press.
+- A Project menu in the menu bar, and F2 to rename a file in Files or a session in AI. N in Files makes a file. `:move` moves a terminal between the editor area and the dock.
+- The shortcuts list is grouped by task: Move around, Show, Make and run, This file, Lines and cursors, Language, App.
 - GUI-style windows in the terminal: a menu bar (File, Edit, View, Go, Terminal, Git, Help), right-click menus, close buttons on tabs, buttons on tab bars, and a clickable status line.
 - A dock under the code holds terminal and AI tabs, which look different from file tabs. It can be hidden while its tools keep running.
 - Menus for settings, appearance, themes (with live preview), plugins and shortcuts, and forms for a new project, a new directory and a new file. Each has a command as well.

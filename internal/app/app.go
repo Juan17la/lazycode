@@ -87,22 +87,24 @@ type app struct {
 	plugins    pluginState
 	storeApp   storeState
 
-	tabFocused bool
-	chord      bool // Ctrl+K was pressed, and the next key finishes it.
-	escaped    bool // Esc was pressed in a file, so : opens the command bar next.
-	pasting    bool // Between the two bracketed paste events.
-	paste      strings.Builder
-	command    *string   // The : bar's text, when it's open.
-	switcher   *switcher // The open switcher.
-	find       *findBar  // The open find bar.
-	prompts    []*prompt // Questions waiting for an answer. The first one is showing.
-	message    string
-	shownMsg   string
-	messages   []string // What was said, for :messages.
-	upd        updates
-	quit       bool
-	hits       []hit // What the mouse can click, from the last frame.
-	deferred   []hit // Drawn early, but above what comes later: the panels' edges.
+	tabFocused  bool
+	chord       bool // Ctrl+K was pressed, and the next key finishes it.
+	escaped     bool // Esc was pressed in a file, so : opens the command bar next.
+	pasting     bool // Between the two bracketed paste events.
+	paste       strings.Builder
+	command     *string   // The : bar's text, when it's open.
+	switcher    *switcher // The open switcher.
+	prevProject string    // Where Alt+P starts: the project before this one, by name.
+	prevDir     string    // And Alt+D: the folder before this one in this project.
+	find        *findBar  // The open find bar.
+	prompts     []*prompt // Questions waiting for an answer. The first one is showing.
+	message     string
+	shownMsg    string
+	messages    []string // What was said, for :messages.
+	upd         updates
+	quit        bool
+	hits        []hit // What the mouse can click, from the last frame.
+	deferred    []hit // Drawn early, but above what comes later: the panels' edges.
 
 	recovery      *editor.Recovery
 	autoSaves     map[*buffer.File]*time.Timer
@@ -446,7 +448,12 @@ func (a *app) handleKey(ev *tcell.EventKey) {
 		a.handleMenuKey(ev)
 		return
 	}
-	if term.IsLeaveKey(ev) { // Q-74: the one key a terminal tab never receives.
+	toggle := keymap.Name(ev) == keymap.Toggle
+	if toggle && !a.tabFocused && a.tab() != nil && a.switcher == nil && a.command == nil && a.find == nil && a.input == nil && a.review == nil {
+		a.focusTab() // Ctrl+Space again goes back in: it works from one hand, both ways.
+		return
+	}
+	if term.IsLeaveKey(ev) || toggle { // Q-74: the keys a terminal tab never receives.
 		a.tabFocused, a.chord, a.escaped, a.command, a.switcher = false, false, false, nil, nil
 		a.closeFind()
 		return
@@ -478,12 +485,8 @@ func (a *app) handleKey(ev *tcell.EventKey) {
 	if a.tabFocused && it.term != nil {
 		// Alt+ only, because the shell needs Ctrl+W for itself.
 		if name := keymap.Name(ev); strings.HasPrefix(name, "alt+") {
-			switch a.keys.Lookup(keymap.Global, name) {
-			case "tab.close":
-				a.closeTab()
-				return
-			case "focus.next":
-				a.focusNext()
+			if action := a.keys.Lookup(keymap.Global, name); slices.Contains(keymap.FromTerminal, action) {
+				a.do(action)
 				return
 			}
 		}
@@ -616,6 +619,12 @@ func (a *app) run(line string) {
 		a.do("find.replace")
 	case "view":
 		a.moveFilesView()
+	case "move": // A terminal goes between the areas. Anything else moves the views.
+		if it != nil && it.term != nil {
+			a.moveCurrentTab()
+		} else {
+			a.moveFilesView()
+		}
 	case "push":
 		a.gitPush()
 	case "pull":
@@ -669,7 +678,7 @@ func (a *app) run(line string) {
 		if a.runPlugin(fields[0]) {
 			return
 		}
-		a.message = "Unknown command: " + fields[0] + ". Try save, new, term, dock, wrap, settings, appearance, themes, plugins, shortcuts, onboard, menu, split, find, definition, rename, format, search, git, push, pull, fetch, repo, config, theme, plugin, store, project, dir, tree, close, update, or q."
+		a.message = "Unknown command: " + fields[0] + ". Try save, new, term, dock, wrap, settings, appearance, themes, plugins, shortcuts, onboard, menu, split, move, find, definition, rename, format, search, git, push, pull, fetch, repo, config, theme, plugin, store, project, dir, tree, close, update, or q."
 	}
 }
 
@@ -725,45 +734,20 @@ func (s *switcher) matches() []int {
 	return out
 }
 
-func (a *app) openProjectSwitcher() {
-	s := &switcher{title: "Switch project"}
-	for _, p := range a.projects {
-		s.labels = append(s.labels, fmt.Sprintf("%s  (%d)", p.Name, len(p.Dirs)))
+// switchTo moves to a project and, if dir isn't negative, one of its folders. It remembers where it came
+// from, so that the next switch can start on it: Alt+P and Enter go back and forth between two projects.
+func (a *app) switchTo(project, dir int) {
+	if project != a.project {
+		a.prevProject = a.projects[a.project].Name
 	}
-	s.labels = append(s.labels, "✚ New project…")
-	s.sel = a.project
-	s.pick = func(i int) {
-		if i == len(a.projects) {
-			a.openNewProject()
-			return
-		}
-		a.project = i
-		a.afterSwitch()
+	if from := a.dirPath(); dir >= 0 && project == a.project && dir != a.dirOf[project] {
+		a.prevDir = from
 	}
-	a.switcher = s
-}
-
-func (a *app) openDirSwitcher() {
-	s := &switcher{title: "Switch folder"}
-	dirs := a.projects[a.project].Dirs
-	for _, d := range dirs {
-		label := filepath.Base(d)
-		if _, err := os.Stat(d); err != nil {
-			label += "  (missing)" // Q-66: marked, never removed silently.
-		}
-		s.labels = append(s.labels, label)
+	a.project = project
+	if dir >= 0 {
+		a.dirOf[project] = dir
 	}
-	s.labels = append(s.labels, "▸ Open another folder…")
-	s.sel = a.dirOf[a.project]
-	s.pick = func(i int) {
-		if i == len(dirs) {
-			a.openFolder()
-			return
-		}
-		a.dirOf[a.project] = i
-		a.afterSwitch()
-	}
-	a.switcher = s
+	a.afterSwitch()
 }
 
 // afterSwitch shows the new directory's views. Tabs elsewhere keep running (Q-34).

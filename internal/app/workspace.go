@@ -55,7 +55,7 @@ func (a *app) syncWatcher() {
 func (a *app) projectCommand(args []string) {
 	switch {
 	case len(args) == 0:
-		a.openProjectSwitcher()
+		a.openProjectHub(projectItems)
 	case args[0] == "new" && len(args) == 1:
 		a.openNewProject()
 	case args[0] == "new":
@@ -72,7 +72,7 @@ func (a *app) projectCommand(args []string) {
 func (a *app) dirCommand(args []string) {
 	switch {
 	case len(args) == 0:
-		a.openDirSwitcher()
+		a.openDirHub(folderItems)
 	case args[0] == "open" && len(args) == 1:
 		a.openFolder()
 	case args[0] == "add" && len(args) == 1:

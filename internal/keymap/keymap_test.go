@@ -3,6 +3,7 @@ package keymap
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -42,6 +43,9 @@ func TestNames(t *testing.T) {
 		{tcell.KeyCtrlBackslash, 0, tcell.ModCtrl, Reserved},
 		{tcell.KeyRune, '\\', tcell.ModCtrl, Reserved},
 		{tcell.KeyRune, '|', tcell.ModCtrl, Reserved},
+		{tcell.KeyCtrlSpace, 0, tcell.ModCtrl, Toggle},
+		{tcell.KeyRune, ' ', tcell.ModCtrl, Toggle},
+		{tcell.KeyRune, 'p', tcell.ModAlt, "alt+p"},
 	} {
 		if got := Name(tcell.NewEventKey(tc.key, tc.r, tc.mods)); got != tc.want {
 			t.Errorf("%v %q %v: got %q, want %q", tc.key, tc.r, tc.mods, got, tc.want)
@@ -257,7 +261,7 @@ func TestBindWritesTheKeyAndTurnsOffTheOld(t *testing.T) {
 	if got := loaded.Lookup(Panel, "alt+j"); got != "view.files" {
 		t.Errorf("rebound key: %q", got)
 	}
-	for _, key := range []string{Reserved, "x"} {
+	for _, key := range []string{Reserved, Toggle, "x"} {
 		if err := m.Bind(path, key, "view.git"); err == nil {
 			t.Errorf("%s was accepted", key)
 		}
@@ -283,5 +287,36 @@ func TestNewEditorKeysAreBound(t *testing.T) {
 		if got := defaults[Editor][key]; got != want {
 			t.Errorf("%s does %q, want %q", key, got, want)
 		}
+	}
+}
+
+func TestSwitchingWorksFromTerminalsAndNothingElseIsLost(t *testing.T) {
+	m := Default()
+	for _, action := range FromTerminal {
+		if len(m.KeysFor(action)) == 0 {
+			t.Errorf("%s has no key", action)
+		}
+	}
+	for key, want := range map[string]string{"alt+w": "focus.next", "alt+tab": "focus.next", "alt+v": "view.move"} {
+		if got := m.Lookup(Editor, key); got != want {
+			t.Errorf("%s is %q, want %q", key, got, want)
+		}
+	}
+	if slices.Contains(Actions(), "split.next") {
+		t.Error("split.next came back")
+	}
+}
+
+func TestLoadRefusesTheToggleKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "keys.toml")
+	if err := os.WriteFile(path, []byte("[keys]\n\"ctrl+space\" = \"file.save\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := Load(path)
+	if err == nil || !strings.Contains(err.Error(), "reserved") {
+		t.Errorf("got %v", err)
+	}
+	if got := m.Lookup(Editor, Toggle); got != "" {
+		t.Errorf("bound to %q", got)
 	}
 }

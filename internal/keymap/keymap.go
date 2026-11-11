@@ -29,8 +29,19 @@ const (
 	Panel
 )
 
-// Reserved leaves a terminal tab, so it can't be rebound (Q-74).
-const Reserved = `ctrl+\`
+// Reserved leaves a terminal tab, so it can't be rebound (Q-74). Toggle does the same from one hand
+// (Ctrl+\ is AltGr+º on a Spanish keyboard), and goes back in when pressed again.
+const (
+	Reserved = `ctrl+\`
+	Toggle   = "ctrl+space"
+)
+
+// IsReserved says whether a key is one of the two that can't be bound.
+func IsReserved(key string) bool { return key == Reserved || key == Toggle }
+
+// FromTerminal are the actions that work inside a terminal or AI tab, because switching should never
+// need a key to leave first. Everything else goes to the tool there.
+var FromTerminal = []string{"tab.close", "focus.next", "project.switch", "directory.switch", "view.move"}
 
 // Template is what a new keys.toml starts with.
 const Template = `# Change a key by giving it an action, or turn one off with "none". For example:
@@ -47,12 +58,16 @@ const Template = `# Change a key by giving it an action, or turn one off with "n
 // defaults lists every action a key can have, per context. The keys follow one rule per family, so
 // that they can be guessed (doc 07):
 //
+//	Ctrl+Space         in and out: leave a terminal or file for the panel, and back in (Ctrl+\ only leaves)
+//	Alt+letter         go somewhere or show something: Explorer, Git, Find, AI, Terminal, Projects, Folders, Run
+//	Alt+Shift+letter   make something: Project, Folder, Terminal, AI session, Split
+//	Alt+, Alt+. Alt+W  move: previous and next tab (the < and > keys), next area (panels, splits, dock)
 //	Ctrl+letter        this file and tab: save, find, replace, new file, close
-//	Alt+letter         show something: Explorer, Git, Find, AI, Terminal, Projects, Directories, Run
-//	Alt+Shift+letter   make something: Project, Directory, Terminal, AI session, Split
-//	Alt+, Alt+. Alt+W  move: previous and next tab (the < and > keys), next window (split)
-//	F-key              ask the language: F2 rename, F3 format, F12 definition. F1 and F10 are help and menu
+//	F-key              the selected thing: F2 rename, F3 format, F12 definition. F1 and F10 are help and menu
 //
+// Switching project (Alt+P), folder (Alt+D), area (Alt+W) and the tab's place (Alt+V) work inside a
+// terminal tab too (FromTerminal). Alt+P is also Claude Code's model picker and Alt+D bash's delete-word.
+
 // Alt+arrows would be the obvious moving keys, and Alt+Shift+D the obvious directory key, but Windows
 // Terminal keeps those for its own panes (doc 07).
 var defaults = map[Context]map[string]string{
@@ -62,7 +77,7 @@ var defaults = map[Context]map[string]string{
 		"alt+m": "app.menu", "alt+s": "app.settings", "alt+k": "app.shortcuts", "alt+x": "command.open", "alt+z": "view.wrap",
 		"alt+shift+p": "project.new", "alt+shift+f": "directory.add", "alt+shift+t": "terminal.new", "alt+shift+a": "session.new",
 		"alt+shift+s": "split.right", "alt+shift+b": "split.down",
-		"alt+,": "tab.previous", "alt+.": "tab.next", "alt+w": "split.next", "alt+tab": "focus.next",
+		"alt+,": "tab.previous", "alt+.": "tab.next", "alt+w": "focus.next", "alt+tab": "focus.next", "alt+v": "view.move",
 		"ctrl+b": "panel.toggle_second", "ctrl+w": "tab.close", "alt+q": "tab.close", "ctrl+p": "file.open_by_name", "ctrl+n": "file.new", "ctrl+q": "app.quit",
 		"f1": "app.shortcuts", "f10": "app.menu",
 	},
@@ -91,51 +106,51 @@ var defaults = map[Context]map[string]string{
 	Panel: {
 		"up": "tree.up", "down": "tree.down", "left": "tree.close", "right": "tree.open",
 		"enter": "tree.select", "tab": "tab.enter", "r": "tree.refresh", ":": "command.open",
-		"alt+v": "view.move", "n": "session.new", "delete": "session.hide", "ctrl+z": "tree.undo_delete",
+		"n": "panel.new", "f2": "lsp.rename", "delete": "session.hide", "ctrl+z": "tree.undo_delete",
 	},
 }
 
 // Entry is one row of the shortcuts menu.
 type Entry struct{ Family, Action, Label string }
 
-// Catalog is what the shortcuts menu lists, by family. The cursor and typing keys stay out of it.
+// Catalog is what the shortcuts menu lists, by task. The cursor and typing keys stay out of it.
 var Catalog = []Entry{
-	{"Show (Alt+letter)", "view.files", "Files"},
-	{"Show (Alt+letter)", "view.git", "Git"},
-	{"Show (Alt+letter)", "view.search", "Find in this folder"},
-	{"Show (Alt+letter)", "view.sessions", "AI sessions"},
-	{"Show (Alt+letter)", "view.terminal", "Terminal dock, show or hide"},
-	{"Show (Alt+letter)", "project.switch", "Projects"},
-	{"Show (Alt+letter)", "directory.switch", "Folders"},
-	{"Show (Alt+letter)", "run.play", "Run this folder"},
-	{"Show (Alt+letter)", "view.wrap", "Word wrap, on or off"},
-	{"Show (Alt+letter)", "app.menu", "Menu bar"},
-	{"Show (Alt+letter)", "app.settings", "Settings"},
-	{"Show (Alt+letter)", "app.shortcuts", "These shortcuts"},
-	{"Show (Alt+letter)", "command.open", "Command bar"},
-	{"Make (Alt+Shift+letter)", "project.new", "New project"},
-	{"Make (Alt+Shift+letter)", "directory.add", "Add a folder"},
-	{"Make (Alt+Shift+letter)", "terminal.new", "New terminal"},
-	{"Make (Alt+Shift+letter)", "session.new", "New AI session"},
-	{"Make (Alt+Shift+letter)", "split.right", "Split right"},
-	{"Make (Alt+Shift+letter)", "split.down", "Split below"},
-	{"Move (Alt+, Alt+. Alt+W)", "tab.previous", "Previous tab"},
-	{"Move (Alt+, Alt+. Alt+W)", "tab.next", "Next tab"},
-	{"Move (Alt+, Alt+. Alt+W)", "split.next", "Next split, and the dock"},
-	{"Move (Alt+, Alt+. Alt+W)", "focus.next", "Next panel or split"},
-	{"This file (Ctrl+letter)", "file.new", "New file"},
-	{"This file (Ctrl+letter)", "file.open_by_name", "Open a file by name"},
-	{"This file (Ctrl+letter)", "file.save", "Save"},
-	{"This file (Ctrl+letter)", "tab.close", "Close the tab"},
-	{"This file (Ctrl+letter)", "find.open", "Find"},
-	{"This file (Ctrl+letter)", "find.replace", "Replace"},
-	{"This file (Ctrl+letter)", "edit.undo", "Undo"},
-	{"This file (Ctrl+letter)", "edit.redo", "Redo"},
-	{"This file (Ctrl+letter)", "edit.copy", "Copy"},
-	{"This file (Ctrl+letter)", "edit.cut", "Cut"},
-	{"This file (Ctrl+letter)", "edit.paste", "Paste"},
-	{"This file (Ctrl+letter)", "select.all", "Select all"},
-	{"This file (Ctrl+letter)", "select.next_occurrence", "Add the next match"},
+	{"Move around", "project.switch", "Switch project"},
+	{"Move around", "directory.switch", "Switch folder"},
+	{"Move around", "file.open_by_name", "Go to a file by name"},
+	{"Move around", "file.go_to_line", "Go to line"},
+	{"Move around", "focus.next", "Next area: panels, splits, dock"},
+	{"Move around", "tab.previous", "Previous tab"},
+	{"Move around", "tab.next", "Next tab"},
+	{"Move around", "tab.close", "Close the tab"},
+	{"Move around", "view.move", "Move to the other panel, or a terminal to the other area"},
+	{"Move around", "command.open", "Command bar"},
+	{"Move around", "app.menu", "Menu bar"},
+	{"Show", "view.files", "Files"},
+	{"Show", "view.git", "Git"},
+	{"Show", "view.search", "Find in this folder"},
+	{"Show", "view.sessions", "AI sessions"},
+	{"Show", "view.terminal", "Terminal dock, show or hide"},
+	{"Show", "panel.toggle_second", "Second panel, open or close"},
+	{"Show", "view.wrap", "Word wrap, on or off"},
+	{"Make and run", "project.new", "New project"},
+	{"Make and run", "directory.add", "Add a folder"},
+	{"Make and run", "file.new", "New file"},
+	{"Make and run", "terminal.new", "New terminal"},
+	{"Make and run", "session.new", "New AI session"},
+	{"Make and run", "split.right", "Split right"},
+	{"Make and run", "split.down", "Split below"},
+	{"Make and run", "run.play", "Run this folder"},
+	{"This file", "file.save", "Save"},
+	{"This file", "find.open", "Find"},
+	{"This file", "find.replace", "Replace"},
+	{"This file", "edit.undo", "Undo"},
+	{"This file", "edit.redo", "Redo"},
+	{"This file", "edit.copy", "Copy"},
+	{"This file", "edit.cut", "Cut"},
+	{"This file", "edit.paste", "Paste"},
+	{"This file", "select.all", "Select all"},
+	{"This file", "select.next_occurrence", "Add the next match"},
 	{"Lines and cursors", "cursor.add_above", "Add a cursor above"},
 	{"Lines and cursors", "cursor.add_below", "Add a cursor below"},
 	{"Lines and cursors", "line.move_up", "Move the line up"},
@@ -149,12 +164,12 @@ var Catalog = []Entry{
 	{"Lines and cursors", "edit.toggle_comment", "Comment or uncomment"},
 	{"Lines and cursors", "edit.delete_word_left", "Delete the word before"},
 	{"Lines and cursors", "edit.delete_word_right", "Delete the word after"},
-	{"Lines and cursors", "file.go_to_line", "Go to line"},
-	{"This file (Ctrl+letter)", "panel.toggle_second", "Second panel, open or close"},
-	{"This file (Ctrl+letter)", "app.quit", "Quit"},
-	{"Language (F-key)", "lsp.rename", "Rename the symbol"},
-	{"Language (F-key)", "lsp.format", "Format the file"},
-	{"Language (F-key)", "lsp.definition", "Go to definition"},
+	{"Language", "lsp.rename", "Rename the symbol"},
+	{"Language", "lsp.format", "Format the file"},
+	{"Language", "lsp.definition", "Go to definition"},
+	{"App", "app.settings", "Settings"},
+	{"App", "app.shortcuts", "These shortcuts"},
+	{"App", "app.quit", "Quit"},
 }
 
 // KeysFor returns the keys bound to an action, shortest first.
@@ -178,8 +193,8 @@ func (m *Map) KeysFor(action string) []string {
 // Bind writes key = action into a keys.toml, and turns off the action's other keys, so that the menu
 // shows one key and means it. Every other line is left as it is.
 func (m *Map) Bind(path, key, action string) error {
-	if key == Reserved {
-		return errors.New(Reserved + " is reserved for leaving terminal tabs")
+	if IsReserved(key) {
+		return errors.New(key + " is reserved for leaving terminal tabs")
 	}
 	if len([]rune(key)) == 1 {
 		return errors.New("a plain character would stop being typed: add Ctrl or Alt")
@@ -307,8 +322,8 @@ func Load(path string) (*Map, error) {
 		switch {
 		case err != nil:
 			problems = append(problems, err.Error())
-		case key == Reserved:
-			problems = append(problems, Reserved+" is reserved for leaving terminal tabs")
+		case IsReserved(key):
+			problems = append(problems, key+" is reserved for leaving terminal tabs")
 		case seen[key] != "":
 			problems = append(problems, fmt.Sprintf("%q and %q are the same key", seen[key], raw))
 		case action == "none":
@@ -347,7 +362,7 @@ var specialKeys = map[tcell.Key]string{
 	tcell.KeyHome: "home", tcell.KeyEnd: "end", tcell.KeyPgUp: "pgup", tcell.KeyPgDn: "pgdn",
 	tcell.KeyF1: "f1", tcell.KeyF2: "f2", tcell.KeyF3: "f3", tcell.KeyF4: "f4", tcell.KeyF5: "f5", tcell.KeyF6: "f6",
 	tcell.KeyF7: "f7", tcell.KeyF8: "f8", tcell.KeyF9: "f9", tcell.KeyF10: "f10", tcell.KeyF11: "f11", tcell.KeyF12: "f12",
-	tcell.KeyCtrlBackslash: `ctrl+\`,
+	tcell.KeyCtrlBackslash: `ctrl+\`, tcell.KeyCtrlSpace: Toggle,
 }
 
 var knownNames = func() map[string]bool {
@@ -369,13 +384,16 @@ func Name(ev *tcell.EventKey) string {
 		base, mods = "tab", mods|tcell.ModShift
 	case specialKeys[key] != "":
 		base = specialKeys[key]
-		if base == Reserved {
-			return Reserved
+		if IsReserved(base) {
+			return base
 		}
 	case key == tcell.KeyRune:
 		r := ev.Rune()
 		if mods&tcell.ModCtrl != 0 && (r == '\\' || r == '|') {
 			return Reserved // Windows delivers it this way.
+		}
+		if mods&tcell.ModCtrl != 0 && r == ' ' {
+			return Toggle
 		}
 		if unicode.IsUpper(r) && mods&(tcell.ModAlt|tcell.ModCtrl) != 0 {
 			mods |= tcell.ModShift
@@ -432,6 +450,8 @@ func normalize(raw string) (string, error) {
 	switch {
 	case text == "":
 		return "", bad
+	case text == "space" && ctrl && !alt && !shift:
+		return Toggle, nil
 	case knownNames[text]:
 	case len([]rune(text)) != 1:
 		return "", bad

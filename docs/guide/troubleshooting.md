@@ -42,7 +42,7 @@ Your terminal gets every key first, and some it keeps for itself or can't pass o
 | Windows Terminal | Alt+Left and Alt+Right move between panes, so tabs use Alt+, and Alt+. instead. Alt+Shift+D is taken too, so adding a directory is Alt+Shift+F. Ctrl+V pastes, which does the same job |
 | Linux desktops | Alt+F2 often opens a run dialog. Some desktops use Alt+key for their own shortcuts |
 | tmux, screen, other terminal programs inside your terminal | They may take Alt or Ctrl+B (tmux's default prefix is Ctrl+B, which LazyCode uses for the second panel) |
-| Terminal tabs | Every key goes to the program there, except Ctrl+\\. Press Ctrl+\\ before a LazyCode key |
+| Terminal tabs | Every key goes to the program there, except Ctrl+Space (leave), Alt+Q, Alt+P, Alt+D, Alt+W and Alt+V. Press Ctrl+Space before any other LazyCode key |
 
 To work around a clash, rebind the key in `keys.toml` (`:config keys`, [Keys and config](keys-and-config.md)), or use the command instead: every action has a `:` command. In a file, Esc then `:` opens the command bar.
 

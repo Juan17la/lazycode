@@ -126,9 +126,9 @@ Colour is never the only signal, because each state has its own shape.
 - Exactly one area has focus, and its border uses the accent colour.
 - A click moves focus (Q-13).
 - Editor areas, panels and the command bar use the keymap.
-- **Terminal tabs get all keys except Ctrl+\** (Q-74). The command bar shows that key while a terminal tab has focus.
+- **Terminal tabs get all keys except the way out and a few Alt keys** (Q-74, D-45). The way out is Ctrl+Space, which also goes back in, or Ctrl+\. The Alt keys that stay with LazyCode are Alt+Q (close the tab), Alt+P and Alt+D (switch project and folder), Alt+W and Alt+Tab (next area) and Alt+V (move the tab). The status line shows the way out while a terminal tab has focus.
 - When a terminal tab's command exits, focus returns to the file tree, so keys don't go to a tool that's gone.
-- Ctrl+\ also moves focus from a file to the file tree, and Tab moves it back.
+- Ctrl+Space also moves focus from a file to the file tree, and from the tree back into the tab. Ctrl+\ only leaves. Tab moves into the tab too.
 
 ## Default keymap
 
@@ -178,7 +178,7 @@ LazyCode runs in the user's terminal, which receives keys first (Q-50). The defa
 | Esc, then `:` | Open the command bar | Decided |
 | Alt+, and Alt+. | Previous and next tab | Decided (Q-80) |
 | Alt+E, G, F, A, T | Show Explorer, Git, Find in directory, AI sessions, the terminal dock | Decided (D-44) |
-| Alt+P, Alt+D, Alt+R | Projects, directories, run | Decided (D-44), replacing Alt+O and Alt+P for run |
+| Alt+P, Alt+D, Alt+R | Projects, directories, run. Alt+P and Alt+D also work inside terminal tabs, start on the one before this, and take 1–9 or the same key again. | Decided (D-44, D-45), replacing Alt+O and Alt+P for run |
 | Alt+M or F10, Alt+S, Alt+K or F1, Alt+X, Alt+Z | Menus, settings, shortcuts, command bar, word wrap | Decided (D-44) |
 | Alt+Shift+P, F, T, A, S, B | New project, add a folder, new terminal, new AI session, split right, split below | Decided (D-44) |
 | Ctrl+N, Ctrl+R, Ctrl+Q | New file, replace in file, quit | Decided (D-44) |
@@ -194,14 +194,16 @@ LazyCode runs in the user's terminal, which receives keys first (Q-50). The defa
 | Alt+G | Git panel | Proposed |
 | Ctrl+P | Open a file by name | Proposed |
 | Ctrl+W | Close tab | Proposed |
-| Alt+W | Next split | Proposed (P-21) |
-| Alt+V | Move a view to the other panel, from the tree | Proposed (P-21) |
+| Alt+W, Alt+Tab | Next area: panels, splits and the dock. Works inside terminal tabs. | Decided (D-45), replacing Next split |
+| Alt+V | Move the views to the other panel, or a terminal between the editor area and the dock. Works inside terminal tabs. | Decided (D-45) |
 | Ctrl+A | Select everything | Proposed |
 | F12, F2 | Go to definition, rename | Proposed |
 | Alt+D | Switch directory | Decided (Q-74) |
-| Ctrl+\\ | Leave a terminal tab | Decided (Q-74) |
+| Ctrl+Space | Leave a tab for the panel, and go back in. Ctrl+\\ only leaves. | Decided (Q-74, D-45) |
+| F2 | Rename: the symbol in a file, the selected file in Files, the session in AI | Decided (D-45) |
+| N, in Files or AI | New file, new AI session | Decided (D-45) |
 
-Inside a terminal tab, every key except Ctrl+\\ and Alt+Q (close the tab) goes to the tool. Ctrl+C interrupts rather than copies, and Alt+D goes to the tool, so press Ctrl+\\ first.
+Inside a terminal tab, every key except Ctrl+Space, Ctrl+\\ and the Alt keys listed under Focus model goes to the tool. Ctrl+C interrupts rather than copies. The shortcut families (D-45): Ctrl+Space goes in and out, Alt+letter goes or shows, Alt+Shift+letter makes, Ctrl+letter acts on this file, F-keys act on the selected thing.
 
 ### Known key clashes
 
@@ -220,6 +222,9 @@ Terminal and OS defaults, which users can usually change in settings. Priority t
 | Alt+Shift+D | Windows Terminal: duplicate pane. | General knowledge, not checked | Avoided (D-44) |
 | F1, F10 | GNOME Terminal: help and menu bar. | General knowledge, not checked | Each has an Alt form too (D-44) |
 | Ctrl+Tab | Windows Terminal and Kitty: next tab. | Microsoft docs, Kitty source | Avoided (Q-74) |
+| Alt+Tab | Most desktops: the window switcher, so it rarely arrives. | General knowledge | Kept as a second key for Alt+W |
+| Alt+P, Alt+D inside a tool | Claude Code uses Alt+P for its model picker, and bash uses Alt+D to delete a word. | Tool docs, not checked | Taken by LazyCode (D-45). `/model` and Ctrl+Delete still work. |
+| Ctrl+Space | Some input-method switchers and macOS input sources. | General knowledge | Ctrl+\\ leaves instead (D-45) |
 | Ctrl+Shift+D | Windows Terminal: duplicate tab. | Microsoft docs | Avoided (Q-74) |
 | Ctrl+Shift+Space | Windows Terminal: new tab dropdown. | Microsoft docs | Avoided (Q-74) |
 | Ctrl+Shift+P | Kitty: prefix for hints. | Kitty source | Avoided (Q-74) |

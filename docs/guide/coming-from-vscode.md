@@ -26,8 +26,8 @@ Typing works the way you expect: arrow keys, Shift to select, Ctrl+C, X and V, C
 | Ctrl+Shift+F, search in files | Alt+F, or `:search` |
 | Ctrl+H, replace | Ctrl+R, or `:replace` (Enter replaces, Alt+A replaces all). Replacing across files, from Alt+F, shows every change before making it |
 | Ctrl+B, show or hide the side bar | Ctrl+B opens or closes a second panel. Alt+E shows the files |
-| Ctrl+\\ or Ctrl+Alt+Right, split | Alt+Shift+S, or `:split`. Alt+W moves between splits |
-| Ctrl+Shift+`, new terminal | `:term` opens a shell in a tab. Ctrl+\\ leaves a terminal tab |
+| Ctrl+\\ or Ctrl+Alt+Right, split | Alt+Shift+S, or `:split`. Alt+W moves between splits, panels and the dock |
+| Ctrl+Shift+`, new terminal | `:term` opens a shell in a tab. Ctrl+Space leaves a terminal tab, and goes back in |
 | Ctrl+Shift+G, source control | Alt+G, or `:git` |
 | Workspaces with several folders | Projects: Alt+Shift+P and Alt+Shift+F, or `:project new NAME`, `:dir add PATH`. Alt+P and Alt+D switch |
 | Run button, tasks | Alt+R, or `:play`, runs the directory's project |
