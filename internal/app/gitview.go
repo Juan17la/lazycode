@@ -10,11 +10,13 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Juan17la/lazycode/internal/buffer"
 	"github.com/Juan17la/lazycode/internal/git"
 	"github.com/Juan17la/lazycode/internal/github"
 	"github.com/gdamore/tcell/v2"
+	"github.com/mattn/go-runewidth"
 )
 
 const (
@@ -76,6 +78,8 @@ type gitState struct {
 	rows    []gitRow
 	sel     int
 	tree    bool // Changes are shown as folders, not a flat list.
+	msg     string // The commit message being typed in the box under the toolbar.
+	typing  bool   // The box has the keyboard.
 	histAt  int  // Where History starts in rows. What's before it is the Changes section.
 	topA    int  // First row showing in Changes, and in History.
 	topB    int
@@ -290,6 +294,16 @@ func (a *app) refreshGit(force bool, after func()) {
 	}()
 }
 
+func countStaged(st *git.Status) int {
+	n := 0
+	for _, f := range st.Files {
+		if f.Kind == git.Staged {
+			n++
+		}
+	}
+	return n
+}
+
 func countCommits(log []git.Entry) int {
 	n := 0
 	for _, e := range log {
@@ -455,8 +469,10 @@ func (a *app) gitFetch() {
 	a.gitOp("fetch", func(ctx context.Context, root string) (string, error) { return git.Fetch(ctx, root) })
 }
 
+// gitCommit commits with the message in the box. With no message it puts the cursor there instead.
 func (a *app) gitCommit() {
-	st := a.git.st
+	g := &a.git
+	st := g.st
 	if a.gitRoot() == "" {
 		a.message = "This isn't a Git repository yet. Alt+G shows how to make one."
 		return
@@ -469,23 +485,52 @@ func (a *app) gitCommit() {
 			changed++
 		}
 	}
+	msg := strings.TrimSpace(g.msg)
 	switch {
 	case staged == 0 && !st.Merging && changed == 0:
 		a.message = "Nothing to commit."
+	case msg == "":
+		g.typing = true
+		a.message = "Type a commit message, then Enter."
 	case staged == 0 && !st.Merging: // Quick commit: everything changed goes in, as VS Code offers.
-		a.ask1Line(fmt.Sprintf("Nothing is staged. Commit message, to stage all %d and commit:", changed), "", func(msg string) {
-			a.gitOp("commit", func(ctx context.Context, root string) (string, error) {
-				if err := git.Stage(ctx, root, "."); err != nil {
-					return "", err
-				}
-				return git.Commit(ctx, root, msg)
-			})
-		})
+		a.ask(fmt.Sprintf("Nothing is staged. Stage all %d changes and commit?", changed),
+			choice{'y', "Stage all and commit", func() {
+				a.gitOpThen("commit", func(ctx context.Context, root string) (string, error) {
+					if err := git.Stage(ctx, root, "."); err != nil {
+						return "", err
+					}
+					return git.Commit(ctx, root, msg)
+				}, func() { g.msg = "" })
+			}},
+			choice{'c', "Cancel", func() {}})
 	default:
-		a.ask1Line(fmt.Sprintf("Commit message (%d files):", staged), "", func(msg string) {
-			a.gitOp("commit", func(ctx context.Context, root string) (string, error) { return git.Commit(ctx, root, msg) })
-		})
+		a.gitOpThen("commit", func(ctx context.Context, root string) (string, error) { return git.Commit(ctx, root, msg) }, func() { g.msg = "" })
 	}
+}
+
+// typeKey edits the commit message. It reports whether it used the key.
+func (a *app) typeKey(ev *tcell.EventKey) bool {
+	g := &a.git
+	switch ev.Key() {
+	case tcell.KeyEsc:
+		g.typing = false
+	case tcell.KeyEnter:
+		a.gitCommit()
+	case tcell.KeyBackspace, tcell.KeyBackspace2:
+		_, size := utf8.DecodeLastRuneInString(g.msg)
+		g.msg = g.msg[:len(g.msg)-size]
+	case tcell.KeyUp, tcell.KeyDown, tcell.KeyTab, tcell.KeyBacktab:
+		g.typing = false
+		return false // The list takes it from here.
+	case tcell.KeyRune:
+		if ev.Modifiers()&(tcell.ModCtrl|tcell.ModAlt) != 0 {
+			return false
+		}
+		g.msg += string(ev.Rune())
+	default:
+		return false
+	}
+	return true
 }
 
 // stageFiles stages files, or marks conflicted ones resolved. unstageFiles is the other way.
@@ -837,6 +882,9 @@ func (a *app) confirmRepo(name string, private bool) {
 // gitKey gives the Git view its keys, and leaves the rest to the keymap.
 func (a *app) gitKey(ev *tcell.EventKey) bool {
 	g := &a.git
+	if g.typing && a.typeKey(ev) {
+		return true
+	}
 	switch ev.Key() {
 	case tcell.KeyUp:
 		g.move(-1)
@@ -963,29 +1011,56 @@ func (a *app) drawGit(r rect) {
 	}
 	a.put(r.x+1, r.y+1, maxX, a.gitIcon("branch")+" "+line, a.th.accent)
 
-	buttons := func(y int, list ...gitButton) {
-		x := r.x + 1
-		for _, b := range list {
-			start, do := x, b.do
-			x = a.put(x, y, maxX, b.icon+" ", a.th.icon[b.colour])
-			x = a.put(x, y, maxX, b.label, a.th.primary) + 2
-			a.hits = append(a.hits, hit{area: rect{start, y, x - start - 2, 1}, click: func(int, int, tcell.ModMask) { do() }})
-		}
+	x := r.x + 1
+	for _, b := range []gitButton{
+		{a.gitIcon("push"), "Push", "green", a.gitPush},
+		{a.gitIcon("pull"), "Pull", "blue", a.gitPull},
+		{a.gitIcon("fetch"), "Fetch", "cyan", a.gitFetch},
+		{a.gitIcon("branches"), "Branches", "purple", func() { a.gitBranches(false) }},
+		{a.gitIcon("tree"), either(g.tree, "List", "Tree"), "yellow", func() { g.tree = !g.tree; g.rebuild() }},
+	} {
+		start, do := x, b.do
+		x = a.put(x, r.y+2, maxX, b.icon+" ", a.th.icon[b.colour])
+		x = a.put(x, r.y+2, maxX, b.label, a.th.primary) + 2
+		a.hits = append(a.hits, hit{area: rect{start, r.y + 2, x - start - 2, 1}, click: func(int, int, tcell.ModMask) { do() }})
 	}
-	buttons(r.y+2,
-		gitButton{a.gitIcon("push"), "Push", "green", a.gitPush},
-		gitButton{a.gitIcon("pull"), "Pull", "blue", a.gitPull},
-		gitButton{a.gitIcon("fetch"), "Fetch", "cyan", a.gitFetch})
-	buttons(r.y+3,
-		gitButton{a.gitIcon("branches"), "Branches", "purple", func() { a.gitBranches(false) }},
-		gitButton{a.gitIcon("tree"), either(g.tree, "List", "Tree"), "yellow", func() { g.tree = !g.tree; g.rebuild() }})
-	buttons(r.y+4, gitButton{a.gitIcon("commit"), "Commit…", "green", a.gitCommit}, gitButton{a.gitIcon("stage"), "Stage all", "orange", a.stageAll})
+
+	// The message box, and under it the Commit button, as in VS Code.
+	box := rect{r.x + 1, r.y + 3, max(1, r.w-2), 1}
+	focused := !a.tabFocused && a.focusedView() == viewGit
+	boxStyle := tcell.StyleDefault.Background(a.th.bar).Foreground(a.th.fg)
+	for bx := box.x; bx < box.x+box.w; bx++ {
+		a.screen.SetContent(bx, box.y, ' ', nil, boxStyle)
+	}
+	if mfg, _, _ := a.th.muted.Decompose(); g.msg == "" {
+		a.put(box.x+1, box.y, box.x+box.w-1, "Message (Enter to commit on "+shown(st.Branch)+")", boxStyle.Foreground(mfg))
+	} else {
+		a.put(box.x+1, box.y, box.x+box.w-1, shown(g.msg), boxStyle)
+	}
+	if g.typing && focused {
+		a.screen.ShowCursor(min(box.x+1+runewidth.StringWidth(shown(g.msg)), box.x+box.w-2), box.y)
+	}
+	a.hits = append(a.hits, hit{area: box, click: func(int, int, tcell.ModMask) { g.typing, a.tabFocused = true, false }})
+	label := a.gitIcon("commit") + " Commit"
+	if n := countStaged(st); n > 0 {
+		label += fmt.Sprintf(" (%d)", n)
+	}
+	btn := rect{box.x, r.y + 4, box.w, 1}
+	style := a.th.accent.Reverse(true)
+	if strings.TrimSpace(g.msg) == "" {
+		style = a.th.muted.Reverse(true)
+	}
+	for bx := btn.x; bx < btn.x+btn.w; bx++ {
+		a.screen.SetContent(bx, btn.y, ' ', nil, style)
+	}
+	a.put(btn.x+max(0, (btn.w-runewidth.StringWidth(label))/2), btn.y, btn.x+btn.w, label, style)
+	a.hits = append(a.hits, hit{area: btn, click: func(int, int, tcell.ModMask) { a.gitCommit() }})
 
 	footer := g.last
 	if g.busy != "" {
 		footer = g.busy
 	} else if footer == "" {
-		footer = "p l f push pull fetch, c commit, s u a stage, t tree"
+		footer = "c write message, p l f push pull fetch, s u a stage, t tree"
 	}
 	a.put(r.x+1, r.y+r.h-1, maxX, footer, a.th.muted)
 
@@ -1000,7 +1075,6 @@ func (a *app) drawGit(r rect) {
 		h1 = need
 	}
 	h2 := body - h1 - 1 // The row between is History's name.
-	focused := !a.tabFocused && a.focusedView() == viewGit
 	a.drawGitRows(0, g.histAt, &g.topA, rect{r.x, y0, r.w, h1}, focused)
 	a.fillLine(rect{r.x, y0 + h1, r.w, 1}, a.th.muted)
 	a.put(r.x+1, y0+h1, maxX, " History ", a.th.accent)
