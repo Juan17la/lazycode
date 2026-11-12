@@ -47,7 +47,7 @@ LazyCode opens on the current folder. To go to another one, use File > Open Fold
 
 `:term` opens your shell in a tab, and `:term claude` runs a command, here an AI tool. Inside a terminal tab every key goes to the tool, except Ctrl+Space, which takes you back out (and in again), Alt+Q, which closes the tab, and Alt+P and Alt+D, which switch project and folder.
 
-Alt+A shows AI sessions: Enter goes to one or resumes it, N starts a new one, R renames it. An idle session stops after 30 minutes to free memory, and resumes the same chat when you select it. Alt+E goes back to the files. When the tool changes a file you have open, it updates on screen, and changed lines are marked. If you have unsaved edits in it, LazyCode never replaces them.
+Alt+A is AI mode: the sessions of every project, grouped by project and folder, beside the tool you used last. Press it again, even inside the tool, to go back to the editor. In the tree, Enter goes to a session or resumes it, N starts a new one, F2 renames it, and Alt+, and Alt+. go through them. An idle session stops after 30 minutes to free memory, and resumes the same chat when you select it. Alt+E goes back to the files. When the tool changes a file you have open, it updates on screen, and changed lines are marked. If you have unsaved edits in it, LazyCode never replaces them.
 
 ## Running your project
 

@@ -50,18 +50,23 @@ func (a *app) draw() {
 	a.floating = a.floating[:0]
 	a.drawMenuBar(w)
 
-	first, second, _ := a.regions()
-	a.drawPanel(st, 0, first)
-	a.drawPanel(st, 1, second)
+	a.aiSync()
+	if a.aiMode {
+		a.drawAIMode(st)
+	} else {
+		first, second, _ := a.regions()
+		a.drawPanel(st, 0, first)
+		a.drawPanel(st, 1, second)
 
-	dividers := a.layout(st)
-	a.resizeTabs(st)
-	for _, p := range a.shownPanes(st) {
-		a.drawPane(st, p)
-	}
-	for _, d := range dividers {
-		a.fillBorder(d.r, a.dividerStyle(st, d.r))
-		a.hits = append(a.hits, hit{area: d.r, click: func(int, int, tcell.ModMask) {}, drag: d.drag})
+		dividers := a.layout(st)
+		a.resizeTabs(st)
+		for _, p := range a.shownPanes(st) {
+			a.drawPane(st, p)
+		}
+		for _, d := range dividers {
+			a.fillBorder(d.r, a.dividerStyle(st, d.r))
+			a.hits = append(a.hits, hit{area: d.r, click: func(int, int, tcell.ModMask) {}, drag: d.drag})
+		}
 	}
 	a.hits = append(a.hits, a.deferred...)
 	a.deferred = a.deferred[:0]
@@ -765,7 +770,7 @@ func (a *app) drawStatusBar(it *tabItem, w, y int) {
 	case a.focusedView() == viewSearch:
 		hints = "Enter open   Tab next field   Esc back"
 	case a.focusedView() == viewAI:
-		hints = "Enter open   n new   F2 rename   Del hide"
+		hints = "Enter open   n new   F2 rename   Del hide   " + a.hints("ai.mode", either(a.aiMode, "editor", "AI mode"))
 	default:
 		hints = "Enter open   Tab go to editor   : commands   " + a.hints("app.menu", "menu", "project.switch", "projects", "directory.switch", "folders", "view.terminal", "terminal", "app.shortcuts", "keys")
 	}

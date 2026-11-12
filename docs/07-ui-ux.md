@@ -177,7 +177,8 @@ LazyCode runs in the user's terminal, which receives keys first (Q-50). The defa
 |---|---|---|
 | Esc, then `:` | Open the command bar | Decided |
 | Alt+, and Alt+. | Previous and next tab | Decided (Q-80) |
-| Alt+E, G, F, A, T | Show Explorer, Git, Find in directory, AI sessions, the terminal dock | Decided (D-44) |
+| Alt+E, G, F, T | Show Explorer, Git, Find in directory, the terminal dock | Decided (D-44) |
+| Alt+A | AI mode, in and out: the AI tree and the shown tool fill the window. Works inside terminal tabs. In AI mode, Alt+, and Alt+. go through the sessions. | Decided (D-46), replacing Show AI sessions, which is `:sessions` |
 | Alt+P, Alt+D, Alt+R | Projects, directories, run. Alt+P and Alt+D also work inside terminal tabs, start on the one before this, and take 1–9 or the same key again. | Decided (D-44, D-45), replacing Alt+O and Alt+P for run |
 | Alt+M or F10, Alt+S, Alt+K or F1, Alt+X, Alt+Z | Menus, settings, shortcuts, command bar, word wrap | Decided (D-44) |
 | Alt+Shift+P, F, T, A, S, B | New project, add a folder, new terminal, new AI session, split right, split below | Decided (D-44) |

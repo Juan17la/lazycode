@@ -3,7 +3,6 @@ package app
 import (
 	"runtime/debug"
 	"slices"
-	"time"
 
 	"github.com/Juan17la/lazycode/internal/editor"
 	"github.com/gdamore/tcell/v2"
@@ -146,6 +145,12 @@ func (a *app) regions() (first, second, tabs rect) {
 		return first, second, tabs
 	}
 	width := a.panelWidth(w)
+	if a.aiMode { // The tree on the left, the tool in the rest.
+		first = rect{0, 1, min(width, w/2), tabs.h}
+		tabs.x = first.w + 1
+		tabs.w -= first.w + 1
+		return first, second, tabs
+	}
 	onLeft := a.cfg.UI.Sidebar != "right"
 	first = rect{0, 1, width, tabs.h}
 	if !onLeft {
@@ -330,15 +335,8 @@ func holdsFile(p *pane, it *tabItem) bool {
 // other directories catch up when they're next shown.
 func (a *app) resizeTabs(st *dirState) {
 	for _, p := range a.shownPanes(st) {
-		size := p.content()
 		for _, it := range p.tabs {
-			if it.term != nil && (it.w != size.w || it.h != size.h) {
-				it.term.Resize(size.w, size.h)
-				it.w, it.h = size.w, size.h
-				if it.sess != nil { // A tool redraws when resized, which isn't it working.
-					it.sess.ignoreUntil = time.Now().Add(resizeNoise)
-				}
-			}
+			a.fitTerm(it, p.content())
 		}
 	}
 }
@@ -512,6 +510,9 @@ func (a *app) viewIn(panel int) string {
 
 // focusedView returns the view that keys go to when a tab hasn't got them.
 func (a *app) focusedView() string {
+	if a.aiMode {
+		return viewAI
+	}
 	if view := a.viewIn(a.focusPanel); view != "" {
 		return view
 	}
@@ -520,11 +521,15 @@ func (a *app) focusedView() string {
 
 // showView brings a view to the front of its panel, opening the panel if needed, and focuses it.
 func (a *app) showView(view string) {
+	a.aiMode = false
 	panel := a.panelOf[view]
 	a.onTop[panel] = view
 	a.focusPanel = panel
 	a.tabFocused = false
 	a.closeFind()
+	if view == viewAI {
+		a.selectASession()
+	}
 	if panel == 1 {
 		a.showSecond = true
 	}

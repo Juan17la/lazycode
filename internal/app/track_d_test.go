@@ -84,7 +84,7 @@ command = %q
 func (u *ui) startFake() {
 	u.t.Helper()
 	u.key(tcell.KeyCtrlBackslash)
-	u.alt('a')
+	u.run("sessions")
 	u.press("n")
 	u.wait("Start a session")
 	u.press("Fake")
@@ -101,7 +101,7 @@ func (u *ui) sendLine(text string) {
 
 func TestStartingASession(t *testing.T) {
 	u := withTool(t, "stay", nil)
-	u.alt('a')
+	u.run("sessions")
 	u.wait("No sessions yet")
 	u.press("n")
 	u.wait("Start a session")
@@ -118,7 +118,7 @@ func TestStartingASession(t *testing.T) {
 
 	// Several of one tool are fine (FR-5.5).
 	u.key(tcell.KeyCtrlBackslash)
-	u.alt('a')
+	u.run("sessions")
 	u.press("n")
 	u.press("Fake")
 	u.key(tcell.KeyEnter)
@@ -141,7 +141,7 @@ func TestMissingToolIsMarkedAndSaysSo(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
 	t.Setenv("LocalAppData", filepath.Join(root, "cache"))
 	u := prepared(t, dir, map[string]string{"config.toml": "[[harness]]\nname = \"Ghost\"\ncommand = \"lazycode-no-such-tool\"\n"})
-	u.alt('a')
+	u.run("sessions")
 	u.press("n")
 	u.wait("Ghost  (not installed)")
 	u.press("Ghost")
@@ -154,7 +154,7 @@ func TestRenameAndHide(t *testing.T) {
 	u := withTool(t, "stay", nil)
 	u.startFake()
 	u.key(tcell.KeyCtrlBackslash)
-	u.alt('a')
+	u.run("sessions")
 	u.wait("Fake 1")
 	u.key(tcell.KeyF2)
 	u.wait("Rename to: Fake 1")
@@ -180,7 +180,7 @@ func TestClosingAndResumingASession(t *testing.T) {
 	u.key(tcell.KeyCtrlBackslash)
 	u.key(tcell.KeyCtrlW) // Stops the tool, and the entry stays.
 	u.waitGone("tool args")
-	u.alt('a')
+	u.run("sessions")
 	u.wait("○ Fake 1")
 	u.key(tcell.KeyEnter) // The same chat comes back (FR-5.8).
 	u.wait("tool args: --resume " + id)
@@ -198,7 +198,7 @@ func TestSessionsComeBackAfterQuitting(t *testing.T) {
 	u.quit()
 
 	later := launch(t, u.dir)
-	later.alt('a')
+	later.run("sessions")
 	later.wait("○ Fake 1") // Sleeping, as the doc says.
 	later.key(tcell.KeyEnter)
 	later.wait("tool args: --resume " + id)
@@ -223,14 +223,14 @@ func TestQuitWarnsAboutBusySessions(t *testing.T) {
 
 func TestToolWithoutResumeStartsAfresh(t *testing.T) {
 	u := withTool(t, "stay", nil)
-	u.alt('a')
+	u.run("sessions")
 	u.press("n")
 	u.press("Plain")
 	u.key(tcell.KeyEnter)
 	u.wait("tool args:")
 	u.key(tcell.KeyCtrlBackslash)
 	u.key(tcell.KeyCtrlW)
-	u.alt('a')
+	u.run("sessions")
 	u.wait("○ Plain 1")
 	u.key(tcell.KeyEnter) // A new session (FR-5.13).
 	u.wait("tool args:")
@@ -242,7 +242,7 @@ func TestFailedResumeSaysSo(t *testing.T) {
 	u.startFake()
 	u.key(tcell.KeyCtrlBackslash)
 	u.key(tcell.KeyCtrlW)
-	u.alt('a')
+	u.run("sessions")
 	u.wait("○ Fake 1")
 	u.key(tcell.KeyEnter)
 	u.wait("no such session") // The tool's error stays on screen.
@@ -255,12 +255,12 @@ func TestExitedSessionKeepsItsTabThenSleeps(t *testing.T) {
 	u.startFake()
 	u.wait("[exit 9]")
 	u.wait("exited with code 9")
-	u.alt('a')
+	u.run("sessions")
 	u.wait("✗ Fake 1")
 	u.alt('e')
 	u.key(tcell.KeyCtrlW)
 	u.wait("No tabs here.")
-	u.alt('a')
+	u.run("sessions")
 	u.wait("○ Fake 1")
 }
 
@@ -271,23 +271,23 @@ func TestShellsAreListedAndGoWithTheirTab(t *testing.T) {
 	u.wait("tool args:")
 	name := strings.TrimSuffix(filepath.Base(tool), filepath.Ext(tool))
 	u.key(tcell.KeyCtrlBackslash)
-	u.alt('a')
+	u.run("sessions")
 	u.wait("❯ " + name)
 	u.alt('e')
 	u.key(tcell.KeyCtrlW)
-	u.alt('a')
+	u.run("sessions")
 	u.wait("No sessions yet")
 }
 
 func TestViewsInPanels(t *testing.T) {
 	u := withTool(t, "stay", map[string]string{"a.txt": "x"})
 	u.wait("a.txt")
-	u.alt('a')
+	u.run("sessions")
 	u.wait("No sessions yet")
 	u.waitGone("a.txt")
 	u.clickOn("▤") // A click on an icon brings the view forward.
 	u.wait("a.txt")
-	u.alt('a')
+	u.run("sessions")
 	u.wait("No sessions yet")
 	u.alt('e')
 	u.wait("a.txt")
@@ -295,13 +295,13 @@ func TestViewsInPanels(t *testing.T) {
 	// With a window wide enough, the AI view can have its own panel, beside Files.
 	u.screen.SetSize(120, 30)
 	u.post(tcell.NewEventResize(120, 30))
-	u.alt('a')
+	u.run("sessions")
 	u.run("view")
 	u.wait("a.txt")
 	u.wait("No sessions yet")
 	u.key(tcell.KeyCtrlB) // Closing the panel can't lose it.
 	u.wait("Files")
-	u.alt('a')
+	u.run("sessions")
 	u.wait("No sessions yet")
 }
 

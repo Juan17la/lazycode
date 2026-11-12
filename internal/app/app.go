@@ -88,6 +88,7 @@ type app struct {
 	storeApp   storeState
 
 	tabFocused  bool
+	aiMode      bool // Alt+A: the AI tree and one tool fill the window, in place of the editor.
 	chord       bool // Ctrl+K was pressed, and the next key finishes it.
 	escaped     bool // Esc was pressed in a file, so : opens the command bar next.
 	pasting     bool // Between the two bracketed paste events.
@@ -431,6 +432,7 @@ func (a *app) addPaste(ev *tcell.EventKey) {
 
 func (a *app) handleKey(ev *tcell.EventKey) {
 	a.message = ""
+	a.aiSync()
 	a.termSel = termSelection{}
 	if len(a.prompts) > 0 { // Asked before anything else, so no answer gets skipped.
 		a.handlePromptKey(ev)
@@ -449,8 +451,8 @@ func (a *app) handleKey(ev *tcell.EventKey) {
 		return
 	}
 	toggle := keymap.Name(ev) == keymap.Toggle
-	if toggle && !a.tabFocused && a.tab() != nil && a.switcher == nil && a.command == nil && a.find == nil && a.input == nil && a.review == nil {
-		a.focusTab() // Ctrl+Space again goes back in: it works from one hand, both ways.
+	if toggle && !a.tabFocused && a.agentTab() != nil && a.switcher == nil && a.command == nil && a.find == nil && a.input == nil && a.review == nil {
+		a.enterTab() // Ctrl+Space again goes back in: it works from one hand, both ways.
 		return
 	}
 	if term.IsLeaveKey(ev) || toggle { // Q-74: the keys a terminal tab never receives.
@@ -485,7 +487,8 @@ func (a *app) handleKey(ev *tcell.EventKey) {
 	if a.tabFocused && it.term != nil {
 		// Alt+ only, because the shell needs Ctrl+W for itself.
 		if name := keymap.Name(ev); strings.HasPrefix(name, "alt+") {
-			if action := a.keys.Lookup(keymap.Global, name); slices.Contains(keymap.FromTerminal, action) {
+			action := a.keys.Lookup(keymap.Global, name)
+			if slices.Contains(keymap.FromTerminal, action) || a.aiMode && (action == "tab.previous" || action == "tab.next") {
 				a.do(action)
 				return
 			}
@@ -579,6 +582,10 @@ func (a *app) run(line string) {
 		a.playCommand(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), fields[0])))
 	case "session":
 		a.sessionCommand(fields[1:])
+	case "ai":
+		a.toggleAIMode()
+	case "sessions":
+		a.do("view.sessions")
 	case "update":
 		a.updateCommand()
 	case "w", "save":
@@ -678,7 +685,7 @@ func (a *app) run(line string) {
 		if a.runPlugin(fields[0]) {
 			return
 		}
-		a.message = "Unknown command: " + fields[0] + ". Try save, new, term, dock, wrap, settings, appearance, themes, plugins, shortcuts, onboard, menu, split, move, find, definition, rename, format, search, git, push, pull, fetch, repo, config, theme, plugin, store, project, dir, tree, close, update, or q."
+		a.message = "Unknown command: " + fields[0] + ". Try save, new, term, ai, sessions, dock, wrap, settings, appearance, themes, plugins, shortcuts, onboard, menu, split, move, find, definition, rename, format, search, git, push, pull, fetch, repo, config, theme, plugin, store, project, dir, tree, close, update, or q."
 	}
 }
 

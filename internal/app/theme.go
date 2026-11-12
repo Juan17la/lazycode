@@ -142,7 +142,10 @@ func (a *app) paintBackground(st *dirState, w, h int) {
 		return
 	}
 	first, second, _ := a.regions()
-	panes := a.shownPanes(st)
+	var panes []*pane
+	if !a.aiMode { // Their areas are from the editor's last frame.
+		panes = a.shownPanes(st)
+	}
 	for y := range h {
 		for x := 0; x < w; x++ {
 			text, style, width := a.screen.Get(x, y)

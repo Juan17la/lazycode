@@ -25,7 +25,8 @@ The keys come in families, so that most can be guessed: **Ctrl+Space** goes in a
 | Next area: panels, splits, the dock | Alt+W, Alt+Tab | |
 | Open or close the second panel | Ctrl+B | |
 | Show the files | Alt+E | |
-| Show AI sessions | Alt+A | `:session` |
+| AI mode, in and out | Alt+A, also inside a tool | `:ai` |
+| Show AI sessions in the panel | | `:sessions` |
 | Show or hide the terminal dock | Alt+T | `:dock` |
 | New terminal, new AI session | Alt+Shift+T, Alt+Shift+A | `:term`, `:session` |
 | Search this directory | Alt+F | `:search` |
@@ -162,7 +163,7 @@ Key names are lower case, joined with `+`: `ctrl+`, `alt+`, `shift+`, then the k
 | Files and find | `file.save`, `file.open_by_name`, `find.open`, `find.replace` |
 | Language servers | `lsp.definition`, `lsp.rename`, `lsp.format` |
 | Tabs and splits | `tab.previous`, `.next`, `.close`, `.enter`, `split.right`, `split.next` |
-| Running and sessions | `run.play`, `view.sessions`, `view.files`, `view.search`, `view.git`, `session.new`, `session.hide` |
+| Running and sessions | `run.play`, `ai.mode`, `view.sessions`, `view.files`, `view.search`, `view.git`, `session.new`, `session.hide` |
 | Panels and tree | `panel.toggle_second`, `view.move`, `tree.up`, `.down`, `.open`, `.close`, `.select`, `.refresh` |
 | Switching | `project.switch`, `directory.switch`, `command.open` |
 
