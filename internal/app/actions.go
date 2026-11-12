@@ -11,12 +11,18 @@ import (
 // do runs an action from the keymap. Every name here is listed in keymap's defaults, and
 // a test checks that each one is handled.
 func (a *app) do(action string) bool {
+	a.aiSync()
+	if a.aiMode && a.doInAIMode(action) {
+		return true
+	}
 	if !a.tabFocused && a.focusedView() == viewAI && a.doInSessionsView(action) {
 		return true
 	}
 	switch action {
 	case "run.play":
 		a.playCommand("")
+	case "ai.mode":
+		a.toggleAIMode()
 	case "view.sessions":
 		a.showView(viewAI)
 	case "view.files":

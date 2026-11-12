@@ -41,7 +41,7 @@ func IsReserved(key string) bool { return key == Reserved || key == Toggle }
 
 // FromTerminal are the actions that work inside a terminal or AI tab, because switching should never
 // need a key to leave first. Everything else goes to the tool there.
-var FromTerminal = []string{"tab.close", "focus.next", "project.switch", "directory.switch", "view.move"}
+var FromTerminal = []string{"tab.close", "focus.next", "project.switch", "directory.switch", "view.move", "ai.mode"}
 
 // Template is what a new keys.toml starts with.
 const Template = `# Change a key by giving it an action, or turn one off with "none". For example:
@@ -72,7 +72,7 @@ const Template = `# Change a key by giving it an action, or turn one off with "n
 // Terminal keeps those for its own panes (doc 07).
 var defaults = map[Context]map[string]string{
 	Global: {
-		"alt+e": "view.files", "alt+g": "view.git", "alt+f": "view.search", "alt+a": "view.sessions", "alt+t": "view.terminal",
+		"alt+e": "view.files", "alt+g": "view.git", "alt+f": "view.search", "alt+a": "ai.mode", "alt+t": "view.terminal",
 		"alt+p": "project.switch", "alt+d": "directory.switch", "alt+r": "run.play",
 		"alt+m": "app.menu", "alt+s": "app.settings", "alt+k": "app.shortcuts", "alt+x": "command.open", "alt+z": "view.wrap",
 		"alt+shift+p": "project.new", "alt+shift+f": "directory.add", "alt+shift+t": "terminal.new", "alt+shift+a": "session.new",
@@ -129,7 +129,7 @@ var Catalog = []Entry{
 	{"Show", "view.files", "Files"},
 	{"Show", "view.git", "Git"},
 	{"Show", "view.search", "Find in this folder"},
-	{"Show", "view.sessions", "AI sessions"},
+	{"Show", "ai.mode", "AI mode, in and out"},
 	{"Show", "view.terminal", "Terminal dock, show or hide"},
 	{"Show", "panel.toggle_second", "Second panel, open or close"},
 	{"Show", "view.wrap", "Word wrap, on or off"},

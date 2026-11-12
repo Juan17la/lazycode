@@ -19,7 +19,7 @@ func TestDeletedSessionsStayDeleted(t *testing.T) {
 
 	u.startFake()
 	u.key(tcell.KeyCtrlBackslash)
-	u.alt('a')
+	u.run("sessions")
 	u.wait("Fake 1")
 	u.key(tcell.KeyDelete)
 	u.wait("No sessions yet")

@@ -8,6 +8,7 @@ The first release, v0.1.0, will contain:
 
 ### Added
 
+- AI mode: Alt+A, even from inside a tool, swaps the editor for every session grouped by project and folder, beside the tool you used last. Alt+A again goes back. Alt+, and Alt+. go through the sessions. The panel's AI view groups them the same way, and is `:sessions`.
 - Switching is a key away from anywhere. Ctrl+Space goes out of a tab and back in (Ctrl+\\ still leaves), and Alt+P, Alt+D, Alt+W and Alt+V work inside terminal and AI tabs. The project and folder lists open on the previous one, so Alt+P then Enter goes back, 1–9 pick, the same key again moves down, and Esc closes in one press.
 - A Project menu in the menu bar, and F2 to rename a file in Files or a session in AI. N in Files makes a file. `:move` moves a terminal between the editor area and the dock.
 - Alt+Tab moves focus between areas. Projects and AI sessions can be deleted, and panel tabs show their names.

@@ -61,7 +61,8 @@ path = "~/code/microservice-facebook-auth"
 | Split right, split below (or `:split`, `:split down`) | Alt+Shift+S, Alt+Shift+B | Ctrl+K then Shift+S, Shift+B |
 | Move to the next area: panels, splits and the dock | Alt+W or Alt+Tab, also inside a terminal | Ctrl+K then W |
 | Open or close the second panel | Ctrl+B | Ctrl+B |
-| Show the files, or AI sessions | Alt+E, Alt+A | Ctrl+K then E, A |
+| Show the files (or `:sessions` for AI sessions in the panel) | Alt+E | Ctrl+K then E |
+| AI mode, in and out (or `:ai`): every session by project and folder, beside the tool you used last | Alt+A, also inside a terminal | Ctrl+K then A |
 | Show or hide the terminal dock (or `:dock`) | Alt+T | Ctrl+K then T |
 | New terminal, new AI session | Alt+Shift+T, Alt+Shift+A | Ctrl+K then Shift+T, Shift+A |
 | Search this directory (or `:search`) | Alt+F | Ctrl+K then F |
@@ -76,7 +77,7 @@ path = "~/code/microservice-facebook-auth"
 | Reload the file tree | R | R |
 | Close the current tab (or `:close`) | Ctrl+W | Ctrl+W |
 
-Inside a terminal tab, every key goes to the tool except Ctrl+Space and Ctrl+\\ (leave), and the Alt keys for closing the tab, switching project or folder, moving between areas and moving the tab (Alt+Q, Alt+P, Alt+D, Alt+W, Alt+V).
+Inside a terminal tab, every key goes to the tool except Ctrl+Space and Ctrl+\\ (leave), and the Alt keys for closing the tab, switching project or folder, moving between areas, moving the tab and AI mode (Alt+Q, Alt+P, Alt+D, Alt+W, Alt+V, Alt+A).
 
 The mouse works too: click files, tabs, cursor positions and question answers, and scroll with the wheel. LazyCode takes the mouse to do this, so hold Shift to select text the terminal's own way.
 
@@ -156,7 +157,7 @@ The actions:
 | Files and find | `file.save`, `file.open_by_name`, `find.open`, `find.replace` |
 | Language servers | `lsp.definition`, `lsp.rename`, `lsp.format` |
 | Tabs and splits | `tab.previous`, `.next`, `.close`, `.enter`, `split.right`, `split.next` |
-| Running and sessions | `run.play`, `view.sessions`, `view.files`, `view.search`, `view.git`, `session.new`, `session.hide` |
+| Running and sessions | `run.play`, `ai.mode`, `view.sessions`, `view.files`, `view.search`, `view.git`, `session.new`, `session.hide` |
 | Panels and tree | `panel.toggle_second`, `view.move`, `tree.up`, `.down`, `.open`, `.close`, `.select`, `.refresh` |
 | Switching | `project.switch`, `directory.switch`, `command.open` |
 

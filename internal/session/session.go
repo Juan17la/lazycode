@@ -81,11 +81,13 @@ func NewID() (string, error) {
 
 // Session is what's saved about one. Removing a session only hides it (Q-60).
 type Session struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Harness string `json:"harness"`
-	Dir     string `json:"directory"`
-	Hidden  bool   `json:"hidden,omitempty"`
+	ID      string    `json:"id"`
+	Name    string    `json:"name"`
+	Harness string    `json:"harness"`
+	Dir     string    `json:"directory"`
+	Hidden  bool      `json:"hidden,omitempty"`
+	Created time.Time `json:"created,omitzero"` // Orders the AI tree, newest first.
+	Used    time.Time `json:"used,omitzero"`    // AI mode comes back to the last one used.
 }
 
 // Status is what a session is doing (doc 10).

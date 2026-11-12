@@ -149,7 +149,9 @@ Testing with each default tool is needed before promising more than this.
 
 ## Sessions and directories
 
-A session's tab belongs to the directory it started in (Q-62). The sessions panel shows all of the project's sessions, in any directory. **Proposed:** Selecting one in another directory switches there first.
+A session's tab belongs to the directory it started in (Q-62). **Decided (D-46):** the AI tree shows every project's sessions, grouped by project and then by the folder the tool was opened in, newest first. A project with one folder skips the folder heading, and a folder in no project goes under Other folders. Selecting a session in another project or folder switches there first.
+
+**AI mode (D-46):** Alt+A swaps the editor for the AI tree and the shown tool, and back. It returns to the session used last, focused and ready to type. A sleeping one is shown, and Enter resumes it. The tool's tab still belongs to its folder's dock, so it's sized for AI mode while shown there, and goes back to the dock's size on leaving.
 
 ## Watching AI changes
 

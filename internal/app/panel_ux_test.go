@@ -29,7 +29,7 @@ func TestSessionRowXDeletesIt(t *testing.T) {
 	u := withTool(t, "stay", nil)
 	u.startFake()
 	u.key(tcell.KeyCtrlBackslash)
-	u.alt('a')
+	u.run("sessions")
 	_, y := u.find("✻ Fake 1")
 	u.click(u.dividerAt(y)-2, y) // The × at the end of the row.
 	u.wait("No sessions yet")
