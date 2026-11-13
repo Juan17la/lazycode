@@ -14,23 +14,27 @@
 
 These are configured by default, but they aren't bundled. **The user installs them** from onboarding or the store (Q-29). Onboarding shows the exact command, and runs it after confirmation (Q-68). If the tool it needs, such as Node or Go, is missing, LazyCode says so.
 
-**Highlighting (Q-69):** The official tree-sitter C binding, with grammars for these four languages built in. Files over about 1 MB aren't highlighted.
+**Highlighting (Q-69):** The official tree-sitter C binding, with grammars for these four languages and for Rust, C, JSON, shell, HTML and CSS built in. Files over about 1 MB aren't highlighted.
 
 ## Adding a language
 
-**Proposed:** A language needs only a small TOML file, and no code. This meets your original "easy" requirement, and contributors can add one without knowing Lua.
+A language pack is a plugin folder with a small `language.toml` as well, so it goes through the same consent prompt and store review. Built-in languages can't be replaced, and its server starts under the same folder trust as the others.
 
 ```toml
 name = "rust"
 extensions = ["rs"]
-comment = "//"
-indent = 4
 
 [server]
 command = "rust-analyzer"
+args = []
+markers = ["Cargo.toml"]
+
+[[highlight]]               # Optional, as many as 64. The leftmost match wins.
+class = "keyword"
+pattern = '\b(fn|let|match)\b'
 ```
 
-**Open technical point:** Tree-sitter grammars are compiled C, so a language pack can't simply add one as text. Options are shared libraries built per OS, or building more grammars into LazyCode. This needs a decision before the store (M6), and doesn't affect the first version.
+**Decided (2026-11-05):** Built-in grammars for common languages, and regular expression rules for packs. A pack stays text that a reviewer can read, whereas compiled grammars couldn't be reviewed and would have the user's full power. Rules are less exact than a parser, because they don't understand nesting. Go's `regexp` runs in linear time, and files over 1 MB aren't coloured, so a poor pattern can't hang the editor, and matching runs off the UI goroutine.
 
 ## Plugin model
 
@@ -81,6 +85,12 @@ buf:replace(start_pos, end_pos, "new text")
 buf:path()
 ```
 
+Positions work like Lua's `string.sub`: bytes from 1, with the end included. `buf:text()` is the whole file, `buf:len()` its size, and `buf:replace(5, 4, "x")` inserts before byte 5.
+
+`buffer_save` runs just before the file is written, so what a plugin changes is saved too. `buffer_open` runs when a file is opened from the tree, not for tabs restored at start. A plugin's command never replaces a built-in one, and the user's key bindings come before a plugin's.
+
+The time limit is checked between Lua instructions, so a blocking call such as `os.execute("sleep 9")` still holds up the editor.
+
 Panels, custom UI and access to running sessions: later, on demand.
 
 ## Consent
@@ -102,13 +112,13 @@ Panels, custom UI and access to running sessions: later, on demand.
 
 **The description is written by the plugin's author, and LazyCode can't check it.** That's why the warning line is always shown. There's no sandbox, so plugins get Lua's normal `os` and `io` libraries.
 
-**Proposed:** Store plugins go through the same prompt, and acceptance is remembered per plugin and version. An update asks again, because the code changed.
+Store plugins go through the same prompt, and the answer is remembered per plugin and version in `plugins.toml`. A new version asks again, because the code changed. Plugins only load from `plugins/` in the config folder, so opening a project can never run a plugin of its own.
 
 ## Distribution
 
 **Decided (Q-06, Q-31, Q-67):** A store with plugins and language support from contributors. The store only shows plugins accepted through its Git repository. Local plugins work without submission, and aren't listed.
 
-**Proposed flow:**
+**Flow:** the repository's starting files are in [store-template](../store-template), and `:store` browses and installs.
 
 ```text
 Author's repo ──► pull request to lazycode-store (adds an index entry)
@@ -122,10 +132,14 @@ An index entry pins an exact commit:
 
 ```toml
 name = "my-plugin"
+version = "1.0.0"
+description = "Trims trailing spaces on save"
 repository = "https://github.com/author/my-plugin"
 commit = "<full commit hash>"
 checksum = "<hash>"
 ```
+
+`checksum` is a SHA-256 over each file's path, size and content, from `storecheck checksum`. It doesn't hash the archive, because GitHub doesn't promise to keep an archive's bytes the same. The download must match it, and the plugin's name and version must match the entry, before the consent prompt appears. Archives may only hold plain files, inside their own folder.
 
 Pinning matters: without it, a plugin could change after being reviewed. Each update is a new pull request.
 
@@ -137,4 +151,4 @@ Pinning matters: without it, a plugin could change after being reviewed. Each up
 
 ## Plugin author guide
 
-TBD, written once the API is implemented. It will cover a tutorial, API reference, testing and submitting to the store.
+See [guide/plugins.md](guide/plugins.md), with working examples in [examples/plugins](../examples/plugins).

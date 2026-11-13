@@ -8,11 +8,12 @@
 
 | Threat | Example | Defence |
 |---|---|---|
-| Malicious repository | A cloned repo makes a language server run its code | Trust prompt, untrusted directories run nothing |
+| Malicious repository | A cloned repo makes a language server run its code | Not prevented: language servers start only on request, and nothing asks first (P-64) |
 | Malicious plugin | A plugin reads SSH keys | Store review, pinned commits, and consent before adding (Q-67). There's no sandbox. |
 | Tampered update | A bad release reaches users | Checksums, GitHub releases only. Releases are unsigned (Q-71). |
 | Install command misuse | A language tool's install runs the wrong thing | Show the exact command, and run it only after confirmation (Q-68) |
 | Plugin changes after review | Author pushes bad code | Store pins an exact commit and checksum |
+| Malicious file contents | Escape sequences or bidirectional controls in a file affect the terminal, or hide what code really does | The editor draws them as `?`, and tests check that none reach the screen |
 | Malicious terminal output | Escape sequences set the clipboard or move text | Emulator filters them, never passes them to the user's terminal |
 | Command injection | A file name containing `; rm -rf` | Pass argument lists, never build shell strings |
 | Tampered download | Modified release | Published checksums, verified by the install script |
@@ -22,21 +23,9 @@
 
 ## Trusting directories
 
-**Decided (Q-45):** Ask before trusting, as other editors do.
+**Decided (Q-45, replaced by P-64):** LazyCode doesn't ask. Running `:play`, an AI session, a language server or a Git operation in any folder just runs it, so opening a repository you don't trust and using those features can run its code. Language servers still start only when F12, F2 or format is pressed (P-48).
 
-**Why it still matters:** All LazyCode config is local (Q-38), so a repo can't change shortcuts or commands directly. However, language servers and build tools can run code from the project, for example through project config files that those tools read.
-
-**Proposed:**
-
-| Directory | Editing, search, git history | Language servers | `:play` | AI sessions |
-|---|---|---|---|---|
-| Not trusted | Yes | No | Asks first | Asks first |
-| Trusted | Yes | Yes | Yes | Yes |
-
-- Asked when a directory is added, or first opened.
-- Trust is stored locally, by directory path.
-- Trust can be removed with a command.
-- Git operations can also run hooks. **Proposed:** LazyCode's automatic background operations are read-only, and user-pressed operations such as push are only available after trust.
+- Git operations can also run hooks. LazyCode's automatic background operations are read-only, and turn off the programs a repository can name: `core.fsmonitor`, `log.showSignature`, external diffs, text conversion, and filters through an empty attribute source on Git 2.40 or newer. A test proves `core.fsmonitor` doesn't run. `log.showSignature` is turned off from Git's documentation, without a test of its own, and the filter setting's effect couldn't be shown either way.
 
 ## Credentials and tokens
 
@@ -87,6 +76,8 @@ AI tools manage their own logins.
 | `git`, `gh` | User's operation |
 | AI tools | Their own, and outside LazyCode's control |
 | Update check | **The one automatic connection.** To GitHub's latest release, at most once a day at startup (Q-79). GitHub sees the IP address, and no other data is sent. A setting turns it off. |
+
+`scripts/privacy-check.sh` lists what can connect or start a program. Only `internal/update`, and `internal/store` when the user runs `:store`, make a connection themselves. Without being asked, LazyCode also starts two local programs: `git`, for modified-line markers, and `ps`, for session activity on Linux and macOS.
 
 Local logs are for debugging only. They contain no file contents, and rotate at a limited size. User counts can only come from public data such as release downloads.
 

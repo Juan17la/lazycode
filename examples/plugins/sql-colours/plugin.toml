@@ -1,0 +1,5 @@
+name = "sql-colours"
+version = "1.0.0"
+api_version = 1
+description = "Colours SQL"
+does = "Colours .sql files. It runs no code of its own."

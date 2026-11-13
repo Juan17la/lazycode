@@ -12,11 +12,22 @@ require (
 	github.com/charmbracelet/x/vt v0.1.0
 	github.com/gdamore/tcell/v2 v2.13.10
 	github.com/mattn/go-runewidth v0.0.31
+	github.com/rivo/uniseg v0.4.7
 	github.com/tree-sitter/go-tree-sitter v0.25.0
 	github.com/tree-sitter/tree-sitter-go v0.25.0
 	github.com/tree-sitter/tree-sitter-javascript v0.25.0
 	github.com/tree-sitter/tree-sitter-python v0.25.0
 	github.com/tree-sitter/tree-sitter-typescript v0.23.2
+)
+
+require (
+	github.com/tree-sitter/tree-sitter-bash v0.25.1
+	github.com/tree-sitter/tree-sitter-c v0.24.2
+	github.com/tree-sitter/tree-sitter-css v0.25.0
+	github.com/tree-sitter/tree-sitter-html v0.23.2
+	github.com/tree-sitter/tree-sitter-json v0.24.8
+	github.com/tree-sitter/tree-sitter-rust v0.24.2
+	github.com/yuin/gopher-lua v1.1.1
 )
 
 require (
@@ -28,11 +39,11 @@ require (
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/creack/pty v1.1.24 // indirect
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gdamore/encoding v1.0.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/mattn/go-pointer v0.0.1 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/u-root/u-root v0.16.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/crypto v0.58.0 // indirect

@@ -97,7 +97,7 @@ Bubble Tea was not chosen: it builds each frame from text, which suits forms bet
 
 **Proposed (Q-53):** The OS's file notifications (`fsnotify`) report changes in the active directory and any directory with an awake session. Changes are combined, then reloaded in the background, and the UI loop applies them to clean buffers. Buffers with unsaved edits are never overwritten.
 
-The piece table makes this cheap, because reloading only needs a new original file and index. Modified-line markers are computed in the background. See [06](06-components.md#watching-ai-changes).
+The piece table makes this cheap, because reloading only needs a new original file. Modified-line markers are computed in the background. See [06](06-components.md#watching-ai-changes).
 
 ## Go-specific rules
 

@@ -1,0 +1,22 @@
+name = "SQL"
+extensions = ["sql"]
+
+[[highlight]]
+class = "comment"
+pattern = '--.*$'
+
+[[highlight]]
+class = "comment"
+pattern = '(?s)/\*.*?\*/'
+
+[[highlight]]
+class = "string"
+pattern = "'(''|[^'])*'"
+
+[[highlight]]
+class = "number"
+pattern = '\b\d+(\.\d+)?\b'
+
+[[highlight]]
+class = "keyword"
+pattern = '(?i)\b(select|from|where|insert|into|values|update|set|delete|create|table|join|left|right|inner|outer|on|group|by|order|having|limit|and|or|not|null|as|in|is)\b'

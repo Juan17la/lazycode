@@ -35,6 +35,8 @@ Shown on first run, and any step can be skipped (Q-16, Q-29).
 
 The screen also says LazyCode checks GitHub for updates, with a setting to turn that off (Q-79). On macOS, it explains the Ctrl+K shortcuts (Q-80).
 
+**Built (P-53, P-54):** Up and Down move, Space changes a row, Enter continues, and Esc skips. It shows while `config.toml` doesn't exist, and either way out creates that file. Each install is confirmed once more, then runs in a terminal tab started in the home folder, so its output can be read.
+
 ## Startup screen
 
 **Proposed:** Recent projects and three actions. No panels until a project is open.
@@ -124,7 +126,9 @@ Colour is never the only signal, because each state has its own shape.
 - Exactly one area has focus, and its border uses the accent colour.
 - A click moves focus (Q-13).
 - Editor areas, panels and the command bar use the keymap.
-- **Terminal tabs get all keys except Ctrl+\** (Q-74). The command bar shows that key while a terminal tab has focus.
+- **Terminal tabs get all keys except the way out and a few Alt keys** (Q-74, D-45). The way out is Ctrl+Space, which also goes back in, or Ctrl+\. The Alt keys that stay with LazyCode are Alt+Q (close the tab), Alt+P and Alt+D (switch project and folder), Alt+W and Alt+Tab (next area) and Alt+V (move the tab). The status line shows the way out while a terminal tab has focus.
+- When a terminal tab's command exits, focus returns to the file tree, so keys don't go to a tool that's gone.
+- Ctrl+Space also moves focus from a file to the file tree, and from the tree back into the tab. Ctrl+\ only leaves. Tab moves into the tab too.
 
 ## Default keymap
 
@@ -136,16 +140,36 @@ LazyCode runs in the user's terminal, which receives keys first (Q-50). The defa
 
 | Command | Short form | Action | Status |
 |---|---|---|---|
+| `:settings`, `:appearance`, `:themes`, `:plugins`, `:shortcuts`, `:onboard`, `:menu` | | Open that menu | Decided (D-44) |
+| `:new`, `:wrap`, `:dock` | | New file, word wrap, show or hide the dock | Decided (D-44) |
+| `:project new`, `:dir add` | | With no name or path, open the form | Decided (D-44) |
 | `:play` | `:p` | Run the directory's command | Decided, short form proposed |
 | `:save` | `:w` | Save | Decided, short form proposed |
 | `:quit` | `:q` | Quit | Decided |
 | `:config` | | Open configuration | Decided |
 | `:project` | | Switch project. A backup for its shortcut. | Decided (Q-74) |
 | `:dir` | | Switch directory. A backup for its shortcut. | Decided (Q-74) |
+| `:project new NAME` | | Make a project holding the current directory | Proposed |
+| `:dir add PATH` | | Add a directory to this project. A relative path starts from the current directory. | Proposed |
+| `:dir remove` | | Take this directory out of the project. The folder is untouched. | Proposed |
+| `:tree` | | Show all of the project's directories in the tree, or go back to one (Q-41) | Proposed |
+| `:config projects` | | Open `projects.toml`. Saving it applies it. | Proposed |
 | `:session` | | Start an AI session | Proposed |
 | `:update` | | Install the latest release | Decided (Q-79) |
-| `:split` | | Split the view | Proposed |
+| `:split` | | Split the view. `:split down` splits below. | Proposed |
 | `:selectall` | | Select all occurrences | Decided (Q-80) |
+| `:find`, `:replace` | | Find or replace in the file | Proposed |
+| `:view` | | Move the Files view to the other panel | Proposed |
+| `:search`, `:git` | | Show the Search or Git view | Proposed |
+| `:push`, `:pull`, `:fetch` | | The Git buttons | Proposed |
+| `:repo create` | | Create a GitHub repository through `gh` | Proposed |
+| `:definition`, `:rename`, `:format` | | Language server actions | Proposed |
+| `:session hidden` | | List hidden sessions, and bring one back | Proposed (P-42) |
+| `:project close` | | Close this project's tabs, and move to the next project | Proposed (P-43) |
+
+**Git view keys (P-32):** `p` push, `l` pull, `f` fetch, `c` commit, `s` stage or mark resolved, `u` unstage, `b` switch branch, `n` new branch, `m` merge, `x` abort a merge, `o` open the file, `i` create a repository, `r` refresh, Enter opens a diff or commit.
+
+**Search view keys:** Tab moves between Find and With, Enter opens a result or starts a replace from With, Esc goes back to the tab, and `:` opens the command bar when the field is empty.
 
 ### Shortcuts
 
@@ -153,25 +177,34 @@ LazyCode runs in the user's terminal, which receives keys first (Q-50). The defa
 |---|---|---|
 | Esc, then `:` | Open the command bar | Decided |
 | Alt+, and Alt+. | Previous and next tab | Decided (Q-80) |
+| Alt+E, G, F, T | Show Explorer, Git, Find in directory, the terminal dock | Decided (D-44) |
+| Alt+A | AI mode, in and out: the AI tree and the shown tool fill the window. Works inside terminal tabs. In AI mode, Alt+, and Alt+. go through the sessions. | Decided (D-46), replacing Show AI sessions, which is `:sessions` |
+| Alt+P, Alt+D, Alt+R | Projects, directories, run. Alt+P and Alt+D also work inside terminal tabs, start on the one before this, and take 1–9 or the same key again. | Decided (D-44, D-45), replacing Alt+O and Alt+P for run |
+| Alt+M or F10, Alt+S, Alt+K or F1, Alt+X, Alt+Z | Menus, settings, shortcuts, command bar, word wrap | Decided (D-44) |
+| Alt+Shift+P, F, T, A, S, B | New project, add a folder, new terminal, new AI session, split right, split below | Decided (D-44) |
+| Ctrl+N, Ctrl+R, Ctrl+Q | New file, replace in file, quit | Decided (D-44) |
+| F3 | Format | Decided (D-44), replacing Shift+Alt+F |
 | Ctrl+B | Toggle second panel | Decided |
 | Ctrl+D | Add next occurrence | Decided |
-| Ctrl+F2 | Select all occurrences. On macOS, Ctrl+K then A. | Decided (Q-17, Q-80) |
+| Ctrl+F2 | Select all occurrences. On macOS, Ctrl+K then O. | Decided (Q-17, Q-80, D-44) |
 | Ctrl+S | Save | Proposed |
 | Ctrl+Z, Ctrl+Y | Undo, redo | Proposed |
 | Ctrl+X, Ctrl+C, Ctrl+V | Cut, copy, paste | Proposed |
-| Ctrl+F, Ctrl+H | Find, replace in file | Proposed |
+| Ctrl+F | Find in file | Proposed |
 | Alt+F | Search panel | Proposed, replacing Ctrl+Shift+F |
+| Alt+G | Git panel | Proposed |
 | Ctrl+P | Open a file by name | Proposed |
 | Ctrl+W | Close tab | Proposed |
-| Alt+\\ | Split | Proposed, because Ctrl+\\ now leaves terminal tabs |
+| Alt+W, Alt+Tab | Next area: panels, splits and the dock. Works inside terminal tabs. | Decided (D-45), replacing Next split |
+| Alt+V | Move the views to the other panel, or a terminal between the editor area and the dock. Works inside terminal tabs. | Decided (D-45) |
+| Ctrl+A | Select everything | Proposed |
 | F12, F2 | Go to definition, rename | Proposed |
-| Shift+Alt+F | Format | Proposed |
 | Alt+D | Switch directory | Decided (Q-74) |
-| Alt+O | Switch project | Decided (Q-74) |
-| Alt+P | Run, the same as `:play` | Decided (Q-74) |
-| Ctrl+\\ | Leave a terminal tab | Decided (Q-74) |
+| Ctrl+Space | Leave a tab for the panel, and go back in. Ctrl+\\ only leaves. | Decided (Q-74, D-45) |
+| F2 | Rename: the symbol in a file, the selected file in Files, the session in AI | Decided (D-45) |
+| N, in Files or AI | New file, new AI session | Decided (D-45) |
 
-Inside a terminal tab, every key except Ctrl+\\ goes to the tool. Ctrl+C interrupts rather than copies, and Alt+D goes to the tool, so press Ctrl+\\ first.
+Inside a terminal tab, every key except Ctrl+Space, Ctrl+\\ and the Alt keys listed under Focus model goes to the tool. Ctrl+C interrupts rather than copies. The shortcut families (D-45): Ctrl+Space goes in and out, Alt+letter goes or shows, Alt+Shift+letter makes, Ctrl+letter acts on this file, F-keys act on the selected thing.
 
 ### Known key clashes
 
@@ -184,21 +217,36 @@ Terminal and OS defaults, which users can usually change in settings. Priority t
 | Ctrl+F2 | macOS: focus the menu bar. | Apple docs | Avoided on macOS (Q-80) |
 | Alt+F2 | Linux desktops: commonly opens a run dialog. | General knowledge, not checked | Avoided (Q-80) |
 | Alt+key | macOS: types special characters unless the Option setting is on. | Apple's Terminal list, secondary source | Avoided on macOS (Q-80) |
+| Ctrl+H | Most terminals: sends the same byte as Backspace. | Tested (`M0-07`) | Avoided |
+| Alt+\\ | Most terminals: sends `ESC \`, a control sequence that's dropped. | Tested (`M0-07`) | Avoided |
+| Ctrl+V | Windows Terminal: pastes. It arrives as a paste, which does the same job. | Tested (`M0-07`) | Accepted |
+| Alt+Shift+D | Windows Terminal: duplicate pane. | General knowledge, not checked | Avoided (D-44) |
+| F1, F10 | GNOME Terminal: help and menu bar. | General knowledge, not checked | Each has an Alt form too (D-44) |
 | Ctrl+Tab | Windows Terminal and Kitty: next tab. | Microsoft docs, Kitty source | Avoided (Q-74) |
+| Alt+Tab | Most desktops: the window switcher, so it rarely arrives. | General knowledge | Kept as a second key for Alt+W |
+| Alt+P, Alt+D inside a tool | Claude Code uses Alt+P for its model picker, and bash uses Alt+D to delete a word. | Tool docs, not checked | Taken by LazyCode (D-45). `/model` and Ctrl+Delete still work. |
+| Ctrl+Space | Some input-method switchers and macOS input sources. | General knowledge | Ctrl+\\ leaves instead (D-45) |
 | Ctrl+Shift+D | Windows Terminal: duplicate tab. | Microsoft docs | Avoided (Q-74) |
 | Ctrl+Shift+Space | Windows Terminal: new tab dropdown. | Microsoft docs | Avoided (Q-74) |
 | Ctrl+Shift+P | Kitty: prefix for hints. | Kitty source | Avoided (Q-74) |
 
-**No default found** in Windows Terminal's docs, Kitty's docs or Apple's lists for: Ctrl+\\, Alt+D, Alt+O, Alt+P, Alt+, and Alt+. on Linux and Windows, or Ctrl+K on macOS, where Apple lists it as reaching the program. That doesn't prove they arrive, and none of this has been tested in real terminals yet. That's prototype item `M0-07`.
+**No default found** in Windows Terminal's docs, Kitty's docs or Apple's lists for: Ctrl+\\, Alt+D, Alt+O, Alt+P, Alt+, and Alt+. on Linux and Windows, or Ctrl+K on macOS, where Apple lists it as reaching the program. **Tested on 2026-11-04 (`M0-07`).** `cmd/keytest` ran in real Windows Terminal, macOS Terminal and Kitty on CI, with simulated key presses, and every listed key arrived. Kitty also passed with a Spanish layout, including Ctrl+\\. The presses were simulated, so a physical keyboard and other layouts are still worth a try: run `go run ./cmd/keytest` in the terminal, press each key, then press q.
 
 ## Mouse behaviour
+
+**Added by D-44.** Clicking works on everything, including tab close buttons and the buttons at the end of each tab bar. Dragging selects text, moves a tab along its bar or to another split, moves the panel edges, the dock's top and split lines, and moves the scroll bar. A double click takes a word and a triple click a line. The middle button closes a tab, and the right button opens a menu on a tab, in a file or in the file tree. In a terminal tab dragging selects what's on screen and copies it, unless the tool asked for the mouse.
+
 
 - **Decided (Q-13):** Clicking and scrolling. Dragging later.
 - **Proposed:** Click tabs, tree items, buttons, cursor positions and the panels' view titles. A terminal tab receives mouse input if its tool asks for it.
 
 ## Themes
 
-**Decided (Q-48):** Dark and light themes, primary and accent colours, colour decorations on borders and text, and low-colour terminal support.
+**Decided (Q-48, widened on 2026-11-05):** Twelve built-in themes, chosen with `:theme`, which previews each one and saves the choice: `dark`, `light`, `gruvbox-dark`, `gruvbox-light`, `dracula`, `one-dark`, `nord`, `tokyo-night`, `catppuccin-mocha`, `solarized-dark`, `solarized-light` and `monokai`. `[ui.colors]` changes any colour. Syntax has its own colour per kind of code. Terminals with fewer than 256 colours keep their own background and use reversed selections.
+
+The area with the keys has a tinted background, and its title is a solid bar. Panel headers show icons, with the name beside the view on top. `icons = "basic"` works in any font, and `icons = "nerd"` adds file-type icons but needs a Nerd Font.
+
+**Tree:** names are coloured by Git state, with a letter too so that colour isn't the only sign: `A` added, `M` modified, `U` untracked, `R` renamed, `!` conflict. A folder gets a dot in the colour of the strongest state inside it.
 
 | Token | Use |
 |---|---|

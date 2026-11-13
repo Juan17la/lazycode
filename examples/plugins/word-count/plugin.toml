@@ -1,0 +1,5 @@
+name = "word-count"
+version = "1.0.0"
+api_version = 1
+description = "Counts words"
+does = "Adds :wc, which shows the lines, words and bytes in the current file."

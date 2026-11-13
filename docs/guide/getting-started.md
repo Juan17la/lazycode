@@ -1,0 +1,62 @@
+# Getting started
+
+LazyCode is a code editor that runs in your terminal. You type in files the normal way, with no modes to learn. It groups several folders into a project, and keeps AI tool sessions (such as Claude Code) in tabs beside your code.
+
+Start it in a folder:
+
+```bash
+cd ~/code/my-app
+lazycode
+```
+
+## The first run
+
+A first-run screen asks for a theme and whether to auto-save, and offers to install language tools (`gopls`, `pyright`, `typescript-language-server`). It shows the exact command before anything runs, and you can skip all of it. It also tells you about the daily update check, which you can turn off.
+
+In the file tree, Delete removes the selected file or folder straight away, and Ctrl+Z brings it back until you quit LazyCode.
+
+## Moving around
+
+The screen has a file tree on the left and tabs on the right. Everything has two routes: a key, and a command typed after `:`. Press `:` in the file tree, or Esc then `:` in a file.
+
+| Do this | Key | Command |
+|---|---|---|
+| Move in the tree, open a file or folder | Arrow keys, Enter | |
+| Go into the current tab, or back to the tree | Tab, and Ctrl+Space both ways | |
+| Switch project, switch folder | Alt+P, Alt+D (Enter goes back to the last one, 1–9 pick) | `:project`, `:dir` |
+| Open a file by name | Ctrl+P | |
+| Save | Ctrl+S | `:save` or `:w` |
+| Previous or next tab | Alt+, and Alt+. | |
+| Close the tab | Ctrl+W | `:close` |
+| Split the view | Alt+Shift+S | `:split` or `:split down` |
+| Find in a file | Ctrl+F | `:find` |
+| Search the folder | Alt+F | `:search` |
+| Quit | | `:quit` or `:q` |
+
+**On macOS, read every Alt shortcut as Ctrl+K, then the key.** Alt+D is Ctrl+K, then D. Option types special characters on a Mac, so Alt doesn't work by default there.
+
+The mouse works: click files, tabs and cursor positions, and scroll. LazyCode takes the mouse, so hold Shift to select text the terminal's way.
+
+## Several folders in one project
+
+The menu bar at the top has everything, F1 lists the shortcuts, and Alt+S opens the settings. Files open in tabs at the top, and terminals and AI tools in a dock at the bottom. Tabs have close buttons, and the mouse can drag the edges between areas.
+
+LazyCode opens on the current folder. To go to another one, use File > Open Folder, or click the folder name in the top bar. To group folders, press Alt+Shift+P and Alt+Shift+F, or type `:project new Shop`, then `:dir add ~/code/shop-web`, and again for each folder. Switch with Alt+P (projects) and Alt+D (directories), or `:project` and `:dir`. It's saved in `projects.toml` ([Keys and config](keys-and-config.md)).
+
+## Terminals and AI tools
+
+`:term` opens your shell in a tab, and `:term claude` runs a command, here an AI tool. Inside a terminal tab every key goes to the tool, except Ctrl+Space, which takes you back out (and in again), Alt+Q, which closes the tab, and Alt+P and Alt+D, which switch project and folder.
+
+Alt+A is AI mode: the sessions of every project, grouped by project and folder, beside the tool you used last. Press it again, even inside the tool, to go back to the editor. In the tree, Enter goes to a session or resumes it, N starts a new one, F2 renames it, and Alt+, and Alt+. go through them. An idle session stops after 30 minutes to free memory, and resumes the same chat when you select it. Alt+E goes back to the files. When the tool changes a file you have open, it updates on screen, and changed lines are marked. If you have unsaved edits in it, LazyCode never replaces them.
+
+## Running your project
+
+Alt+R (or `:play`) runs the project in the current directory. `:play cargo build` sets a different command and remembers it.
+
+## Git and language tools
+
+Alt+G shows Git: S stages, U unstages, C commits, P pushes, L pulls, F fetches, B switches branch. In a Go, Python, JavaScript or TypeScript file, F12 goes to a definition, F2 renames, and Alt+Shift+F formats, if the language's server is installed.
+
+## Where next
+
+[Keys and config](keys-and-config.md) lists every key and setting. Used VS Code? [Coming from VS Code](coming-from-vscode.md). Used Neovim? [Coming from Neovim](coming-from-neovim.md). Something wrong? [Troubleshooting](troubleshooting.md).

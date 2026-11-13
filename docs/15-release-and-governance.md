@@ -17,12 +17,14 @@
 | `curl -fsSL <url>/install.sh \| sh` | Linux, macOS |
 | PowerShell one-liner | Windows, because curl install scripts don't normally run there |
 
-**The install script (details Proposed):**
+**The install script (P-56):**
 
 1. Detects the OS and CPU: Linux and macOS on amd64 and arm64, and Windows on amd64.
-2. Downloads the binary from GitHub Releases, and verifies its checksum.
-3. Places it in a user folder, and adds it to `PATH` if needed.
-4. Creates the app icon (Q-50), and can be read before running.
+2. Downloads the binary from GitHub Releases, and verifies its checksum. No hash tool, a missing entry or a mismatch means nothing is installed.
+3. Places it in `~/.local/bin`, or `%LOCALAPPDATA%\Programs\lazycode` on Windows, and adds that to `PATH` if needed. `LAZYCODE_INSTALL_DIR` changes the folder, and `LAZYCODE_NO_MODIFY_PATH=1` leaves `PATH` alone.
+4. Creates the app icon (Q-50), and can be read before running. A failed icon is only a warning.
+
+Run on Linux with `scripts/test-install.sh`, against a fake release. `install.ps1`, the macOS paths and `release.yml` are written, but have never run.
 
 **App icon (Q-50):** Searching for LazyCode in the system's apps opens the user's default terminal running `lazycode`.
 
@@ -32,7 +34,7 @@
 | macOS | A small `.app` that opens a terminal | macOS has no general "default terminal", so it uses Terminal.app unless set otherwise |
 | Windows | A Start menu shortcut | Opens in the system's default terminal |
 
-Not tested yet. That's prototype item `M0-06`.
+Tested on CI on 2026-11-04 (`M0-06`), with `packaging/install-icon` and `scripts/test-icon`, from a folder with a space in its name. Linux opened xterm, and macOS opened Terminal.app. On Windows, LazyCode started, but which terminal hosted it wasn't identified. Not tried yet: a real desktop's app search, or a Linux desktop with its own terminal choice, such as the owner's niri and Kitty.
 
 **Builds:** The C parser (Q-69) means releases are built on real Linux, macOS and Windows CI runners. Tools such as GoReleaser may still help with packaging and checksums.
 
@@ -47,6 +49,8 @@ Not tested yet. That's prototype item `M0-06`.
 **Decided (Q-71):** LazyCode checks GitHub's latest release, which excludes pre-releases and drafts.
 
 **Decided (Q-79):** Check at most once a day at startup, and show only a message. `:update` downloads the new binary, verifies its checksum, and replaces the old one. A setting turns the check off, and the first-run screen discloses it, to stay consistent with Q-44.
+
+**Built (P-57, P-58):** A failed check says nothing, and still counts as that day's check. `:update` ignores the setting and the daily limit, because the user asked. Tested against a local server only: the real GitHub addresses haven't been used, because no release exists yet.
 
 ## Release process
 
@@ -93,11 +97,11 @@ Repository files, created when the code starts: `README.md`, `LICENSE`, `CONTRIB
 
 ## Documentation for users
 
-TBD, written alongside the first release:
+In [guide](guide/):
 
 - Install guide
 - Getting started, for developers at any level (Q-01)
 - Coming from VS Code, and coming from Neovim
 - Keymap and configuration reference
-- Plugin author guide ([09](09-language-and-plugin-api.md))
+- [Plugin author guide](guide/plugins.md)
 - Troubleshooting
