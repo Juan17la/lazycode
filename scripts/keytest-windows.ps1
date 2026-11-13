@@ -18,9 +18,11 @@ $shell = New-Object -ComObject WScript.Shell
 [void]$shell.AppActivate('keytest')
 Start-Sleep -Seconds 1
 
-# SendKeys: ^ is Ctrl and % is Alt.
-$keys = '^\', '^a', '^b', '^c', '^d', '^f', '^n', '^o', '^p', '^s', '^v', '^w', '^x', '^y', '^z',
-'{F2}', '{F12}', '{ESC}', '%d', '%o', '%p', '%f', '%g', '%h', '%s', '%w', '%v', '%i', '%e', '%,', '%.', '%+f', '^{F2}', 'q'
+# SendKeys: ^ is Ctrl, % is Alt and + is Shift. The same keys as checks() in cmd/keytest/main.go.
+$keys = '^\', '^ ', '^a', '^b', '^c', '^d', '^f', '^n', '^q', '^r', '^o', '^p', '^s', '^v', '^w', '^x', '^y', '^z',
+'{F1}', '{F2}', '{F3}', '{F10}', '{F12}', '{ESC}',
+'%d', '%p', '%r', '%f', '%g', '%a', '%e', '%t', '%m', '%x', '%z', '%v', '%s', '%k', '%w', '%,', '%.',
+'%+p', '%+f', '%+t', '%+a', '%+s', '%+b', '^{F2}', 'q'
 foreach ($k in $keys) {
     [System.Windows.Forms.SendKeys]::SendWait($k)
     Start-Sleep -Milliseconds 250

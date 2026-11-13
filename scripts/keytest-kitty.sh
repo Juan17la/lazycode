@@ -23,9 +23,11 @@ run() {
 	done
 	xdotool windowfocus "$window" || true
 	sleep 2
-	for key in ctrl+backslash ctrl+a ctrl+b ctrl+c ctrl+d ctrl+f ctrl+n ctrl+o ctrl+p ctrl+s ctrl+v \
-		ctrl+w ctrl+x ctrl+y ctrl+z F2 F12 Escape alt+d alt+o alt+p alt+f alt+g alt+h alt+s alt+w alt+v alt+i alt+e \
-		alt+comma alt+period alt+shift+f ctrl+F2; do
+	# The same keys as checks() in cmd/keytest/main.go.
+	for key in ctrl+backslash ctrl+space ctrl+a ctrl+b ctrl+c ctrl+d ctrl+f ctrl+n ctrl+q ctrl+r ctrl+o ctrl+p ctrl+s \
+		ctrl+v ctrl+w ctrl+x ctrl+y ctrl+z F1 F2 F3 F10 F12 Escape \
+		alt+d alt+p alt+r alt+f alt+g alt+a alt+e alt+t alt+m alt+x alt+z alt+v alt+s alt+k alt+w alt+comma alt+period \
+		alt+shift+p alt+shift+f alt+shift+t alt+shift+a alt+shift+s alt+shift+b ctrl+F2; do
 		xdotool key "$key"
 		sleep 0.2
 	done

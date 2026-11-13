@@ -187,14 +187,6 @@ func (a *app) paintBackground(st *dirState, w, h int) {
 	}
 }
 
-// blend mixes percent of over into base.
-func blend(base, over tcell.Color, percent int32) tcell.Color {
-	r1, g1, b1 := base.RGB()
-	r2, g2, b2 := over.RGB()
-	mix := func(a, b int32) int32 { return a + (b-a)*percent/100 }
-	return tcell.NewRGBColor(mix(r1, r2), mix(g1, g2), mix(b1, b2))
-}
-
 func bgOf(s tcell.Style) tcell.Color {
 	_, bg, _ := s.Decompose()
 	return bg

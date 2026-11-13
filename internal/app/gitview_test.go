@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Juan17la/lazycode/internal/git"
 	"github.com/gdamore/tcell/v2"
@@ -386,13 +387,15 @@ func TestHistoryLoadsInPages(t *testing.T) {
 	for range 200 { // Moving down to the end asks for the next page.
 		u.key(tcell.KeyDown)
 	}
-	for range 400 {
-		if strings.Contains(u.text(), "c0000") {
-			return
+	// A page loads in the background, so keep paging until the last commit shows.
+	deadline := time.Now().Add(30 * time.Second)
+	for !strings.Contains(u.text(), "c0000") {
+		if time.Now().After(deadline) {
+			t.Fatalf("screen never showed c0000:\n%s", u.text())
 		}
 		u.key(tcell.KeyPgDn)
+		time.Sleep(10 * time.Millisecond)
 	}
-	u.wait("c0000")
 }
 
 func TestButtonsAndRowsAreClickable(t *testing.T) {
