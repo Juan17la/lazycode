@@ -1,5 +1,5 @@
-# Builds a DRAFT release when a tag like v0.1.0 is pushed (doc 15). Nothing is published
-# here: the owner checks the draft by hand, then publishes it.
+# Builds and publishes a release when a tag like v0.1.0 is pushed. The release is named
+# by the version number alone, and its notes are that version's CHANGELOG.md section.
 name: Release
 
 on:
@@ -129,7 +129,7 @@ jobs:
 
   # The only job that can write to the repository.
   release:
-    name: Draft release
+    name: Release
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -154,12 +154,12 @@ jobs:
           # install-icon.* are listed too: install.sh and install.ps1 download and verify them.
           sha256sum lazycode_* install-icon.sh install-icon.ps1 THIRD_PARTY_LICENSES > checksums.txt
           cat checksums.txt
-      - name: Create the draft
+      - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" --draft --verify-tag --title "${TAG#v}" \
-            --notes "Draft. Fill in from CHANGELOG.md, and add the performance numbers, before publishing." \
-            dist/*
+          awk -v v="${TAG#v}" 'index($0, "## [" v "]") == 1 { f = 1; next } /^## \[/ { f = 0 } f' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "CHANGELOG.md has no section for ${TAG#v}"; exit 1; }
+          gh release create "$TAG" --verify-tag --latest --title "${TAG#v}" --notes-file notes.md dist/*
