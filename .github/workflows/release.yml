@@ -160,6 +160,6 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" --draft --verify-tag --title "$TAG" \
+          gh release create "$TAG" --draft --verify-tag --title "${TAG#v}" \
             --notes "Draft. Fill in from CHANGELOG.md, and add the performance numbers, before publishing." \
             dist/*
