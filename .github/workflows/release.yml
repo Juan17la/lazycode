@@ -43,9 +43,9 @@ jobs:
       - run: go test -race -count=1 -timeout 10m ./...
 
   # cgo is required, so every binary is built on a runner of its own kind, not cross
-  # compiled. Linux builds on the oldest Ubuntu runner, so the binaries need the oldest
-  # glibc and run on the most systems. macOS arm64 uses macos-15, not the newest image,
-  # for the same reason.
+  # compiled. Linux binaries are fully static (netgo and osusergo keep glibc's NSS out),
+  # so one file runs on any 64-bit distro, glibc or musl, old or new. macOS targets 12,
+  # the oldest macOS Go supports, so building on macos-15 doesn't raise the minimum.
   build:
     name: build ${{ matrix.asset }}
     needs: test
@@ -55,13 +55,14 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - { runner: ubuntu-22.04, asset: lazycode_linux_amd64 }
-          - { runner: ubuntu-22.04-arm, asset: lazycode_linux_arm64 }
+          - { runner: ubuntu-22.04, asset: lazycode_linux_amd64, static: true }
+          - { runner: ubuntu-22.04-arm, asset: lazycode_linux_arm64, static: true }
           - { runner: macos-15, asset: lazycode_darwin_arm64 }
           - { runner: macos-15-intel, asset: lazycode_darwin_amd64 }
           - { runner: windows-latest, asset: lazycode_windows_amd64.exe }
     env:
       CGO_ENABLED: "1"
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -74,7 +75,13 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
           ASSET: ${{ matrix.asset }}
-        run: go build -trimpath -ldflags "-X main.version=$TAG" -o "dist/$ASSET" ./cmd/lazycode
+          STATIC: ${{ matrix.static }}
+        run: |
+          if [ "$STATIC" = true ]; then
+            go build -trimpath -tags netgo,osusergo -ldflags "-X main.version=$TAG -linkmode external -extldflags -static" -o "dist/$ASSET" ./cmd/lazycode
+          else
+            go build -trimpath -ldflags "-X main.version=$TAG" -o "dist/$ASSET" ./cmd/lazycode
+          fi
       # Every runner can run what it built, so each binary is asked for its version.
       - name: The binary reports the tag
         shell: bash
@@ -85,6 +92,24 @@ jobs:
           out=$("./dist/$ASSET" --version)
           echo "$out"
           case $out in *"$TAG"*) ;; *) echo "--version doesn't mention $TAG"; exit 1 ;; esac
+      - name: The Linux binary is static
+        if: runner.os == 'Linux'
+        env:
+          ASSET: ${{ matrix.asset }}
+        run: file "dist/$ASSET" | tee /dev/stderr | grep -q 'statically linked'
+      # Alpine uses musl, not glibc: the static binary must run there too.
+      - name: The Linux binary runs on Alpine
+        if: runner.os == 'Linux'
+        env:
+          ASSET: ${{ matrix.asset }}
+        run: docker run --rm -v "$PWD/dist:/d:ro" alpine:3.20 "/d/$ASSET" --version
+      - name: The macOS binary runs on macOS 12
+        if: runner.os == 'macOS'
+        env:
+          ASSET: ${{ matrix.asset }}
+        run: |
+          otool -l "dist/$ASSET" | grep -A3 LC_BUILD_VERSION | tee minos.txt
+          grep -Eq 'minos 12\.0' minos.txt
       # The runner has MinGW's DLLs and users don't, so running it here can't show this.
       - name: The Windows binary needs only DLLs that Windows has
         if: runner.os == 'Windows'
@@ -135,6 +160,6 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" --draft --verify-tag --title "$TAG" \
+          gh release create "$TAG" --draft --verify-tag --title "${TAG#v}" \
             --notes "Draft. Fill in from CHANGELOG.md, and add the performance numbers, before publishing." \
             dist/*

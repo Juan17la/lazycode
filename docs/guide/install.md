@@ -10,7 +10,7 @@ curl -fsSL https://raw.githubusercontent.com/Juan17la/lazycode/main/install.sh |
 
 Want to read it first? It is [install.sh](../../install.sh), about 100 lines. The script:
 
-1. Works out your system (Linux or macOS, Intel/AMD or ARM).
+1. Works out your system (Linux or macOS, Intel/AMD or ARM). The Linux program is fully static, so it runs on any 64-bit distro, including Alpine and old ones. macOS needs version 12 or newer.
 2. Downloads the program and `checksums.txt` from the [latest release](https://github.com/Juan17la/lazycode/releases/latest), and refuses to go on if the SHA-256 doesn't match.
 3. Puts `lazycode` in `~/.local/bin`. It never uses `sudo`.
 4. If that folder isn't on your `PATH`, adds one line to your shell's startup file (`~/.zshrc`, `~/.bashrc` or `~/.bash_profile` on macOS, or fish's `config.fish`) and tells you which. Running it again won't add it twice.
@@ -27,11 +27,13 @@ For example: `curl -fsSL .../install.sh | LAZYCODE_NO_MODIFY_PATH=1 sh`.
 
 ## Windows
 
-In PowerShell (64-bit Intel or AMD only):
+In cmd or PowerShell, on Windows 10 or 11 (64-bit Intel, AMD or ARM; ARM runs the x64 program):
 
 ```powershell
-irm https://raw.githubusercontent.com/Juan17la/lazycode/main/install.ps1 | iex
+curl.exe -fsSL https://raw.githubusercontent.com/Juan17la/lazycode/main/install.ps1 | powershell -NoProfile -Command -
 ```
+
+Write `curl.exe`, not `curl`: in Windows PowerShell, `curl` is another command. If you prefer, this does the same: `irm https://raw.githubusercontent.com/Juan17la/lazycode/main/install.ps1 | iex`.
 
 It checks the SHA-256, installs to `%LOCALAPPDATA%\Programs\lazycode`, adds that folder to your user `PATH` (not the whole machine's), and adds a Start menu shortcut. It needs no administrator rights. Read it first: [install.ps1](../../install.ps1). Open a new terminal afterwards.
 

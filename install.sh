@@ -21,7 +21,8 @@ main() {
 	case $(uname -s) in
 	Linux) os=linux ;;
 	Darwin) os=darwin ;;
-	*) fail "this script is for Linux and macOS. On Windows, use install.ps1." ;;
+	*) fail "this script is for Linux and macOS. On Windows run, in cmd or PowerShell:
+  curl.exe -fsSL https://raw.githubusercontent.com/Juan17la/lazycode/main/install.ps1 | powershell -NoProfile -Command -" ;;
 	esac
 	case $(uname -m) in
 	x86_64 | amd64) arch=amd64 ;;

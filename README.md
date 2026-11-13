@@ -6,16 +6,16 @@ A light, open-source code editor written in Go that runs in your terminal, betwe
 
 ## Install
 
-Linux and macOS:
+Linux (any 64-bit distro) and macOS (12 or newer, Intel or Apple silicon):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Juan17la/lazycode/main/install.sh | sh
 ```
 
-Windows, in PowerShell:
+Windows 10 and 11 (Intel, AMD or ARM), in cmd or PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/Juan17la/lazycode/main/install.ps1 | iex
+curl.exe -fsSL https://raw.githubusercontent.com/Juan17la/lazycode/main/install.ps1 | powershell -NoProfile -Command -
 ```
 
 Releases are **not signed**. The scripts check each download's SHA-256 against the release's `checksums.txt`, which catches a corrupted download but not a compromised release. You can read the scripts before running them: [install.sh](install.sh) and [install.ps1](install.ps1). They install to a folder in your home (no `sudo`, no administrator), add it to your `PATH` if needed, and create an app icon. More in the [install guide](docs/guide/install.md).
