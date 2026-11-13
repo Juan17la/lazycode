@@ -1,8 +1,81 @@
 # LazyCode
 
-A light, open-source code editor written in Go that runs in your terminal, between VS Code and Neovim. It's built around multi-directory projects, AI tool sessions, and watching AI changes live.
+**A light code editor that runs in your terminal, made for writing code next to AI tools.**
 
-**Status: early, and being built.** The core editor (M1) is in: projects, a file tree, tabs, splits, two panels, terminal tabs, AI sessions that sleep and resume, `:play`, live file updates with modified-line markers, multi-cursor editing, find and replace, search across a directory, Git and GitHub, syntax highlighting, language servers, the mouse, themes, rebindable keys, safe saves, crash recovery and first-run onboarding. The first release is being prepared. Expect things to change. See the [docs](docs/README.md) and the [backlog](docs/backlog.html).
+[![CI](https://github.com/Juan17la/lazycode/actions/workflows/ci.yml/badge.svg)](https://github.com/Juan17la/lazycode/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/Juan17la/lazycode?label=release)](https://github.com/Juan17la/lazycode/releases/latest)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+
+![LazyCode with a Go file open, and an AI session in the dock below changing it. The two lines it added are marked in the margin.](docs/images/editor.png)
+
+## What it is
+
+LazyCode is a code editor for the terminal. It sits between VS Code and Neovim: you edit with the keys you already know (no modes to learn), and it runs anywhere a terminal does, from your laptop to a server over SSH. It's one small program with nothing else to install.
+
+It's built around a way of working that most editors weren't designed for: **an AI coding tool does part of the work while you watch, review and steer.** LazyCode runs those tools in its own tabs, next to your code, and shows what they change as they change it.
+
+Three ideas shape it:
+
+1. **Projects are made of folders.** A real project is often a front end, an API and a service, each in its own folder. LazyCode groups them into one project and switches between them in one key press.
+2. **AI tools are part of the editor.** Start Claude Code, OpenCode, Codex or any command-line tool in a tab. Sessions are kept per project and folder, go to sleep when idle to free memory, and resume the same conversation when you come back.
+3. **You see every change.** When a tool edits an open file, the file updates on screen and the changed lines are marked. The Git view shows the diff, and you commit from there.
+
+## At a glance
+
+| | |
+|---|---|
+| **Runs on** | Linux, macOS and Windows, in the terminal you already use |
+| **Install** | One command, one file. No runtime, no `sudo`, no administrator |
+| **Editing** | Ordinary keys, like VS Code: multiple cursors, find and replace, undo, word wrap, mouse and drag |
+| **Languages** | Syntax colours for Go, Python, JavaScript, TypeScript, Rust, C, JSON, shell, HTML and CSS. Go to definition, rename and format through `gopls`, `pyright` and `typescript-language-server` |
+| **AI tools** | Claude Code, OpenCode and Codex out of the box, and any other command-line tool with a few lines of config |
+| **Terminals** | Terminal tabs and a dock under the code, for shells, servers and AI sessions |
+| **Git** | Status, stage, commit, branches, merge, diffs and history. GitHub through `gh` |
+| **Extending** | Lua plugins, and a store of reviewed ones that are checked before they're added |
+| **Looks** | Twelve themes, including Gruvbox, Dracula, Nord, Tokyo Night and Catppuccin |
+| **Privacy** | No telemetry. The only automatic connection is a daily update check, which you can turn off |
+| **Licence** | [MIT](LICENSE) |
+
+## Where it fits
+
+| | VS Code | **LazyCode** | Neovim |
+|---|---|---|---|
+| Where it runs | Its own window | **Your terminal** | Your terminal |
+| How you edit | Ordinary keys | **Ordinary keys** | Modes (normal, insert, visual) |
+| Setup before it's useful | Extensions | **None: it works on first run** | A config to write |
+| Projects of several folders | Workspaces | **Built in, one key to switch** | Plugins |
+| AI command-line tools | In the built-in terminal | **Sessions per project that sleep, resume and show changes live** | In a terminal split |
+| Size | Hundreds of MB | **One file, about 22 MB** | Small |
+
+LazyCode doesn't try to replace either. If you want an IDE with a debugger and thousands of extensions, use VS Code. If you love modal editing, use Neovim. LazyCode is for working in the terminal without learning a new way to type.
+
+## A short tour
+
+The pictures below are drawn from the real app by a test ([`screenshots_test.go`](cmd/lazycode/screenshots_test.go)). The AI tool in them is a stand-in that plays a short task.
+
+### AI mode: every session in one place
+
+Alt+A swaps the editor for all your AI sessions, grouped by project and folder, beside the one you used last. Alt+A again goes back to the code. You can start a session from anywhere with Alt+Shift+A, rename one with F2, and remove one from the list without touching the tool's own data.
+
+![AI mode: the sessions list on the left grouped by project, and the selected session on the right.](docs/images/ai-mode.png)
+
+### Review and commit
+
+Alt+G opens Git: the branch, push, pull and fetch, the changed files, and the history. Enter on a file opens its diff, so you can check what an AI tool did before you commit it.
+
+![The Git view with one changed file and three commits in the history, and the diff of the change open in the editor.](docs/images/git.png)
+
+### Search the whole folder
+
+Alt+F searches every file in the folder. Results are grouped by file, and a replace shows every change before it's made.
+
+![Search for "Customer" with eight results in orders.go.](docs/images/search.png)
+
+### Every key in one place
+
+F1 lists every action, grouped by task, with its key. Type to filter, and press Enter on an action to give it a new key.
+
+![The Shortcuts window, with the Move around, Show, and Make and run groups.](docs/images/shortcuts.png)
 
 ## Install
 
@@ -18,6 +91,12 @@ Windows 10 and 11 (Intel, AMD or ARM), in cmd or PowerShell:
 curl.exe -fsSL https://raw.githubusercontent.com/Juan17la/lazycode/main/install.ps1 | powershell -NoProfile -Command -
 ```
 
+| System | Processors | Notes |
+|---|---|---|
+| Linux | x86-64, ARM64 | One static program that runs on any distro, Alpine and old ones included |
+| macOS | Apple silicon, Intel | macOS 12 Monterey or newer |
+| Windows | x86-64, ARM64 | Windows 10 and 11. ARM runs the x86-64 program |
+
 Releases are **not signed**. The scripts check each download's SHA-256 against the release's `checksums.txt`, which catches a corrupted download but not a compromised release. You can read the scripts before running them: [install.sh](install.sh) and [install.ps1](install.ps1). They install to a folder in your home (no `sudo`, no administrator), add it to your `PATH` if needed, and create an app icon. More in the [install guide](docs/guide/install.md).
 
 Or build from source. You need Go 1.26 or newer, and a C compiler for syntax highlighting:
@@ -26,24 +105,47 @@ Or build from source. You need Go 1.26 or newer, and a C compiler for syntax hig
 go run ./cmd/lazycode
 ```
 
-**Guides:** [install](docs/guide/install.md), [getting started](docs/guide/getting-started.md), [coming from VS Code](docs/guide/coming-from-vscode.md), [coming from Neovim](docs/guide/coming-from-neovim.md), [keys and configuration](docs/guide/keys-and-config.md), [troubleshooting](docs/guide/troubleshooting.md). See also the [changelog](CHANGELOG.md), [contributing](CONTRIBUTING.md) and [security policy](SECURITY.md).
+To update, type `:update` inside LazyCode. It checks the checksum and replaces itself.
 
-This is a free-time project. There is no guaranteed response time for issues or questions.
+## Your first session
 
-The first run asks for a theme and auto-save, and offers to install language tools, showing each command before it runs. All of this can be skipped.
+1. Go to a project folder and run `lazycode`. The first run asks for a theme and auto-save, and offers to install language tools, showing each command before it runs. All of this can be skipped.
+2. Pick a file in the tree with the arrow keys and Enter, or press Ctrl+P and type its name.
+3. Press Alt+Shift+A and choose an AI tool. It opens in the dock under your code.
+4. Ask it for a change. Open files update as it writes them, with the changed lines marked.
+5. Press Alt+G to see the diff, then C to write a message and commit.
 
-LazyCode opens on the current folder. To group folders into projects, create `projects.toml` in your config folder: `~/.config/lazycode/` on Linux, `~/Library/Application Support/lazycode/` on macOS, or `%AppData%\lazycode\` on Windows.
+Press F1 at any time to see every key, or F10 for the menus.
+
+LazyCode opens on the current folder. To group folders into projects, create `projects.toml` in your config folder: `~/.config/lazycode/` on Linux, `~/Library/Application Support/lazycode/` on macOS, or `%AppData%\lazycode\` on Windows. Or use Alt+Shift+P, which writes it for you.
 
 ```toml
 [[project]]
-name = "Facebook"
+name = "shop"
 
 [[project.directory]]
-path = "~/code/frontend-facebook"
+path = "~/code/shop-web"
 
 [[project.directory]]
-path = "~/code/microservice-facebook-auth"
+path = "~/code/shop-api"
 ```
+
+**Guides:** [install](docs/guide/install.md), [getting started](docs/guide/getting-started.md), [coming from VS Code](docs/guide/coming-from-vscode.md), [coming from Neovim](docs/guide/coming-from-neovim.md), [keys and configuration](docs/guide/keys-and-config.md), [plugins](docs/guide/plugins.md), [troubleshooting](docs/guide/troubleshooting.md). See also the [changelog](CHANGELOG.md), [contributing](CONTRIBUTING.md) and [security policy](SECURITY.md).
+
+## Status
+
+**0.1.0 is the first release.** The editor, projects, AI sessions, Git, search, language servers, themes, plugins and the store are in, and tested on Linux, macOS and Windows. Before 1.0 anything may change, except that your own files (config, keys, projects) keep working.
+
+What's next, in short. The [changelog](CHANGELOG.md#010---2026-11-13) and the [roadmap](docs/14-roadmap.md) have the full lists.
+
+| Area | Next |
+|---|---|
+| Working with AI tools | A list of every file a session changed, with its diff, and better ways to review and hand work between sessions |
+| Every terminal | Every key working in every terminal. Today macOS needs Ctrl+K in place of Alt, and tmux or screen can take some keys |
+| Languages | Autocomplete and diagnostics, and more languages through the store |
+| Trust | Signed releases |
+
+This is a free-time project. There is no guaranteed response time for issues or questions.
 
 ## Keys
 

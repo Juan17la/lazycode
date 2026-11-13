@@ -6,7 +6,33 @@ All notable changes are listed here, in the [Keep a Changelog](https://keepachan
 
 ## [0.1.0] - 2026-11-13
 
-The first release.
+The first release. LazyCode is a code editor that runs in your terminal, made for writing code next to AI tools. Install it with one command:
+
+- Linux and macOS: `curl -fsSL https://raw.githubusercontent.com/Juan17la/lazycode/main/install.sh | sh`
+- Windows: `curl.exe -fsSL https://raw.githubusercontent.com/Juan17la/lazycode/main/install.ps1 | powershell -NoProfile -Command -`
+
+### What's included
+
+| Area | In this release |
+|---|---|
+| Editor | Tabs, splits, two panels, a file tree, ordinary keys (no modes), multiple cursors, find and replace, undo, word wrap, mouse and drag, safe saves and crash recovery |
+| Projects | Projects made of several folders, switched with Alt+P and Alt+D |
+| AI tools | Claude Code, OpenCode and Codex out of the box, and any command-line tool. Sessions per project and folder that sleep and resume, AI mode (Alt+A), and live updates of files a tool changes, with the changed lines marked |
+| Terminals | Terminal tabs and a dock under the code, and `:play` to run a project |
+| Git | Status, stage, commit, branches, merge, diffs and history. GitHub through `gh` |
+| Languages | Syntax colours for ten languages, and go to definition, rename and format through language servers |
+| Look and feel | A menu bar, right-click menus, twelve themes, and every key listed and changeable (F1) |
+| Extending | Lua plugins, and a store of reviewed plugins and language packs |
+| Platforms | Linux (any 64-bit distro), macOS 12 or newer, and Windows 10 and 11, on Intel, AMD and ARM |
+
+### Not yet
+
+These are known gaps, and the next things to work on:
+
+- **AI development features.** Today you follow an AI tool through marked lines in open files and the Git view. Next: a list of every file a session changed, with its diff, so a whole task can be reviewed at once, and better ways to hand work between sessions and tools.
+- **Full compatibility with every terminal.** LazyCode is tested in Kitty, Windows Terminal and macOS Terminal. Some terminals and programs keep keys for themselves: macOS uses Ctrl+K in place of Alt, tmux and screen can take Alt and Ctrl+B, and some desktops take Alt+F2. The goal is every key working in every terminal. Until then, every action also has a `:` command and can be given another key in `keys.toml`.
+- **Autocomplete and diagnostics** from language servers, and more languages through the store.
+- **Signed releases.** Releases are checked by SHA-256 but not signed, so macOS and Windows warn the first time they run.
 
 ### Added
 
