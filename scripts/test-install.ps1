@@ -21,6 +21,7 @@ try {
     go build -trimpath -ldflags "-X main.version=$tag" -o "$work\www\good\$asset" .\cmd\lazycode
     Pop-Location
     Copy-Item "$root\packaging\install-icon.ps1" "$work\www\good\"
+    Copy-Item "$root\install.ps1" "$work\www\"
     $lines = foreach ($f in $asset, 'install-icon.ps1') { "$(Sha "$work\www\good\$f")  $f" }
     Set-Content -Encoding ascii "$work\www\good\checksums.txt" $lines
     Copy-Item -Recurse "$work\www\good" "$work\www\badsum"
@@ -91,6 +92,15 @@ try {
     if (-not (Test-Path "$d5\lazycode.exe")) { Fail 'opt-out install failed' }
     if ((Count-OnPath $d5) -ne 0) { Fail 'LAZYCODE_NO_MODIFY_PATH ignored' }
     Pass 'LAZYCODE_NO_MODIFY_PATH=1 leaves PATH alone'
+
+    # 6. The README's curl one-liner: curl.exe pipes the script into powershell's stdin.
+    $d6 = "$work\bin6"
+    $env:LAZYCODE_BASE_URL = "http://127.0.0.1:$port/good"
+    $env:LAZYCODE_INSTALL_DIR = $d6
+    $env:LAZYCODE_NO_MODIFY_PATH = '1'
+    curl.exe -fsSL "http://127.0.0.1:$port/install.ps1" | powershell -NoProfile -Command -
+    if ((Sha "$d6\lazycode.exe") -ne (Sha "$work\www\good\$asset")) { Fail 'curl | powershell install failed' }
+    Pass 'curl.exe | powershell -Command - installs'
     'PASS'
 }
 finally {

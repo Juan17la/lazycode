@@ -1,5 +1,6 @@
-# Installs LazyCode on Windows (64-bit Intel or AMD).
+# Installs LazyCode on Windows (64-bit Intel, AMD or ARM).
 #
+#   curl.exe -fsSL https://raw.githubusercontent.com/Juan17la/lazycode/main/install.ps1 | powershell -NoProfile -Command -
 #   irm https://raw.githubusercontent.com/Juan17la/lazycode/main/install.ps1 | iex
 #
 # It downloads one program from GitHub Releases, checks its SHA-256 against
@@ -20,7 +21,8 @@ function Install-LazyCode {
     $dir = if ($env:LAZYCODE_INSTALL_DIR) { $env:LAZYCODE_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'Programs\lazycode' }
 
     $cpu = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
-    if ($cpu -ne 'AMD64') { throw "Unsupported CPU: $cpu. LazyCode for Windows is built for 64-bit Intel and AMD only." }
+    # Windows 11 on ARM runs x64 programs, so ARM64 gets the same file.
+    if ($cpu -notin 'AMD64', 'ARM64') { throw "Unsupported CPU: $cpu. LazyCode for Windows needs a 64-bit Intel, AMD or ARM CPU." }
     $asset = 'lazycode_windows_amd64.exe'
 
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ([IO.Path]::GetRandomFileName())
