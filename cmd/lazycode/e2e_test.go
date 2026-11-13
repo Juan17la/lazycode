@@ -23,6 +23,9 @@ func TestMain(m *testing.M) {
 	if os.Getenv("LAZYCODE_E2E_TOOL") == "stream" {
 		streamLines()
 	}
+	if os.Getenv("LAZYCODE_E2E_TOOL") == "demo" {
+		demoAgent()
+	}
 	if os.Getenv("LAZYCODE_E2E_TOOL") != "" {
 		fmt.Println("tool ready")
 		in := bufio.NewScanner(os.Stdin)
