@@ -3,6 +3,7 @@ package trust
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -11,7 +12,11 @@ func TestTrust(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := filepath.Join(root, `odd "name"`)
+	name := `odd "name"`
+	if runtime.GOOS == "windows" {
+		name = "odd name" // Windows doesn't allow quotes in a name.
+	}
+	dir := filepath.Join(root, name)
 	inner := filepath.Join(dir, "inner")
 	if err := os.MkdirAll(inner, 0o755); err != nil {
 		t.Fatal(err)

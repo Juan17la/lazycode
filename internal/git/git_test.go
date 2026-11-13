@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -159,6 +160,9 @@ func TestStatusAwkwardNames(t *testing.T) {
 		}
 	}
 	// Stage only one of them: --literal-pathspecs must stop "*.glob" and ":(top)" meaning more.
+	if !slices.Contains(made, "*.glob") {
+		return // Windows doesn't allow that name.
+	}
 	if err := Stage(bg, dir, "*.glob"); err != nil {
 		t.Fatal(err)
 	}
@@ -472,7 +476,11 @@ func TestListFilesHonoursGitignore(t *testing.T) {
 	put(t, dir, "sub/deep.go", "x")
 	put(t, dir, "debug.log", "x")
 	put(t, dir, "build/out.o", "x")
-	put(t, dir, "sp ace\nnl.txt", "x")
+	awkward := "sp ace\nnl.txt"
+	if runtime.GOOS == "windows" {
+		awkward = "sp ace.txt" // Windows doesn't allow a line break in a name.
+	}
+	put(t, dir, awkward, "x")
 	files, err := ListFiles(bg, filepath.Join(dir, "sub"))
 	if err != nil || len(files) != 1 || files[0] != "deep.go" {
 		t.Fatalf("subdir listing: %v %v", files, err)
@@ -482,7 +490,7 @@ func TestListFilesHonoursGitignore(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := strings.Join(files, "|")
-	for _, want := range []string{".gitignore", "keep.go", "sub/deep.go", "sp ace\nnl.txt"} {
+	for _, want := range []string{".gitignore", "keep.go", "sub/deep.go", awkward} {
 		if !strings.Contains(got, want) {
 			t.Errorf("%q missing from %q", want, got)
 		}
