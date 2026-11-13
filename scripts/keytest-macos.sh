@@ -17,11 +17,16 @@ press() { osascript -e "tell application \"System Events\" to $1"; sleep 0.2; }
 
 osascript -e 'tell application "Terminal" to activate'
 sleep 1
+# The same keys as checks() in cmd/keytest/main.go, for macOS.
 press 'key code 42 using control down' # Ctrl+\
-for letter in a b c d f k n o p s v w x y z; do
+press 'key code 49 using control down' # Ctrl+Space
+for letter in a b c d f k n o p q r s v w x y z; do
 	press "keystroke \"$letter\" using control down"
 done
+press 'key code 122' # F1
 press 'key code 120' # F2
+press 'key code 99'  # F3
+press 'key code 109' # F10
 press 'key code 111' # F12
 press 'key code 53'  # Esc
 sleep 0.5
