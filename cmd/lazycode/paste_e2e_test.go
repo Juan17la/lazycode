@@ -19,7 +19,22 @@ func TestBigPasteIsQuick(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("ConPTY delivers pastes differently")
 	}
-	root, err := filepath.EvalSymlinks(t.TempDir())
+	tmp, err := os.MkdirTemp("", "bigpaste")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The terminal tab's shell outlives the app by a moment and writes its history into
+	// HOME, so a single RemoveAll can race it.
+	t.Cleanup(func() {
+		for range 50 {
+			if os.RemoveAll(tmp) == nil {
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		t.Errorf("couldn't remove %s", tmp)
+	})
+	root, err := filepath.EvalSymlinks(tmp)
 	if err != nil {
 		t.Fatal(err)
 	}
