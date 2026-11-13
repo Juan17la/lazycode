@@ -363,6 +363,7 @@ var specialKeys = map[tcell.Key]string{
 	tcell.KeyF1: "f1", tcell.KeyF2: "f2", tcell.KeyF3: "f3", tcell.KeyF4: "f4", tcell.KeyF5: "f5", tcell.KeyF6: "f6",
 	tcell.KeyF7: "f7", tcell.KeyF8: "f8", tcell.KeyF9: "f9", tcell.KeyF10: "f10", tcell.KeyF11: "f11", tcell.KeyF12: "f12",
 	tcell.KeyCtrlBackslash: `ctrl+\`, tcell.KeyCtrlSpace: Toggle,
+	tcell.Key(' '): Toggle, // Windows: Ctrl+Space with no character arrives as the space key's code.
 }
 
 var knownNames = func() map[string]bool {

@@ -242,7 +242,7 @@ func TestShortcutsMenuChangesAKey(t *testing.T) {
 	u.key(tcell.KeyEnter)
 	u.wait("Press the new key")
 	u.alt('j')
-	u.wait("Files is now Alt+J")
+	u.wait("Files is now " + prettyKey("alt+j", runtime.GOOS)) // Ctrl+K J on macOS.
 	if _, err := os.Stat(settingsFile(t, "keys.toml")); err != nil {
 		t.Error(err)
 	}

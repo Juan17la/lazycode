@@ -45,6 +45,7 @@ func TestNames(t *testing.T) {
 		{tcell.KeyRune, '|', tcell.ModCtrl, Reserved},
 		{tcell.KeyCtrlSpace, 0, tcell.ModCtrl, Toggle},
 		{tcell.KeyRune, ' ', tcell.ModCtrl, Toggle},
+		{tcell.Key(' '), 0, tcell.ModCtrl, Toggle},
 		{tcell.KeyRune, 'p', tcell.ModAlt, "alt+p"},
 	} {
 		if got := Name(tcell.NewEventKey(tc.key, tc.r, tc.mods)); got != tc.want {

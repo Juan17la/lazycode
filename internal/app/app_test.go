@@ -1459,6 +1459,9 @@ func TestEveryKeymapActionIsHandled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Windows can't delete the temporary folder while a file is mapped or a tool runs in it.
+	defer f.Close() //nolint:errcheck // Only unmaps.
+	defer a.closeAllTabs()
 	for _, action := range keymap.Actions() {
 		st := a.dir()
 		if st.focus.current() == nil {
